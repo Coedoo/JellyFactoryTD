@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Example</title>
+</head>
+<body id="body">
+    <canvas width="800" height="600" id="game_viewport" tabindex="1" oncontextmenu="return false;"></canvas>
+
+    <script type="text/javascript" src="audio.js"></script>
+    <script type="text/javascript" src="files.js"></script>
+    <script type="text/javascript" src="runtime.js"></script>
+    <script type="text/javascript">
+        const custom_console = {};
+        odin.runWasm("index.wasm", custom_console);
+    </script>
+
+</body>
+</html>

@@ -17,8 +17,6 @@ GameState :: struct {
     grid: []Tile,
     gridX, gridY: int,
 
-    camera: dm.Camera,
-
     spawnedBuildings: []Building,
 
     buildingSprites: [BuildingSprites]dm.Sprite,
@@ -26,6 +24,12 @@ GameState :: struct {
     selectedBuildingIdx: int,
 
     prevMousePos: v2,
+
+    /////////////
+    // Player character
+
+    playerSprite: dm.Sprite,
+    playerPosition: v2,
 }
 
 gameState: ^GameState
@@ -34,21 +38,23 @@ gameState: ^GameState
 
 @export
 PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
+    dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
+
     dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
     dm.RegisterAsset("tiles.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
 
-    dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("jelly.png", dm.TextureAssetDescriptor{})
 }
 
 @(export)
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
-    gameState.camera = dm.CreateCamera(4.8, 8./6.)
-
     buildingsTex := dm.GetTextureAsset("buildings.png")
     gameState.buildingSprites[.Solar1] = dm.CreateSprite(buildingsTex, dm.RectInt{0, 0, 32, 32})
+
+    gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("jelly.png"))
 
     LoadGrid()
 }
@@ -57,26 +63,21 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     gameState = cast(^GameState) state
 
-    // BuildingsWindow()
-
-    // Camera movement
-    pos := dm.ScreenToWorldSpace(
-            gameState.camera, 
-            dm.input.mousePos,
-            dm.renderCtx.frameSize
-        ).xy
-
-    if dm.GetMouseButton(.Right) == .Down {
-        delta := cast([2]f32) gameState.prevMousePos - pos
-        gameState.camera.position.xy += delta
+    // Move Player
+    moveVec := v2{
+        dm.GetAxis(.A, .D),
+        dm.GetAxis(.S, .W)
     }
 
-    gameState.prevMousePos = cast(v2) dm.ScreenToWorldSpace(
-            gameState.camera, 
-            dm.input.mousePos,
-            dm.renderCtx.frameSize
-        ).xy
+    if moveVec != {0, 0} {
+        moveVec = glsl.normalize(moveVec)
 
+        gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
+    }
+
+    // Camera Position
+
+    dm.renderCtx.camera.position.xy = cast([2]f32) gameState.playerPosition
 }
 
 @(export)
@@ -97,16 +98,17 @@ DrawGrid :: proc(size: iv2) {
 @(export)
 GameRender : dm.GameRender : proc(state: rawptr) {
     gameState = cast(^GameState) state
-
     dm.ClearColor({0.1, 0.1, 0.3, 1})
-    dm.SetCamera(gameState.camera)
+
+    // Level
 
     for tile, idx in gameState.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
     }
 
+    // Selected building
     if gameState.selectedBuildingIdx != 0 {
-        mousePos := dm.ScreenToWorldSpace(gameState.camera, dm.input.mousePos, dm.renderCtx.frameSize)
+        mousePos := dm.ScreenToWorldSpace(dm.renderCtx.camera, dm.input.mousePos, dm.renderCtx.frameSize)
 
         gridPos: iv2
         gridPos.x = i32(mousePos.x)
@@ -116,6 +118,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite := gameState.buildingSprites[building.sprite]
         dm.DrawSprite(sprite, dm.ToV2(gridPos))
     }
-}
 
-/////////////////
+    // Player
+    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+}

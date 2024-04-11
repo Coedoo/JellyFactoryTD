@@ -1,0 +1,15 @@
+Buildings:
+  ✔ Building definition @done (24-04-11 21:54)
+  ☐ Selecting building
+  ✔ Putting buildings on the map @done (24-04-11 21:54)
+  ☐ connecting buildings
+  ☐ destroing buildings
+
+
+Issues:
+  ☐ Tiles have pointers to buildings
+  ☐ Fix MUI for now...?
+
+Others:
+  ☐ Create sprites that are driven by rule sets. Mostly for wires
+  ☐ Cache buildings sprites (or create functions that use explicit parameters instead of Sprite struct)

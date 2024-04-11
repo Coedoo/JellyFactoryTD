@@ -15,13 +15,32 @@ BuildingSprites :: enum {
 
 Building :: struct {
     name: string,
-    sprite: BuildingSprites,
+    spriteName: string,
+    spriteRect: dm.RectInt,
+
+    size: iv2,
+}
+
+BuildingInstance :: struct {
+    using definition: Building,
+    gridPos: iv2,
 }
 
 
 Buildings := [?]Building {
     {
-        "Solar1", .Solar1
+        name = "Test 1",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1}
     },
 
+    {
+        name = "Test 2",
+        spriteName = "buildings.png",
+        spriteRect = {32, 0, 32, 32},
+
+        size = {2, 2}
+    },
 }

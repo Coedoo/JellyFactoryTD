@@ -14,16 +14,14 @@ iv2 :: dm.iv2
 
 
 GameState :: struct {
-    grid: []Tile,
-    gridX, gridY: int,
+    grid: []Tile `fmt:"-"`,
+    gridX, gridY: i32,
 
-    spawnedBuildings: []Building,
+    spawnedBuildings: [dynamic]BuildingInstance,
 
-    buildingSprites: [BuildingSprites]dm.Sprite,
+    // buildingSprites: [BuildingSprites]dm.Sprite,
 
     selectedBuildingIdx: int,
-
-    prevMousePos: v2,
 
     /////////////
     // Player character
@@ -35,6 +33,15 @@ GameState :: struct {
 gameState: ^GameState
 
 //////////////
+
+MousePosGrid :: proc() -> (gridPos: iv2) {
+    mousePos := dm.ScreenToWorldSpace(dm.input.mousePos)
+
+    gridPos.x = i32(mousePos.x)
+    gridPos.y = i32(mousePos.y)
+
+    return
+}
 
 @export
 PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
@@ -52,7 +59,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
     buildingsTex := dm.GetTextureAsset("buildings.png")
-    gameState.buildingSprites[.Solar1] = dm.CreateSprite(buildingsTex, dm.RectInt{0, 0, 32, 32})
 
     gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("jelly.png"))
 
@@ -76,8 +82,29 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // Camera Position
-
     dm.renderCtx.camera.position.xy = cast([2]f32) gameState.playerPosition
+
+    // Building
+    if gameState.selectedBuildingIdx != 0 &&
+       dm.GetMouseButton(.Left) == .JustPressed
+    {
+        pos := MousePosGrid()
+        TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
+    }
+
+    // temp UI
+    if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}, {}) {
+        for b, idx in Buildings {
+            if dm.muiButton(dm.mui, b.name) {
+                gameState.selectedBuildingIdx = idx + 1
+            }
+        }
+
+        dm.muiText(dm.mui, gameState)
+
+        dm.muiEndWindow(dm.mui)
+    }
+
 }
 
 @(export)
@@ -106,17 +133,30 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawSprite(tile.sprite, tile.worldPos)
     }
 
+    // Buildings
+    for building in gameState.spawnedBuildings {
+        // @TODO @CACHE
+        tex := dm.GetTextureAsset(building.spriteName)
+        sprite := dm.CreateSprite(tex, building.spriteRect)
+
+        dm.DrawSprite(sprite, dm.ToV2(building.gridPos) + dm.ToV2(building.size) / 2)
+    }
+
     // Selected building
     if gameState.selectedBuildingIdx != 0 {
-        mousePos := dm.ScreenToWorldSpace(dm.renderCtx.camera, dm.input.mousePos, dm.renderCtx.frameSize)
-
-        gridPos: iv2
-        gridPos.x = i32(mousePos.x)
-        gridPos.y = i32(mousePos.y)
+        gridPos := MousePosGrid()
 
         building := Buildings[gameState.selectedBuildingIdx - 1]
-        sprite := gameState.buildingSprites[building.sprite]
-        dm.DrawSprite(sprite, dm.ToV2(gridPos))
+
+        // @TODO @CACHE
+        tex := dm.GetTextureAsset(building.spriteName)
+        sprite := dm.CreateSprite(tex, building.spriteRect)
+
+        color := (CanBePlaced(building, gridPos) ?
+                 dm.GREEN : 
+                 dm.RED)
+
+        dm.DrawSprite(sprite, dm.ToV2(gridPos) + dm.ToV2(building.size) / 2, color = color)
     }
 
     // Player

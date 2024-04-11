@@ -254,7 +254,7 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
     ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
 
     for c in &commandBuffer.commands {
-        switch cmd in &c {
+        switch &cmd in c {
         case ClearColorCommand:
             deviceContext->ClearRenderTargetView(framebufferView, transmute(^[4]f32) &cmd.clearColor)
 

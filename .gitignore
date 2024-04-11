@@ -1,5 +1,6 @@
 build
 build_web
+local
 
 *.dll
 *.exe
@@ -11,6 +12,6 @@ build_web
 *.sublime-workspace
 *.sublime-project
 
-todo.tasks
+# todo.tasks
 examples/Maemi
 examples/scratch

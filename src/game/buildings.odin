@@ -9,9 +9,8 @@ import "core:slice"
 
 import "../ldtk"
 
-BuildingSprites :: enum {
-    Solar1,
-}
+BuildingHandle :: dm.Handle
+
 
 Building :: struct {
     name: string,
@@ -23,6 +22,7 @@ Building :: struct {
 
 BuildingInstance :: struct {
     using definition: Building,
+    handle: BuildingHandle,
     gridPos: iv2,
 }
 

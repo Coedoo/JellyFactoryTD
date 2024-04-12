@@ -17,7 +17,7 @@ GameState :: struct {
     grid: []Tile `fmt:"-"`,
     gridX, gridY: i32,
 
-    spawnedBuildings: [dynamic]BuildingInstance,
+    spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
 
     // buildingSprites: [BuildingSprites]dm.Sprite,
 
@@ -58,9 +58,9 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
-    buildingsTex := dm.GetTextureAsset("buildings.png")
-
     gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("jelly.png"))
+
+    dm.InitResourcePool(&gameState.spawnedBuildings, 128)
 
     LoadGrid()
 }
@@ -105,6 +105,18 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiEndWindow(dm.mui)
     }
 
+    if dm.GetMouseButton(.Right) == .JustPressed {
+        if gameState.selectedBuildingIdx != 0 {
+            gameState.selectedBuildingIdx = 0
+        }
+        else {
+            coord := MousePosGrid()
+            tile := GetTileAtCoord(coord)
+            if tile != nil {
+                RemoveBuilding(tile.building)
+            }
+        }
+    }
 }
 
 @(export)
@@ -134,7 +146,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Buildings
-    for building in gameState.spawnedBuildings {
+    for building in gameState.spawnedBuildings.elements {
         // @TODO @CACHE
         tex := dm.GetTextureAsset(building.spriteName)
         sprite := dm.CreateSprite(tex, building.spriteRect)

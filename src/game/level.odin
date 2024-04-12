@@ -13,7 +13,7 @@ Tile :: struct {
     worldPos: v2,
     sprite: dm.Sprite,
 
-    building: ^BuildingInstance,
+    building: BuildingHandle,
 }
 
 LoadGrid :: proc() {
@@ -73,7 +73,23 @@ CoordToIdx :: proc(coord: iv2) -> i32 {
 
 IsTileFree :: proc(coord: iv2) -> bool {
     idx := CoordToIdx(coord)
-    return gameState.grid[idx].building == nil
+    return gameState.grid[idx].building == {}
+}
+
+GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
+    x := i32(pos.x)
+    y := i32(pos.y)
+
+    return GetTileAtCoord({x, y})
+}
+
+GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
+    if IsInsideGrid(coord) {
+        idx := CoordToIdx(coord)
+        return &gameState.grid[idx]
+    }
+
+    return nil
 }
 
 ////////////////////
@@ -110,14 +126,39 @@ TryPlaceBuilding :: proc(buildingIdx: int, position: iv2) {
 
     // fmt.println(position)
 
-    append(&gameState.spawnedBuildings, toSpawn)
-    newIdx := len(gameState.spawnedBuildings) - 1
+    handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
 
     // TODO: check for outside grid coords
     for y in 0..<toSpawn.size.y {
         for x in 0..<toSpawn.size.x {
             idx := CoordToIdx(position + {x, y})
-            gameState.grid[idx].building = &gameState.spawnedBuildings[newIdx]
+            gameState.grid[idx].building = handle
         }
     }
+}
+
+
+RemoveBuilding :: proc(building: BuildingHandle) {
+    inst, ok := dm.GetElementPtr(gameState.spawnedBuildings, building)
+    if ok == false {
+        return
+    }
+
+    for y in 0..<inst.size.y {
+        for x in 0..<inst.size.x {
+            tile := GetTileAtCoord(inst.gridPos + {x, y})
+            tile.building = {}
+        }
+    }
+
+    dm.FreeSlot(gameState.spawnedBuildings, building)
+    inst.handle = {}
+    // for &b, i in gameState.spawnedBuildings.elements {
+    //     if &b == building {
+    //         unordered_remove(&gameState.spawnedBuildings, i)
+    //         fmt.println("Removing building at index", i)
+    //         break
+    //     }
+    // }
+
 }

@@ -21,6 +21,7 @@ GameState :: struct {
 
     // buildingSprites: [BuildingSprites]dm.Sprite,
 
+    buildingWire: bool,
     selectedBuildingIdx: int,
 
     /////////////
@@ -92,15 +93,45 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
     }
 
+    // Wire
+    if gameState.buildingWire {
+        if dm.GetMouseButton(.Left) == .JustPressed {
+            coord := MousePosGrid()
+            tile := GetTileAtCoord(coord)
+
+            if tile != nil {
+                tile.hasWire = !tile.hasWire
+            }
+        }
+    }
+
+    // Update Buildings
+    for &building in gameState.spawnedBuildings.elements {
+        if .ProduceEnergy in building.flags {
+            building.currentEnergy += building.energyProduction * f32(dm.time.deltaTime)
+            building.currentEnergy = min(building.currentEnergy, building.energyStorage)
+        }
+    }
+
     // temp UI
     if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}, {}) {
         for b, idx in Buildings {
             if dm.muiButton(dm.mui, b.name) {
                 gameState.selectedBuildingIdx = idx + 1
+                gameState.buildingWire = false
             }
         }
 
-        dm.muiText(dm.mui, gameState)
+        if dm.muiButton(dm.mui, "Wire") {
+            gameState.buildingWire = true
+            gameState.selectedBuildingIdx = 0
+        }
+
+        coord := MousePosGrid()
+        tile := GetTileAtCoord(coord)
+        dm.muiText(dm.mui, coord)
+        dm.muiText(dm.mui, tile)
+        dm.muiText(dm.mui, gameState.playerPosition)
 
         dm.muiEndWindow(dm.mui)
     }
@@ -108,6 +139,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     if dm.GetMouseButton(.Right) == .JustPressed {
         if gameState.selectedBuildingIdx != 0 {
             gameState.selectedBuildingIdx = 0
+            gameState.buildingWire = false
         }
         else {
             coord := MousePosGrid()
@@ -142,7 +174,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Level
 
     for tile, idx in gameState.grid {
-        dm.DrawSprite(tile.sprite, tile.worldPos)
+        tint := tile.hasWire ? dm.BLUE : dm.WHITE
+        dm.DrawSprite(tile.sprite, tile.worldPos, color = tint)
     }
 
     // Buildings
@@ -152,6 +185,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite := dm.CreateSprite(tex, building.spriteRect)
 
         dm.DrawSprite(sprite, dm.ToV2(building.gridPos) + dm.ToV2(building.size) / 2)
+
+        if building.energyStorage != 0 {
+            dm.DrawWorldRect(
+                dm.renderCtx.whiteTexture, 
+                dm.ToV2(building.gridPos) + {f32(building.size.y), 0},
+                {0.1, building.currentEnergy / building.energyStorage}
+            )
+        }
     }
 
     // Selected building

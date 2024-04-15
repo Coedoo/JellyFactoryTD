@@ -3,11 +3,17 @@ Buildings:
   ☐ Selecting building
   ✔ Putting buildings on the map @done (24-04-11 21:54)
   ☐ connecting buildings
-  ☐ destroing buildings
+    ✔ Specify building input and output @done (24-04-15 21:56)
+    ☐ Render input and outputs icon
+      ☐ (with small animation)
+    ☐ implement pathfinding algorithm to find connection (kinda overkill but I need it anyway)
+    ☐ Moving energy between buildings
+      ☐ With flow speed
+  ✔ destroying buildings @done (24-04-15 21:10)
 
 
 Issues:
-  ☐ Tiles have pointers to buildings
+  ✔ Tiles have pointers to buildings @done (24-04-15 21:10)
   ☐ Fix MUI for now...?
 
 Others:

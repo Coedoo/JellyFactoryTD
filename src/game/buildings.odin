@@ -11,29 +11,55 @@ import "../ldtk"
 
 BuildingHandle :: dm.Handle
 
+BuildingFlag :: enum {
+    ProduceEnergy,
+    RequireEnergy,
+}
+
+BuildignFlags :: distinct bit_set[BuildingFlag]
 
 Building :: struct {
     name: string,
     spriteName: string,
     spriteRect: dm.RectInt,
 
+    flags: BuildignFlags,
+
     size: iv2,
+
+    inputsPos: []iv2,
+    outputsPos: []iv2,
+
+    // Energy
+    energyStorage: f32,
+    energyProduction: f32,
 }
 
 BuildingInstance :: struct {
     using definition: Building,
     handle: BuildingHandle,
+
     gridPos: iv2,
+
+    // energy
+    currentEnergy: f32,
 }
 
 
 Buildings := [?]Building {
     {
-        name = "Test 1",
+        name = "Factory 1",
         spriteName = "buildings.png",
         spriteRect = {0, 0, 32, 32},
 
-        size = {1, 1}
+        size = {1, 1},
+
+        flags = {.ProduceEnergy},
+
+        energyStorage = 100,
+        energyProduction = 5,
+
+        outputsPos = {{1, 0}}
     },
 
     {

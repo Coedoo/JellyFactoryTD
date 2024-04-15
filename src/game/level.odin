@@ -14,6 +14,8 @@ Tile :: struct {
     sprite: dm.Sprite,
 
     building: BuildingHandle,
+
+    hasWire: bool,
 }
 
 LoadGrid :: proc() {
@@ -162,12 +164,4 @@ RemoveBuilding :: proc(building: BuildingHandle) {
 
     dm.FreeSlot(gameState.spawnedBuildings, building)
     inst.handle = {}
-    // for &b, i in gameState.spawnedBuildings.elements {
-    //     if &b == building {
-    //         unordered_remove(&gameState.spawnedBuildings, i)
-    //         fmt.println("Removing building at index", i)
-    //         break
-    //     }
-    // }
-
 }

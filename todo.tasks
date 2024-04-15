@@ -14,3 +14,4 @@ Others:
   ☐ Create sprites that are driven by rule sets. Mostly for wires
   ☐ Cache buildings sprites (or create functions that use explicit parameters instead of Sprite struct)
   ☐ Rewrite Pool implementation with two variants: dynamic and static
+  ☐ TileUnderCursor function

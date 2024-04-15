@@ -43,15 +43,24 @@ LoadGrid :: proc() {
                 gameState.grid = make([]Tile, len(tiles))
 
                 for tile, i in tiles {
-                    posX := f32(tile.px.x) / f32(layer.grid_size) + 0.5
-                    posY := f32(-tile.px.y + yOffset) / f32(layer.grid_size) - 0.5
+                    // posX := f32(tile.px.x) / f32(layer.grid_size) + 0.5
+                    // posY := f32(-tile.px.y + yOffset) / f32(layer.grid_size) - 0.5
 
                     sprite := dm.CreateSprite(
                         tilesHandle,
                         dm.RectInt{i32(tile.src.x), i32(tile.src.y), 32, 32}
                     )
 
-                    gameState.grid[i] = Tile {
+                    coord := tile.px / layer.grid_size
+                    // reverse the axis because LDTK Y axis goes down
+                    coord.y = int(gameState.gridY) - coord.y - 1
+
+                    idx := coord.y * int(gameState.gridX) + coord.x
+
+                    posX := f32(coord.x) + 0.5
+                    posY := f32(coord.y) + 0.5
+
+                    gameState.grid[idx] = Tile {
                         sprite = sprite,
                         worldPos = v2{posX, posY}
                     }

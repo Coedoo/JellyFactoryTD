@@ -26,7 +26,7 @@ if not "%only_game%"=="1" (
     odin build ..\src\platform_win32 %flags% -out:%exeName%.exe 
 )
 
-odin build ..\src\game -build-mode=dll -out="Game.dll"
+odin build ..\src\game -build-mode=dll -out="Game.dll" %flags%
 
 if "%run%" == "1" if %errorlevel% == 0 (
     %exeName%.exe

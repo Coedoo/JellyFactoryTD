@@ -16,33 +16,62 @@ Tile :: struct {
     building: BuildingHandle,
 
     hasWire: bool,
+
+    type: TileType,
 }
 
-LoadGrid :: proc() {
-    tilesHandle := dm.GetTextureAsset("tiles.png")
+Level  :: struct {
+    grid: []Tile,
+    sizeX, sizeY: i32,
+}
+
+// @NOTE: Must be the same values as LDTK
+// @TODO: can I import it as well
+TileType :: enum {
+    Walls = 1,
+    BuildArea = 2,
+    WalkArea = 3,
+}
+
+TileTypeColor := [TileType]dm.color {
+    .Walls =     {0.73, 0.21, 0.4, 0.5},
+    .BuildArea = ({0, 153, 219, 128} / 255.0),
+    .WalkArea = ({234, 212, 170, 128} / 255.0),
+}
+
+/////
+
+LoadLevels :: proc() -> (levels: []Level) {
+    tilesHandle := dm.GetTextureAsset("kenney_tilemap.png")
     // levelAsset := LevelAsset
 
-    level := dm.GetAssetData("level1.ldtk")
-    project, ok := ldtk.load_from_memory(level.fileData).?
+    ldtkFile := dm.GetAssetData("level1.ldtk")
+    project, ok := ldtk.load_from_memory(ldtkFile.fileData).?
 
     if ok == false {
         fmt.eprintln("Failed to load level file")
         return
     }
 
-    for level in project.levels {
-        levelPxSize := iv2{i32(level.px_width), i32(level.px_height)}
-        levelSize := dm.ToV2(levelPxSize) / 32
+    levels = make([]Level, len(project.levels))
 
-        gameState.gridX = i32(levelSize.x)
-        gameState.gridY = i32(levelSize.y)
+    // @TODO: it's kinda error prone
+    PixelsPerTile :: 16
 
-        for layer in level.layer_instances {
+    for loadedLevel, i in project.levels {
+        levelPxSize := iv2{i32(loadedLevel.px_width), i32(loadedLevel.px_height)}
+        levelSize := dm.ToV2(levelPxSize) / PixelsPerTile
+
+        level := &levels[i]
+        level.sizeX = i32(levelSize.x)
+        level.sizeY = i32(levelSize.y)
+
+        for layer in loadedLevel.layer_instances {
             yOffset := layer.c_height * layer.grid_size
 
             if layer.identifier == "Base" {
                 tiles := layer.type == .Tiles ? layer.grid_tiles : layer.auto_layer_tiles
-                gameState.grid = make([]Tile, len(tiles))
+                level.grid = make([]Tile, len(tiles))
 
                 for tile, i in tiles {
                     // posX := f32(tile.px.x) / f32(layer.grid_size) + 0.5
@@ -50,41 +79,57 @@ LoadGrid :: proc() {
 
                     sprite := dm.CreateSprite(
                         tilesHandle,
-                        dm.RectInt{i32(tile.src.x), i32(tile.src.y), 32, 32}
+                        dm.RectInt{i32(tile.src.x), i32(tile.src.y), PixelsPerTile, PixelsPerTile}
                     )
 
                     coord := tile.px / layer.grid_size
                     // reverse the axis because LDTK Y axis goes down
-                    coord.y = int(gameState.gridY) - coord.y - 1
+                    coord.y = int(level.sizeY) - coord.y - 1
 
-                    idx := coord.y * int(gameState.gridX) + coord.x
+                    idx := coord.y * int(level.sizeX) + coord.x
 
                     posX := f32(coord.x) + 0.5
                     posY := f32(coord.y) + 0.5
 
-                    gameState.grid[idx] = Tile {
+                    level.grid[idx] = Tile {
                         sprite = sprite,
                         worldPos = v2{posX, posY}
                     }
                 }
             }
+
+            if layer.identifier == "TileTypes" {
+                for type, i in layer.int_grid_csv {
+                    coord := iv2{
+                        i32(i) % level.sizeX,
+                        i32(i) / level.sizeX,
+                    }
+
+                    coord.y = level.sizeY - coord.y - 1
+                    idx := coord.y * level.sizeX + coord.x
+
+                    level.grid[idx].type = cast(TileType) type
+                }
+            }
         }
     }
+
+    return
 }
 
 IsInsideGrid :: proc(coord: iv2) -> bool {
-    return coord.x >= 0 && coord.x < gameState.gridX &&
-           coord.y >= 0 && coord.y < gameState.gridY
+    return coord.x >= 0 && coord.x < gameState.level.sizeX &&
+           coord.y >= 0 && coord.y < gameState.level.sizeY
 }
 
 CoordToIdx :: proc(coord: iv2) -> i32 {
     assert(IsInsideGrid(coord))
-    return coord.y * gameState.gridX + coord.x
+    return coord.y * gameState.level.sizeX + coord.x
 }
 
 IsTileFree :: proc(coord: iv2) -> bool {
     idx := CoordToIdx(coord)
-    return gameState.grid[idx].building == {}
+    return gameState.level.grid[idx].building == {}
 }
 
 GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
@@ -97,7 +142,7 @@ GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
 GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
     if IsInsideGrid(coord) {
         idx := CoordToIdx(coord)
-        return &gameState.grid[idx]
+        return &gameState.level.grid[idx]
     }
 
     return nil
@@ -143,7 +188,7 @@ TryPlaceBuilding :: proc(buildingIdx: int, position: iv2) {
     for y in 0..<toSpawn.size.y {
         for x in 0..<toSpawn.size.x {
             idx := CoordToIdx(position + {x, y})
-            gameState.grid[idx].building = handle
+            gameState.level.grid[idx].building = handle
         }
     }
 }

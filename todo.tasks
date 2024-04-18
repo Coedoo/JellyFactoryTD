@@ -1,3 +1,12 @@
+Level:
+  ✔ Specify walls, building area and enemy walk area @done (24-04-18 21:21)
+  ☐ LDTK Import:
+    ☐ Enemy start and end position
+    ☐ Player start position
+    ☐ start buildigns (are they even needed?)
+    ☐ figure out how to get Level size in tiles
+
+
 Buildings:
   ✔ Building definition @done (24-04-11 21:54)
   ☐ Selecting building

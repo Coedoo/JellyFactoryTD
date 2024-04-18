@@ -14,8 +14,11 @@ iv2 :: dm.iv2
 
 
 GameState :: struct {
-    grid: []Tile `fmt:"-"`,
-    gridX, gridY: i32,
+    // grid: []Tile `fmt:"-"`,
+    // gridX, gridY: i32,
+
+    levels: []Level,
+    level: Level, // currentLevel
 
     spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
 
@@ -49,7 +52,7 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
-    dm.RegisterAsset("tiles.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("jelly.png", dm.TextureAssetDescriptor{})
@@ -63,7 +66,10 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
 
-    LoadGrid()
+    gameState.levels = LoadLevels()
+    if len(gameState.levels) > 0 {
+        gameState.level = gameState.levels[0]
+    }
 }
 
 @(export)
@@ -154,6 +160,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 @(export)
 GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr, debug: bool) {
     gameState = cast(^GameState) state
+
+    if dm.muiBeginWindow(dm.mui, "Debug", {10, 200, 150, 100}, {}) {
+        dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
+
+        dm.muiEndWindow(dm.mui)
+    }
 }
 
 DrawGrid :: proc(size: iv2) {
@@ -173,9 +185,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Level
 
-    for tile, idx in gameState.grid {
+    for tile, idx in gameState.level.grid {
         tint := tile.hasWire ? dm.BLUE : dm.WHITE
         dm.DrawSprite(tile.sprite, tile.worldPos, color = tint)
+
+        if(DEBUG_TILE_OVERLAY) {
+            dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
+        }
     }
 
     // Buildings

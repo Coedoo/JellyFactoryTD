@@ -88,8 +88,27 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
     }
 
-    // Camera Position
-    dm.renderCtx.camera.position.xy = cast([2]f32) gameState.playerPosition
+    // Camera Control
+    camAspect := dm.renderCtx.camera.aspect
+    camHeight := dm.renderCtx.camera.orthoSize
+    camWidth  := camAspect * camHeight
+
+    camPos := gameState.playerPosition
+    camPos.x = clamp(camPos.x, camWidth,  f32(gameState.level.sizeX) - camWidth)
+    camPos.y = clamp(camPos.y, camHeight, f32(gameState.level.sizeY) - camHeight)
+
+    dm.renderCtx.camera.position.xy = cast([2]f32) camPos
+
+    camHeight = camHeight - f32(dm.input.scroll) * 0.3
+    camWidth = camAspect * camHeight
+
+    camHeight = clamp(camHeight, 1, f32(gameState.level.sizeY) / 2)
+    camWidth = clamp(camWidth, 1, f32(gameState.level.sizeX) / 2)
+
+    camSize := min(camHeight, camWidth / camAspect)
+
+
+    dm.renderCtx.camera.orthoSize = camSize
 
     // Building
     if gameState.selectedBuildingIdx != 0 &&

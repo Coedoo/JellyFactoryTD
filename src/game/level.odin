@@ -154,8 +154,13 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
     for y in 0..<building.size.y {
         for x in 0..<building.size.x {
             pos := coord + {x, y}
-            
+
             if IsInsideGrid(pos) == false {
+                return false
+            }
+
+            tile := GetTileAtCoord(pos)
+            if tile.type != .BuildArea {
                 return false
             }
 

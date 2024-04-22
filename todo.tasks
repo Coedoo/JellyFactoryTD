@@ -1,7 +1,7 @@
 Level:
   ✔ Specify walls, building area and enemy walk area @done (24-04-18 21:21)
   ☐ LDTK Import:
-    ☐ Enemy start and end position
+    ✔ Enemy start and end position @done (24-04-21 17:39)
     ☐ Player start position
     ☐ start buildigns (are they even needed?)
     ☐ figure out how to get Level size in tiles
@@ -27,6 +27,7 @@ Issues:
 
 Others:
   ☐ Create sprites that are driven by rule sets. Mostly for wires
+  ☐ Debug view where camera is unrestrited and better tiles visualisation
   ☐ Cache buildings sprites (or create functions that use explicit parameters instead of Sprite struct)
   ☐ Rewrite Pool implementation with two variants: dynamic and static
   ☐ TileUnderCursor function

@@ -32,6 +32,8 @@ GameState :: struct {
 
     playerSprite: dm.Sprite,
     playerPosition: v2,
+
+    path: []iv2
 }
 
 gameState: ^GameState
@@ -70,6 +72,11 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     if len(gameState.levels) > 0 {
         gameState.level = gameState.levels[0]
     }
+
+    gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
+
+    gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
+    fmt.println(gameState.path)
 }
 
 @(export)
@@ -84,7 +91,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
     if moveVec != {0, 0} {
         moveVec = glsl.normalize(moveVec)
-
         gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
     }
 
@@ -93,22 +99,24 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     camHeight := dm.renderCtx.camera.orthoSize
     camWidth  := camAspect * camHeight
 
-    camPos := gameState.playerPosition
-    camPos.x = clamp(camPos.x, camWidth,  f32(gameState.level.sizeX) - camWidth)
-    camPos.y = clamp(camPos.y, camHeight, f32(gameState.level.sizeY) - camHeight)
-
-    dm.renderCtx.camera.position.xy = cast([2]f32) camPos
+    levelSize := v2{
+        f32(gameState.level.sizeX - 1), // -1 to account for level edge
+        f32(gameState.level.sizeY - 1),
+    }
 
     camHeight = camHeight - f32(dm.input.scroll) * 0.3
     camWidth = camAspect * camHeight
 
-    camHeight = clamp(camHeight, 1, f32(gameState.level.sizeY) / 2)
-    camWidth = clamp(camWidth, 1, f32(gameState.level.sizeX) / 2)
+    camHeight = clamp(camHeight, 1, levelSize.x / 2)
+    camWidth  = clamp(camWidth,  1, levelSize.y / 2)
 
     camSize := min(camHeight, camWidth / camAspect)
-
-
     dm.renderCtx.camera.orthoSize = camSize
+
+    camPos := gameState.playerPosition
+    camPos.x = clamp(camPos.x, camWidth + 1,  levelSize.x - camWidth)
+    camPos.y = clamp(camPos.y, camHeight + 1, levelSize.y - camHeight)
+    dm.renderCtx.camera.position.xy = cast([2]f32) camPos
 
     // Building
     if gameState.selectedBuildingIdx != 0 &&
@@ -126,6 +134,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
             if tile != nil {
                 tile.hasWire = !tile.hasWire
+                gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
+                
             }
         }
     }
@@ -152,11 +162,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.selectedBuildingIdx = 0
         }
 
-        coord := MousePosGrid()
-        tile := GetTileAtCoord(coord)
-        dm.muiText(dm.mui, coord)
-        dm.muiText(dm.mui, tile)
-        dm.muiText(dm.mui, gameState.playerPosition)
+        // coord := MousePosGrid()
+        // tile := GetTileAtCoord(coord)
+        // dm.muiText(dm.mui, coord)
+        // dm.muiText(dm.mui, tile)
+        // dm.muiText(dm.mui, gameState.playerPosition)
+
+        dm.muiText(dm.mui, gameState.level.startCoord)
+        dm.muiText(dm.mui, gameState.level.endCoord)
 
         dm.muiEndWindow(dm.mui)
     }
@@ -249,4 +262,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+
+    for i := 0; i < len(gameState.path) - 1; i += 1 {
+        a := gameState.path[i]
+        b := gameState.path[i + 1]
+
+        dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.GREEN)
+    }
 }

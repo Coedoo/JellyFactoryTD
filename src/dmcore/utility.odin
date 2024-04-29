@@ -97,3 +97,16 @@ CosRange :: proc(a, b:f32, rad: f32) -> f32 {
     s := math.cos(rad) * 0.5 + 0.5
     return a + (b - a) * s
 }
+
+MoveTowards :: proc(current, target: v2, maxDist: f32) -> (v2, f32)
+{
+    delta := target - current
+    magnitude := glsl.length(delta)
+    if magnitude <= maxDist || magnitude == 0 {
+        return target, magnitude - maxDist
+    }
+
+    point := current + delta / magnitude * maxDist
+
+    return point, 0
+}

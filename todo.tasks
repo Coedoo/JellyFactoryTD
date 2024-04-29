@@ -1,3 +1,6 @@
+Enemies:
+  ✔ Movement on path @done (24-04-29 23:05)
+
 Level:
   ✔ Specify walls, building area and enemy walk area @done (24-04-18 21:21)
   ☐ LDTK Import:
@@ -6,6 +9,11 @@ Level:
     ☐ start buildigns (are they even needed?)
     ☐ figure out how to get Level size in tiles
 
+Pathfinding:
+  ☐ add weight to tiles next to walls so enemies use more natural path
+  ☐ remove ability to more diagonally between walls somehow
+  ☐ check if I can simplify path and move outside grid. (Do I even want that?)
+  ☐ check if I can remove dynamic array from recreating a path
 
 Buildings:
   ✔ Building definition @done (24-04-11 21:54)

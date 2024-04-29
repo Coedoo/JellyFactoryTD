@@ -21,6 +21,7 @@ GameState :: struct {
     level: Level, // currentLevel
 
     spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
+    enemies: dm.ResourcePool(Enemy, EnemyHandle),
 
     // buildingSprites: [BuildingSprites]dm.Sprite,
 
@@ -67,6 +68,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("jelly.png"))
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
+    dm.InitResourcePool(&gameState.enemies, 128)
 
     gameState.levels = LoadLevels()
     if len(gameState.levels) > 0 {
@@ -77,6 +79,10 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
     fmt.println(gameState.path)
+
+    enemy := dm.CreateElement(gameState.enemies)
+    enemy.speed = 5
+    enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
 }
 
 @(export)
@@ -147,6 +153,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             building.currentEnergy = min(building.currentEnergy, building.energyStorage)
         }
     }
+
+    // Update Enemies 
+    for &enemy, i in gameState.enemies.elements {
+        if gameState.enemies.slots[i].inUse {
+            UpdateEnemy(&enemy)
+        }
+    }
+
 
     // temp UI
     if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}, {}) {
@@ -262,6 +276,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+
+    for &enemy, i in gameState.enemies.elements {
+        if gameState.enemies.slots[i].inUse {
+            dm.DrawBlankSprite(enemy.position, {1, 1})
+        }
+    }
 
     for i := 0; i < len(gameState.path) - 1; i += 1 {
         a := gameState.path[i]

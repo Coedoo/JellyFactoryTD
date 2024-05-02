@@ -213,26 +213,27 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
     return true
 }
 
-TryPlaceBuilding :: proc(buildingIdx: int, position: iv2) {
+TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     building := Buildings[buildingIdx]
 
-    if CanBePlaced(building, position) == false {
+    if CanBePlaced(building, gridPos) == false {
         return
     }
 
     toSpawn := BuildingInstance {
         definition = building,
-        gridPos = position,
+        gridPos = gridPos,
+        position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
     }
 
-    // fmt.println(position)
+    // fmt.println(gridPos)
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
 
     // TODO: check for outside grid coords
     for y in 0..<toSpawn.size.y {
         for x in 0..<toSpawn.size.x {
-            idx := CoordToIdx(position + {x, y})
+            idx := CoordToIdx(gridPos + {x, y})
             gameState.level.grid[idx].building = handle
         }
     }

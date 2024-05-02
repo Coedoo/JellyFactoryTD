@@ -17,6 +17,9 @@ Enemy :: struct {
 
     position: v2,
     pathPointIdx: int,
+
+    maxHealth: f32,
+    health: f32,
 }
 
 UpdateEnemy :: proc(enemy: ^Enemy) {
@@ -43,4 +46,24 @@ UpdateEnemy :: proc(enemy: ^Enemy) {
     }
 
     enemy.position = pos
+}
+
+FindClosestEnemy :: proc(pos: v2, radius: f32) -> (handle: EnemyHandle) {
+    if len(gameState.enemies.elements) == 0 {
+        return
+    }
+
+    handle = gameState.enemies.elements[0].handle
+    closestDist := max(f32)
+
+
+    for e in gameState.enemies.elements {
+        dist := glsl.distance(pos, e.position)
+        if dist < radius && dist < closestDist {
+            handle = e.handle
+            closestDist = dist
+        }
+    }
+
+    return
 }

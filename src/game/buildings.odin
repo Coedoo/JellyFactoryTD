@@ -14,6 +14,7 @@ BuildingHandle :: dm.Handle
 BuildingFlag :: enum {
     ProduceEnergy,
     RequireEnergy,
+    Attack,
 }
 
 BuildignFlags :: distinct bit_set[BuildingFlag]
@@ -33,6 +34,11 @@ Building :: struct {
     // Energy
     energyStorage: f32,
     energyProduction: f32,
+
+    // Attack
+    range: f32,
+    energyRequired: f32,
+    reloadTime: f32,
 }
 
 BuildingInstance :: struct {
@@ -40,9 +46,13 @@ BuildingInstance :: struct {
     handle: BuildingHandle,
 
     gridPos: iv2,
+    position: v2,
 
     // energy
     currentEnergy: f32,
+
+    // attack
+    attackTimer: f32,
 }
 
 
@@ -67,6 +77,15 @@ Buildings := [?]Building {
         spriteName = "buildings.png",
         spriteRect = {32, 0, 32, 32},
 
-        size = {2, 2}
+        size = {1, 1},
+
+        flags = {.Attack, .ProduceEnergy},
+
+        energyStorage = 100,
+        energyProduction = 5,
+
+        range = 3,
+        energyRequired = 10,
+        reloadTime = 0.2,
     },
 }

@@ -83,6 +83,9 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     enemy := dm.CreateElement(gameState.enemies)
     enemy.speed = 5
     enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
+
+    enemy.maxHealth = 100
+    enemy.health = enemy.maxHealth
 }
 
 @(export)
@@ -124,33 +127,35 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     camPos.y = clamp(camPos.y, camHeight + 1, levelSize.y - camHeight)
     dm.renderCtx.camera.position.xy = cast([2]f32) camPos
 
-    // Building
-    if gameState.selectedBuildingIdx != 0 &&
-       dm.GetMouseButton(.Left) == .JustPressed
-    {
-        pos := MousePosGrid()
-        TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
-    }
-
-    // Wire
-    if gameState.buildingWire {
-        if dm.GetMouseButton(.Left) == .JustPressed {
-            coord := MousePosGrid()
-            tile := GetTileAtCoord(coord)
-
-            if tile != nil {
-                tile.hasWire = !tile.hasWire
-                gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
-                
-            }
-        }
-    }
-
     // Update Buildings
     for &building in gameState.spawnedBuildings.elements {
         if .ProduceEnergy in building.flags {
             building.currentEnergy += building.energyProduction * f32(dm.time.deltaTime)
             building.currentEnergy = min(building.currentEnergy, building.energyStorage)
+        }
+
+        if .Attack in building.flags {
+            building.attackTimer -= f32(dm.time.deltaTime)
+
+            handle := FindClosestEnemy(building.position, building.range)
+            if handle != {} && 
+               building.currentEnergy >= building.energyRequired &&
+               building.attackTimer <= 0
+            {
+                enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
+                if ok == false {
+                    continue
+                }
+
+                building.attackTimer = building.reloadTime
+
+                building.currentEnergy = 0
+                enemy.health -= 10
+
+                if enemy.health <= 0 {
+                    dm.FreeSlot(gameState.enemies, handle)
+                }
+            }
         }
     }
 
@@ -186,6 +191,28 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiText(dm.mui, gameState.level.endCoord)
 
         dm.muiEndWindow(dm.mui)
+    }
+
+    // Building
+    if gameState.selectedBuildingIdx != 0 &&
+       dm.GetMouseButton(.Left) == .JustPressed
+    {
+        pos := MousePosGrid()
+        TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
+    }
+
+    // Wire
+    if gameState.buildingWire {
+        if dm.GetMouseButton(.Left) == .JustPressed {
+            coord := MousePosGrid()
+            tile := GetTileAtCoord(coord)
+
+            if tile != nil {
+                tile.hasWire = !tile.hasWire
+                gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
+                
+            }
+        }
     }
 
     if dm.GetMouseButton(.Right) == .JustPressed {
@@ -246,7 +273,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         tex := dm.GetTextureAsset(building.spriteName)
         sprite := dm.CreateSprite(tex, building.spriteRect)
 
-        dm.DrawSprite(sprite, dm.ToV2(building.gridPos) + dm.ToV2(building.size) / 2)
+        pos := building.position
+        dm.DrawSprite(sprite, pos)
 
         if building.energyStorage != 0 {
             dm.DrawWorldRect(
@@ -254,6 +282,10 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 dm.ToV2(building.gridPos) + {f32(building.size.y), 0},
                 {0.1, building.currentEnergy / building.energyStorage}
             )
+        }
+
+        if .Attack in building.flags {
+            dm.DrawCircle(dm.renderCtx, pos, building.range, false)
         }
     }
 
@@ -277,9 +309,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
+    // Enemy
     for &enemy, i in gameState.enemies.elements {
         if gameState.enemies.slots[i].inUse {
-            dm.DrawBlankSprite(enemy.position, {1, 1})
+            color := math.lerp(dm.RED, dm.GREEN, enemy.health / enemy.maxHealth)
+            dm.DrawBlankSprite(enemy.position, {1, 1}, color = color)
         }
     }
 

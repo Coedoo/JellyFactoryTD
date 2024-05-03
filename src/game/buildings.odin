@@ -69,17 +69,17 @@ Buildings := [?]Building {
         energyStorage = 100,
         energyProduction = 5,
 
-        outputsPos = {{1, 0}}
+        outputsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
     },
 
     {
-        name = "Test 2",
+        name = "Turret 1",
         spriteName = "buildings.png",
         spriteRect = {32, 0, 32, 32},
 
         size = {1, 1},
 
-        flags = {.Attack, .ProduceEnergy},
+        flags = {.Attack},
 
         energyStorage = 100,
         energyProduction = 5,
@@ -87,5 +87,8 @@ Buildings := [?]Building {
         range = 3,
         energyRequired = 10,
         reloadTime = 0.2,
+
+        inputsPos = {{1, 0}}
+
     },
 }

@@ -1,5 +1,6 @@
 Enemies:
   ✔ Movement on path @done (24-04-29 23:05)
+  ✔ Health @done (24-05-02 23:10)
 
 Level:
   ✔ Specify walls, building area and enemy walk area @done (24-04-18 21:21)
@@ -17,7 +18,7 @@ Pathfinding:
 
 Buildings:
   ✔ Building definition @done (24-04-11 21:54)
-  ☐ Selecting building
+  ✔ Selecting building @done (24-05-02 23:09)
   ✔ Putting buildings on the map @done (24-04-11 21:54)
   ☐ connecting buildings
     ✔ Specify building input and output @done (24-04-15 21:56)
@@ -31,7 +32,9 @@ Buildings:
 
 Issues:
   ✔ Tiles have pointers to buildings @done (24-04-15 21:10)
-  ☐ Fix MUI for now...?
+  ✔ Fix MUI for now...? @done (24-05-02 22:48)
+  ☐ spawned buildings names break after hot reload
+
 
 Others:
   ☐ Create sprites that are driven by rule sets. Mostly for wires
@@ -39,3 +42,4 @@ Others:
   ☐ Cache buildings sprites (or create functions that use explicit parameters instead of Sprite struct)
   ☐ Rewrite Pool implementation with two variants: dynamic and static
   ☐ TileUnderCursor function
+  ☐ Check if cursor is under UI and don't do game actions

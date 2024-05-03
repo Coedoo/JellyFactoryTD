@@ -34,7 +34,12 @@ GameState :: struct {
     playerSprite: dm.Sprite,
     playerPosition: v2,
 
-    path: []iv2
+    path: []iv2,
+
+    ///
+    arrowSprite: dm.Sprite,
+
+    selectedBuilding: BuildingHandle,
 }
 
 gameState: ^GameState
@@ -78,7 +83,10 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
 
     gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
-    fmt.println(gameState.path)
+    // fmt.println(gameState.path)
+
+    gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
+    gameState.arrowSprite.scale = 0.4
 
     enemy := dm.CreateElement(gameState.enemies)
     enemy.speed = 5
@@ -86,6 +94,23 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     enemy.maxHealth = 100
     enemy.health = enemy.maxHealth
+
+    // Test level
+    TryPlaceBuilding(1, {15, 20})
+    TryPlaceBuilding(0, {20, 18})
+
+    GetTileAtCoord({16, 20}).hasWire = true
+    GetTileAtCoord({17, 20}).hasWire = true
+    GetTileAtCoord({18, 20}).hasWire = true
+    GetTileAtCoord({19, 20}).hasWire = true
+    GetTileAtCoord({20, 20}).hasWire = true
+    GetTileAtCoord({20, 19}).hasWire = true
+
+
+    TryPlaceBuilding(1, {15, 17})
+    TryPlaceBuilding(0, {18, 17})
+
+
 }
 
 @(export)
@@ -181,15 +206,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.selectedBuildingIdx = 0
         }
 
-        // coord := MousePosGrid()
-        // tile := GetTileAtCoord(coord)
-        // dm.muiText(dm.mui, coord)
-        // dm.muiText(dm.mui, tile)
-        // dm.muiText(dm.mui, gameState.playerPosition)
-
-        dm.muiText(dm.mui, gameState.level.startCoord)
-        dm.muiText(dm.mui, gameState.level.endCoord)
-
         dm.muiEndWindow(dm.mui)
     }
 
@@ -199,6 +215,21 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     {
         pos := MousePosGrid()
         TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
+    }
+
+
+    if dm.GetMouseButton(.Right) == .JustPressed {
+        if gameState.selectedBuildingIdx != 0 {
+            gameState.selectedBuildingIdx = 0
+            gameState.buildingWire = false
+        }
+        else {
+            coord := MousePosGrid()
+            tile := GetTileAtCoord(coord)
+            if tile != nil {
+                RemoveBuilding(tile.building)
+            }
+        }
     }
 
     // Wire
@@ -215,16 +246,25 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
-    if dm.GetMouseButton(.Right) == .JustPressed {
-        if gameState.selectedBuildingIdx != 0 {
-            gameState.selectedBuildingIdx = 0
-            gameState.buildingWire = false
-        }
-        else {
+    // Highlight Building 
+    if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 {
+        if dm.GetMouseButton(.Left) == .JustPressed {
             coord := MousePosGrid()
             tile := GetTileAtCoord(coord)
-            if tile != nil {
-                RemoveBuilding(tile.building)
+
+            gameState.selectedBuilding = tile.building
+        }
+    }
+
+    if gameState.selectedBuilding != {} {
+        building, ok := dm.GetElementPtr(gameState.spawnedBuildings, gameState.selectedBuilding)
+        if ok {
+            if dm.muiBeginWindow(dm.mui, "Selected Building", {700, 10, 100, 150}) {
+                dm.muiLabel(dm.mui, "Building:", building.name)
+                dm.muiLabel(dm.mui, "Pos:", building.gridPos)
+                dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", building.energyStorage)
+
+                dm.muiEndWindow(dm.mui)
             }
         }
     }
@@ -234,20 +274,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr, debug: bool) {
     gameState = cast(^GameState) state
 
-    if dm.muiBeginWindow(dm.mui, "Debug", {10, 200, 150, 100}, {}) {
-        dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
+    if debug {
+        if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}, {}) {
+            dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
 
-        dm.muiEndWindow(dm.mui)
-    }
-}
-
-DrawGrid :: proc(size: iv2) {
-    for x in 0..<size.x {
-        dm.DrawBlankSprite(v2{f32(x) - f32(size.x / 2), 0}, {0.02, 100}, color = dm.BLACK)
-    }
-
-    for y in 0..<size.y {
-        dm.DrawBlankSprite(v2{0, f32(y) - f32(size.y / 2)}, {100, 0.02}, color = dm.BLACK)
+            dm.muiEndWindow(dm.mui)
+        }
     }
 }
 
@@ -286,6 +318,20 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
         if .Attack in building.flags {
             dm.DrawCircle(dm.renderCtx, pos, building.range, false)
+        }
+
+        for out in building.outputsPos {
+            pos := building.position + dm.ToV2(out) * 0.6
+
+            rot := math.atan2(f32(out.y), f32(out.x))
+            dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
+        }
+
+        for input in building.inputsPos {
+            pos := building.position + dm.ToV2(input) * 0.6
+
+            rot := math.atan2(f32(input.y), f32(input.x)) + math.to_radians(f32(180))
+            dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
         }
     }
 

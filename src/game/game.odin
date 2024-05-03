@@ -14,16 +14,11 @@ iv2 :: dm.iv2
 
 
 GameState :: struct {
-    // grid: []Tile `fmt:"-"`,
-    // gridX, gridY: i32,
-
     levels: []Level,
     level: Level, // currentLevel
 
     spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
     enemies: dm.ResourcePool(Enemy, EnemyHandle),
-
-    // buildingSprites: [BuildingSprites]dm.Sprite,
 
     buildingWire: bool,
     selectedBuildingIdx: int,
@@ -99,18 +94,18 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     TryPlaceBuilding(1, {15, 20})
     TryPlaceBuilding(0, {20, 18})
 
-    GetTileAtCoord({16, 20}).hasWire = true
-    GetTileAtCoord({17, 20}).hasWire = true
-    GetTileAtCoord({18, 20}).hasWire = true
-    GetTileAtCoord({19, 20}).hasWire = true
-    GetTileAtCoord({20, 20}).hasWire = true
-    GetTileAtCoord({20, 19}).hasWire = true
+    GetTileAtCoord({16, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({17, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({18, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({19, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({20, 20}).wireDir = {.West, .South}
+    GetTileAtCoord({20, 19}).wireDir = {.North, .South}
 
 
     TryPlaceBuilding(1, {15, 17})
     TryPlaceBuilding(0, {18, 17})
 
-
+    CheckBuildingConnection({18, 20})
 }
 
 @(export)
@@ -238,13 +233,15 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             coord := MousePosGrid()
             tile := GetTileAtCoord(coord)
 
-            if tile != nil {
-                tile.hasWire = !tile.hasWire
-                gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
+            // if tile != nil {
+            //     tile.hasWire = !tile.hasWire
+            //     gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
                 
-            }
+            // }
         }
     }
+
+    // dm.test_window(dm.mui)
 
     // Highlight Building 
     if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 {
@@ -259,10 +256,17 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     if gameState.selectedBuilding != {} {
         building, ok := dm.GetElementPtr(gameState.spawnedBuildings, gameState.selectedBuilding)
         if ok {
-            if dm.muiBeginWindow(dm.mui, "Selected Building", {700, 10, 100, 150}) {
-                dm.muiLabel(dm.mui, "Building:", building.name)
+            if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
+                dm.muiLabel(dm.mui, "Name:", building.name)
+                dm.muiLabel(dm.mui, "Handle:", building.handle)
                 dm.muiLabel(dm.mui, "Pos:", building.gridPos)
                 dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", building.energyStorage)
+
+                if dm.muiHeader(dm.mui, "Connected Buildings") {
+                    for b in building.connectedBuildings {
+                        dm.muiLabel(dm.mui, b)
+                    }
+                }
 
                 dm.muiEndWindow(dm.mui)
             }
@@ -291,8 +295,18 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Level
 
     for tile, idx in gameState.level.grid {
-        tint := tile.hasWire ? dm.BLUE : dm.WHITE
-        dm.DrawSprite(tile.sprite, tile.worldPos, color = tint)
+        dm.DrawSprite(tile.sprite, tile.worldPos)
+
+        for dir in tile.wireDir {
+            dm.DrawWorldRect(
+                dm.renderCtx.whiteTexture,
+                tile.worldPos,
+                {0.5, 0.1},
+                rotation = math.to_radians(DirToRot[dir]),
+                color = {0, 0.1, 0.8, 0.5},
+                pivot = {0, 0.5}
+            )
+        }
 
         if(DEBUG_TILE_OVERLAY) {
             dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])

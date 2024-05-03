@@ -12,12 +12,14 @@ import "../ldtk"
 
 
 Tile :: struct {
+    gridPos: iv2,
     worldPos: v2,
     sprite: dm.Sprite,
 
     building: BuildingHandle,
 
-    hasWire: bool,
+    // hasWire: bool,
+    wireDir: DirectionSet,
 
     type: TileType,
 }
@@ -102,6 +104,7 @@ LoadLevels :: proc() -> (levels: []Level) {
 
                     level.grid[idx] = Tile {
                         sprite = sprite,
+                        gridPos = iv2{i32(coord.x), i32(coord.y)},
                         worldPos = v2{posX, posY}
                     }
                 }
@@ -181,6 +184,25 @@ GetNeighbours :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
 
             if(IsInsideGrid(n)) {
                 append(&ret, n)
+            }
+        }
+    }
+
+    return ret[:]
+}
+
+GetNeighbourTiles :: proc(coord: iv2, allocator := context.allocator) -> []^Tile {
+    ret := make([dynamic]^Tile, 0, 8, allocator = allocator)
+
+    for x := i32(-1); x <= i32(1); x += 1 {
+        for y := i32(-1); y <= i32(1); y += 1 {
+            n := coord + {x, y}
+            if n == coord {
+                continue
+            }
+
+            if(IsInsideGrid(n)) {
+                append(&ret, GetTileAtCoord(n))
             }
         }
     }
@@ -307,7 +329,7 @@ CalculatePath :: proc(level: Level, start, goal: iv2) -> []iv2 {
             tile := GetTileAtCoord(n)
 
             if n != goal {
-                if tile.type != .WalkArea || tile.hasWire {
+                if tile.type != .WalkArea {
                     continue
                 }
             }

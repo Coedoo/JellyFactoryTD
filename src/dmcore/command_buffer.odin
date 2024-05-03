@@ -51,20 +51,20 @@ ClearColorCtx :: proc(ctx: ^RenderContext, color: color) {
 
 
 DrawWorldRect :: proc(texture: TexHandle, position: v2, size: v2, 
-    rotation: f32 = 0, color := WHITE)
+    rotation: f32 = 0, color := WHITE, pivot:v2 = {0.5, 0.5})
 {
-    DrawWorldRectCtx(renderCtx, texture, position, size, rotation, color)
+    DrawWorldRectCtx(renderCtx, texture, position, size, rotation, color, pivot)
 }
 
 DrawWorldRectCtx :: proc(ctx: ^RenderContext, texture: TexHandle, position: v2, size: v2, 
-    rotation: f32 = 0, color := WHITE)
+    rotation: f32 = 0, color := WHITE, pivot:v2 = {0.5, 0.5})
 {
     cmd: DrawRectCommand
 
     texSize := GetTextureSize(texture)
     cmd.position = position
     cmd.size = size
-    cmd.pivot = {0.5, 0.5}
+    cmd.pivot = pivot
     cmd.texture = texture
     cmd.texSource= {0, 0, texSize.x, texSize.y}
     cmd.rotation = rotation

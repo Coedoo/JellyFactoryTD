@@ -28,6 +28,7 @@ Building :: struct {
 
     size: iv2,
 
+    // Connections
     inputsPos: []iv2,
     outputsPos: []iv2,
 
@@ -53,6 +54,8 @@ BuildingInstance :: struct {
 
     // attack
     attackTimer: f32,
+
+    connectedBuildings: [dynamic]BuildingHandle,
 }
 
 
@@ -91,4 +94,41 @@ Buildings := [?]Building {
         inputsPos = {{1, 0}}
 
     },
+}
+
+CheckBuildingConnection :: proc(startCoord: iv2) {
+    queue := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
+    visited := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
+    buildingsInNetwork := make([dynamic]BuildingHandle, 0, 16, allocator = context.temp_allocator)
+
+    append(&queue, startCoord)
+    append(&visited, startCoord)
+
+    for len(queue) > 0 {
+        coord := pop(&queue)
+
+        neighbours := GetNeighbourTiles(coord, context.temp_allocator)
+        for neighbour in neighbours {
+            if neighbour.wireDir != nil &&
+               slice.contains(visited[:], neighbour.gridPos) == false
+            {
+                append(&queue, neighbour.gridPos)
+                append(&visited, coord)
+            }
+
+            if neighbour.building != {} && slice.contains(buildingsInNetwork[:], neighbour.building) == false  {
+                append(&buildingsInNetwork, neighbour.building)
+            }
+        }
+    }
+
+    for handle in buildingsInNetwork {
+        building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
+
+        if handle == building.handle || slice.contains(building.connectedBuildings[:], handle) {
+            continue
+        }
+
+        append(&building.connectedBuildings, handle)
+    }
 }

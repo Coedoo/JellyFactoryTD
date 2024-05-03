@@ -61,9 +61,11 @@ muiEnd :: proc(using mui: ^Mui) {
     mu.end(&muiCtx)
 }
 
-muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: mu.Options) -> (ret: bool) {
+muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: mu.Options = {}) -> (ret: bool) {
     ret = mu.begin_window(&muiCtx, label, rect, options)
-    mu.layout_row(&muiCtx, {-1})
+    if ret {
+        mu.layout_row(&muiCtx, {-1})
+    }
 
     return ret
 }

@@ -22,3 +22,12 @@ DirToRot := [Direction]f32 {
     .West  = 180, 
     .South = 270
 }
+
+VecToDir :: proc(vec: iv2) -> Direction {
+    if abs(vec.x) > abs(vec.y) {
+        return vec.x < 0 ? .West : .East
+    }
+    else {
+        return vec.y < 0 ? .South : .North
+    }
+}

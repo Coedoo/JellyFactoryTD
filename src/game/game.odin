@@ -20,7 +20,6 @@ GameState :: struct {
     spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
     enemies: dm.ResourcePool(Enemy, EnemyHandle),
 
-    buildingWire: bool,
     selectedBuildingIdx: int,
 
     /////////////
@@ -34,7 +33,11 @@ GameState :: struct {
     ///
     arrowSprite: dm.Sprite,
 
-    selectedBuilding: BuildingHandle,
+    selectedTile: iv2,
+
+    buildingWire: bool,
+    pushedWire: bool, // @RENAME
+    lastPushedCoord: iv2,
 }
 
 gameState: ^GameState
@@ -82,6 +85,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
+    gameState.arrowSprite.origin = {0, 0.5}
 
     enemy := dm.CreateElement(gameState.enemies)
     enemy.speed = 5
@@ -152,6 +156,19 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if .ProduceEnergy in building.flags {
             building.currentEnergy += building.energyProduction * f32(dm.time.deltaTime)
             building.currentEnergy = min(building.currentEnergy, building.energyStorage)
+
+            for connected in building.connectedBuildings {
+                other := dm.GetElementPtr(gameState.spawnedBuildings, connected) or_continue
+                if .RequireEnergy in other.flags {
+                    energy := 10 * f32(dm.time.deltaTime)
+
+                    toRemove := min(energy, other.energyStorage - other.currentEnergy)
+                    toRemove = min(toRemove, building.currentEnergy)
+
+                    building.currentEnergy -= toRemove
+                    other.currentEnergy += toRemove
+                }
+            }
         }
 
         if .Attack in building.flags {
@@ -230,14 +247,46 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     // Wire
     if gameState.buildingWire {
         if dm.GetMouseButton(.Left) == .JustPressed {
+            gameState.lastPushedCoord = MousePosGrid()
+            gameState.pushedWire = true
+        }
+
+        if dm.GetMouseButton(.Left) == .Down {
             coord := MousePosGrid()
             tile := GetTileAtCoord(coord)
 
-            // if tile != nil {
-            //     tile.hasWire = !tile.hasWire
-            //     gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
-                
-            // }
+            if tile.building == {} && coord != gameState.lastPushedCoord {
+                delta := coord - gameState.lastPushedCoord
+
+                test := abs(delta.x) + abs(delta.y)
+                if test == 1 {
+                    otherTile := GetTileAtCoord(gameState.lastPushedCoord)
+                    if delta.x == 1 {
+                        tile.wireDir ~= { .West }
+                        otherTile.wireDir ~= { .East }
+                    }
+                    else if delta.x == -1 {
+                        tile.wireDir ~= { .East }
+                        otherTile.wireDir ~= { .West }
+                    }
+                    else if delta.y == 1 {
+                        tile.wireDir ~= { .South }
+                        otherTile.wireDir ~= { .North }
+                    }
+                    else if delta.y == -1 {
+                        tile.wireDir ~= { .North }
+                        otherTile.wireDir ~= { .South }
+                    }
+
+                    CheckBuildingConnection(coord)
+                }
+            }
+
+            gameState.lastPushedCoord = coord
+        }
+
+        if dm.GetMouseButton(.Left) == .JustReleased {
+            gameState.pushedWire = false
         }
     }
 
@@ -247,30 +296,35 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 {
         if dm.GetMouseButton(.Left) == .JustPressed {
             coord := MousePosGrid()
-            tile := GetTileAtCoord(coord)
+            // tile := GetTileAtCoord(coord)
 
-            gameState.selectedBuilding = tile.building
+            gameState.selectedTile = coord
         }
     }
 
-    if gameState.selectedBuilding != {} {
-        building, ok := dm.GetElementPtr(gameState.spawnedBuildings, gameState.selectedBuilding)
-        if ok {
-            if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
-                dm.muiLabel(dm.mui, "Name:", building.name)
-                dm.muiLabel(dm.mui, "Handle:", building.handle)
-                dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-                dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", building.energyStorage)
+    if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
+        tile := GetTileAtCoord(gameState.selectedTile)
+        dm.muiLabel(dm.mui, tile.wireDir)
 
-                if dm.muiHeader(dm.mui, "Connected Buildings") {
-                    for b in building.connectedBuildings {
-                        dm.muiLabel(dm.mui, b)
+        if dm.muiHeader(dm.mui, "Building") {
+            if tile.building != {} {
+                building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
+                if ok {
+                    dm.muiLabel(dm.mui, "Name:", building.name)
+                    dm.muiLabel(dm.mui, building.handle)
+                    dm.muiLabel(dm.mui, "Pos:", building.gridPos)
+                    dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", building.energyStorage)
+
+                    if dm.muiHeader(dm.mui, "Connected Buildings") {
+                        for b in building.connectedBuildings {
+                            dm.muiLabel(dm.mui, b)
+                        }
                     }
                 }
-
-                dm.muiEndWindow(dm.mui)
             }
         }
+
+        dm.muiEndWindow(dm.mui)
     }
 }
 
@@ -308,7 +362,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             )
         }
 
-        if(DEBUG_TILE_OVERLAY) {
+        if DEBUG_TILE_OVERLAY {
             dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
         }
     }
@@ -330,23 +384,25 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             )
         }
 
-        if .Attack in building.flags {
-            dm.DrawCircle(dm.renderCtx, pos, building.range, false)
+        if dm.platform.debugState {
+            if .Attack in building.flags {
+                dm.DrawCircle(dm.renderCtx, pos, building.range, false)
+            }
         }
 
-        for out in building.outputsPos {
-            pos := building.position + dm.ToV2(out) * 0.6
+        // for out in building.outputsPos {
+        //     pos := building.position + dm.ToV2(out) * 0.6
 
-            rot := math.atan2(f32(out.y), f32(out.x))
-            dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
-        }
+        //     rot := math.atan2(f32(out.y), f32(out.x))
+        //     dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
+        // }
 
-        for input in building.inputsPos {
-            pos := building.position + dm.ToV2(input) * 0.6
+        // for input in building.inputsPos {
+        //     pos := building.position + dm.ToV2(input) * 0.6
 
-            rot := math.atan2(f32(input.y), f32(input.x)) + math.to_radians(f32(180))
-            dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
-        }
+        //     rot := math.atan2(f32(input.y), f32(input.x)) + math.to_radians(f32(180))
+        //     dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
+        // }
     }
 
     // Selected building
@@ -366,6 +422,15 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawSprite(sprite, dm.ToV2(gridPos) + dm.ToV2(building.size) / 2, color = color)
     }
 
+    if gameState.buildingWire && gameState.pushedWire {
+        tile := GetTileAtCoord(gameState.lastPushedCoord)
+        for dir in Direction {
+            if dir not_in tile.wireDir {
+                dm.DrawSprite(gameState.arrowSprite, tile.worldPos, rotation = math.to_radians(DirToRot[dir]))
+            }
+        }
+    }
+
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
@@ -377,6 +442,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         }
     }
 
+    // path
     for i := 0; i < len(gameState.path) - 1; i += 1 {
         a := gameState.path[i]
         b := gameState.path[i + 1]

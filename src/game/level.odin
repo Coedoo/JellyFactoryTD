@@ -178,9 +178,13 @@ GetNeighbours :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
     for x := i32(-1); x <= i32(1); x += 1 {
         for y := i32(-1); y <= i32(1); y += 1 {
             n := coord + {x, y}
-            if n == coord {
+            if (n.x != coord.x &&
+                n.y != coord.y) ||
+               n == coord
+            {
                 continue
             }
+
 
             if(IsInsideGrid(n)) {
                 append(&ret, n)
@@ -197,7 +201,10 @@ GetNeighbourTiles :: proc(coord: iv2, allocator := context.allocator) -> []^Tile
     for x := i32(-1); x <= i32(1); x += 1 {
         for y := i32(-1); y <= i32(1); y += 1 {
             n := coord + {x, y}
-            if n == coord {
+            if (n.x != coord.x &&
+                n.y != coord.y) ||
+               n == coord
+            {
                 continue
             }
 
@@ -251,6 +258,15 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     // fmt.println(gridPos)
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
+    buildingTile := GetTileAtCoord(gridPos)
+
+    for offset in building.connectionsPos {
+        coord := gridPos + offset
+        tile := GetTileAtCoord(coord)
+
+        buildingTile.wireDir += { VecToDir(offset) }
+        tile.wireDir += { VecToDir(-offset) }
+    }
 
     // TODO: check for outside grid coords
     for y in 0..<toSpawn.size.y {
@@ -266,6 +282,15 @@ RemoveBuilding :: proc(building: BuildingHandle) {
     inst, ok := dm.GetElementPtr(gameState.spawnedBuildings, building)
     if ok == false {
         return
+    }
+
+    for connectedHandle in inst.connectedBuildings {
+        other := dm.GetElementPtr(gameState.spawnedBuildings, connectedHandle) or_continue
+        idx := slice.linear_search(other.connectedBuildings[:], building) or_continue
+
+        // @NOTE: @TODO: this will change update order and potentially
+        // game outcome. Is that ok?
+        unordered_remove(&other.connectedBuildings, idx)
     }
 
     for y in 0..<inst.size.y {

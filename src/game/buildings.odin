@@ -19,6 +19,17 @@ BuildingFlag :: enum {
 
 BuildignFlags :: distinct bit_set[BuildingFlag]
 
+IOType :: enum {
+    None,
+    Input,
+    Output,
+}
+
+BuildingIO :: struct {
+    offset: iv2,
+    type: IOType
+}
+
 Building :: struct {
     name: string,
     spriteName: string,
@@ -29,8 +40,10 @@ Building :: struct {
     size: iv2,
 
     // Connections
-    inputsPos: []iv2,
-    outputsPos: []iv2,
+    // inputsPos: []iv2,
+    // outputsPos: []iv2,
+
+    connectionsPos: []iv2,
 
     // Energy
     energyStorage: f32,
@@ -70,9 +83,10 @@ Buildings := [?]Building {
         flags = {.ProduceEnergy},
 
         energyStorage = 100,
-        energyProduction = 5,
+        energyProduction = 25,
 
-        outputsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
+        // outputsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
+        connectionsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
     },
 
     {
@@ -82,18 +96,34 @@ Buildings := [?]Building {
 
         size = {1, 1},
 
-        flags = {.Attack},
+        flags = {.Attack, .RequireEnergy},
 
         energyStorage = 100,
-        energyProduction = 5,
+        // energyProduction = 25,
 
         range = 3,
         energyRequired = 10,
         reloadTime = 0.2,
 
-        inputsPos = {{1, 0}}
+        // inputsPos = {{1, 0}}
+        connectionsPos = {{1, 0}}
 
     },
+}
+
+AddEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
+    spaceLeft := building.energyStorage - building.currentEnergy
+    clamped := clamp(value, 0, spaceLeft)
+
+    building.currentEnergy += clamped
+    return value - clamped
+}
+
+RemoveEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
+    removed := min(value, building.currentEnergy)
+    building.currentEnergy -= removed
+
+    return removed
 }
 
 CheckBuildingConnection :: proc(startCoord: iv2) {
@@ -106,29 +136,37 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
 
     for len(queue) > 0 {
         coord := pop(&queue)
+        tile := GetTileAtCoord(coord)
 
         neighbours := GetNeighbourTiles(coord, context.temp_allocator)
         for neighbour in neighbours {
-            if neighbour.wireDir != nil &&
-               slice.contains(visited[:], neighbour.gridPos) == false
+            delta := neighbour.gridPos - coord
+            dir := VecToDir(delta)
+
+            if (dir in tile.wireDir) &&
+                slice.contains(visited[:], neighbour.gridPos) == false
             {
                 append(&queue, neighbour.gridPos)
                 append(&visited, coord)
             }
 
-            if neighbour.building != {} && slice.contains(buildingsInNetwork[:], neighbour.building) == false  {
+
+            if neighbour.building != {} &&
+               slice.contains(buildingsInNetwork[:], neighbour.building) == false
+            {
                 append(&buildingsInNetwork, neighbour.building)
             }
         }
     }
 
-    for handle in buildingsInNetwork {
-        building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
+    for handleA in buildingsInNetwork {
+        building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
+        clear(&building.connectedBuildings)
 
-        if handle == building.handle || slice.contains(building.connectedBuildings[:], handle) {
-            continue
+        for handleB in buildingsInNetwork {
+            if handleA != handleB {
+                append(&building.connectedBuildings, handleB)
+            }
         }
-
-        append(&building.connectedBuildings, handle)
     }
 }

@@ -60,7 +60,10 @@ CreateElement :: proc(pool: ResourcePool($T, $H)) -> ^T {
 
 AppendElement :: proc(pool: ^ResourcePool($T, $H), element: T) -> H {
     handle := CreateHandle(pool^)
-    pool.elements[handle.index] = element
+    if handle != {} {
+        pool.elements[handle.index] = element
+        pool.elements[handle.index].handle = handle
+    }
 
     return handle
 }

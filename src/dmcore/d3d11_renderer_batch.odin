@@ -110,9 +110,9 @@ DrawBatch :: proc(ctx: ^RenderContext, batch: ^RectBatch) {
     samplerDesc := d3d11.SAMPLER_DESC{
         // Filter         = .MIN_MAG_MIP_POINT,
         // Filter         = .MIN_MAG_MIP_LINEAR,
-        AddressU       = .WRAP,
-        AddressV       = .WRAP,
-        AddressW       = .WRAP,
+        AddressU       = .CLAMP,
+        AddressV       = .CLAMP,
+        AddressW       = .CLAMP,
         ComparisonFunc = .NEVER,
     }
 

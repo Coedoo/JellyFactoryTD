@@ -250,7 +250,8 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     }
 
     toSpawn := BuildingInstance {
-        definition = building,
+        // definition = building,
+        dataIdx = buildingIdx,
         gridPos = gridPos,
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
     }
@@ -269,8 +270,8 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     }
 
     // TODO: check for outside grid coords
-    for y in 0..<toSpawn.size.y {
-        for x in 0..<toSpawn.size.x {
+    for y in 0..<building.size.y {
+        for x in 0..<building.size.x {
             idx := CoordToIdx(gridPos + {x, y})
             gameState.level.grid[idx].building = handle
         }
@@ -293,8 +294,9 @@ RemoveBuilding :: proc(building: BuildingHandle) {
         unordered_remove(&other.connectedBuildings, idx)
     }
 
-    for y in 0..<inst.size.y {
-        for x in 0..<inst.size.x {
+    buildingData := &Buildings[inst.dataIdx]
+    for y in 0..<buildingData.size.y {
+        for x in 0..<buildingData.size.x {
             tile := GetTileAtCoord(inst.gridPos + {x, y})
             tile.building = {}
         }

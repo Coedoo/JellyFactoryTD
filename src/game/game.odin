@@ -153,16 +153,20 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
     // Update Buildings
     for &building in gameState.spawnedBuildings.elements {
-        if .ProduceEnergy in building.flags {
-            building.currentEnergy += building.energyProduction * f32(dm.time.deltaTime)
-            building.currentEnergy = min(building.currentEnergy, building.energyStorage)
+        buildingData := &Buildings[building.dataIdx]
+
+        if .ProduceEnergy in buildingData.flags {
+            building.currentEnergy += buildingData.energyProduction * f32(dm.time.deltaTime)
+            building.currentEnergy = min(building.currentEnergy, buildingData.energyStorage)
 
             for connected in building.connectedBuildings {
                 other := dm.GetElementPtr(gameState.spawnedBuildings, connected) or_continue
-                if .RequireEnergy in other.flags {
+                otherData := Buildings[other.dataIdx]
+
+                if .RequireEnergy in otherData.flags {
                     energy := 10 * f32(dm.time.deltaTime)
 
-                    toRemove := min(energy, other.energyStorage - other.currentEnergy)
+                    toRemove := min(energy, otherData.energyStorage - other.currentEnergy)
                     toRemove = min(toRemove, building.currentEnergy)
 
                     building.currentEnergy -= toRemove
@@ -171,12 +175,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
         }
 
-        if .Attack in building.flags {
+        if .Attack in buildingData.flags {
             building.attackTimer -= f32(dm.time.deltaTime)
 
-            handle := FindClosestEnemy(building.position, building.range)
+            handle := FindClosestEnemy(building.position, buildingData.range)
             if handle != {} && 
-               building.currentEnergy >= building.energyRequired &&
+               building.currentEnergy >= buildingData.energyRequired &&
                building.attackTimer <= 0
             {
                 enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
@@ -184,7 +188,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     continue
                 }
 
-                building.attackTimer = building.reloadTime
+                building.attackTimer = buildingData.reloadTime
 
                 building.currentEnergy = 0
                 enemy.health -= 10
@@ -310,10 +314,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             if tile.building != {} {
                 building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
                 if ok {
-                    dm.muiLabel(dm.mui, "Name:", building.name)
+                    data := &Buildings[building.dataIdx]
+                    dm.muiLabel(dm.mui, "Name:", data.name)
                     dm.muiLabel(dm.mui, building.handle)
                     dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-                    dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", building.energyStorage)
+                    dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
 
                     if dm.muiHeader(dm.mui, "Connected Buildings") {
                         for b in building.connectedBuildings {
@@ -370,23 +375,24 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Buildings
     for building in gameState.spawnedBuildings.elements {
         // @TODO @CACHE
-        tex := dm.GetTextureAsset(building.spriteName)
-        sprite := dm.CreateSprite(tex, building.spriteRect)
+        data := &Buildings[building.dataIdx]
+        tex := dm.GetTextureAsset(data.spriteName)
+        sprite := dm.CreateSprite(tex, data.spriteRect)
 
         pos := building.position
         dm.DrawSprite(sprite, pos)
 
-        if building.energyStorage != 0 {
+        if data.energyStorage != 0 {
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture, 
-                dm.ToV2(building.gridPos) + {f32(building.size.y), 0},
-                {0.1, building.currentEnergy / building.energyStorage}
+                dm.ToV2(building.gridPos) + {f32(data.size.y), 0},
+                {0.1, building.currentEnergy / data.energyStorage}
             )
         }
 
         if dm.platform.debugState {
-            if .Attack in building.flags {
-                dm.DrawCircle(dm.renderCtx, pos, building.range, false)
+            if .Attack in data.flags {
+                dm.DrawCircle(dm.renderCtx, pos, data.range, false)
             }
         }
 

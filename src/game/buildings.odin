@@ -56,8 +56,9 @@ Building :: struct {
 }
 
 BuildingInstance :: struct {
-    using definition: Building,
+    // using definition: Building,
     handle: BuildingHandle,
+    dataIdx: int,
 
     gridPos: iv2,
     position: v2,
@@ -112,7 +113,8 @@ Buildings := [?]Building {
 }
 
 AddEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
-    spaceLeft := building.energyStorage - building.currentEnergy
+    data := &Buildings[building.dataIdx]
+    spaceLeft := data.energyStorage - building.currentEnergy
     clamped := clamp(value, 0, spaceLeft)
 
     building.currentEnergy += clamped

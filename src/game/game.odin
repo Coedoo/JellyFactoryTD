@@ -18,7 +18,7 @@ GameState :: struct {
     level: Level, // currentLevel
 
     spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
-    enemies: dm.ResourcePool(Enemy, EnemyHandle),
+    enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
 
     selectedBuildingIdx: int,
 
@@ -38,6 +38,8 @@ GameState :: struct {
     buildingWire: bool,
     pushedWire: bool, // @RENAME
     lastPushedCoord: iv2,
+
+    testWave: [dynamic]EnemiesCount,
 }
 
 gameState: ^GameState
@@ -61,14 +63,15 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
 
-    dm.RegisterAsset("jelly.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 }
 
 @(export)
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
-    gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("jelly.png"))
+    gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("ship.png"))
+    gameState.playerSprite.scale = 2
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
     dm.InitResourcePool(&gameState.enemies, 128)
@@ -87,12 +90,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
 
-    enemy := dm.CreateElement(gameState.enemies)
-    enemy.speed = 5
-    enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
-
-    enemy.maxHealth = 100
-    enemy.health = enemy.maxHealth
+    SpawnEnemy(0)
 
     // Test level
     TryPlaceBuilding(1, {15, 20})
@@ -116,6 +114,8 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     gameState = cast(^GameState) state
 
+    cursorOverUI := dm.muiIsCursorOverUI(dm.mui, dm.input.mousePos)
+
     // Move Player
     moveVec := v2{
         dm.GetAxis(.A, .D),
@@ -137,7 +137,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         f32(gameState.level.sizeY - 1),
     }
 
-    camHeight = camHeight - f32(dm.input.scroll) * 0.3
+    scroll := dm.input.scroll if cursorOverUI == false else 0
+    camHeight = camHeight - f32(scroll) * 0.3
     camWidth = camAspect * camHeight
 
     camHeight = clamp(camHeight, 1, levelSize.x / 2)
@@ -164,6 +165,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 otherData := Buildings[other.dataIdx]
 
                 if .RequireEnergy in otherData.flags {
+                    // @TODO: add flow value
                     energy := 10 * f32(dm.time.deltaTime)
 
                     toRemove := min(energy, otherData.energyStorage - other.currentEnergy)
@@ -191,7 +193,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 building.attackTimer = buildingData.reloadTime
 
                 building.currentEnergy = 0
-                enemy.health -= 10
+                enemy.health -= buildingData.damage
 
                 if enemy.health <= 0 {
                     dm.FreeSlot(gameState.enemies, handle)
@@ -209,7 +211,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
 
     // temp UI
-    if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}, {}) {
+    if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}) {
         for b, idx in Buildings {
             if dm.muiButton(dm.mui, b.name) {
                 gameState.selectedBuildingIdx = idx + 1
@@ -225,31 +227,26 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiEndWindow(dm.mui)
     }
 
-    // Building
-    if gameState.selectedBuildingIdx != 0 &&
-       dm.GetMouseButton(.Left) == .JustPressed
+    // Cancell building/wire or destroy building
+    if dm.GetMouseButton(.Right) == .JustPressed &&
+       cursorOverUI == false
     {
-        pos := MousePosGrid()
-        TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
-    }
-
-
-    if dm.GetMouseButton(.Right) == .JustPressed {
         if gameState.selectedBuildingIdx != 0 {
             gameState.selectedBuildingIdx = 0
+        }
+        else if gameState.buildingWire {
             gameState.buildingWire = false
         }
         else {
-            coord := MousePosGrid()
-            tile := GetTileAtCoord(coord)
-            if tile != nil {
-                RemoveBuilding(tile.building)
-            }
+            tile := TileUnderCursor()
+            RemoveBuilding(tile.building)
         }
     }
 
     // Wire
-    if gameState.buildingWire {
+    if gameState.buildingWire &&
+       cursorOverUI == false
+    {
         if dm.GetMouseButton(.Left) == .JustPressed {
             gameState.lastPushedCoord = MousePosGrid()
             gameState.pushedWire = true
@@ -294,10 +291,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
-    // dm.test_window(dm.mui)
-
     // Highlight Building 
-    if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 {
+    if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 && cursorOverUI == false{
         if dm.GetMouseButton(.Left) == .JustPressed {
             coord := MousePosGrid()
             // tile := GetTileAtCoord(coord)
@@ -305,6 +300,16 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.selectedTile = coord
         }
     }
+
+    // Building
+    if gameState.selectedBuildingIdx != 0 &&
+       dm.GetMouseButton(.Left) == .JustPressed &&
+       cursorOverUI == false
+    {
+        pos := MousePosGrid()
+        TryPlaceBuilding(gameState.selectedBuildingIdx - 1, pos)
+    }
+
 
     if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
         tile := GetTileAtCoord(gameState.selectedTile)
@@ -331,6 +336,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         dm.muiEndWindow(dm.mui)
     }
+
+    // if dm.muiBeginWindow(dm.mui, "Selected Building", {10, 150, 140, 250}) {
+    //     for &c in testWave {
+             
+    //     }
+
+    //     dm.muiEndWindow(dm.mui)
+    // }
 }
 
 @(export)
@@ -338,7 +351,7 @@ GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr, debug: bool) {
     gameState = cast(^GameState) state
 
     if debug {
-        if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}, {}) {
+        if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}) {
             dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
 
             dm.muiEndWindow(dm.mui)
@@ -443,7 +456,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Enemy
     for &enemy, i in gameState.enemies.elements {
         if gameState.enemies.slots[i].inUse {
-            color := math.lerp(dm.RED, dm.GREEN, enemy.health / enemy.maxHealth)
+            stats := Enemies[enemy.statsIdx]
+            color := math.lerp(dm.RED, dm.GREEN, enemy.health / stats.maxHealth)
             dm.DrawBlankSprite(enemy.position, {1, 1}, color = color)
         }
     }

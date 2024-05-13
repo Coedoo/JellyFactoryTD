@@ -172,6 +172,11 @@ GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
     return nil
 }
 
+TileUnderCursor :: proc() -> ^Tile {
+    coord := MousePosGrid()
+    return GetTileAtCoord(coord)
+}
+
 GetNeighbours :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
     ret := make([dynamic]iv2, 0, 8, allocator = allocator)
 

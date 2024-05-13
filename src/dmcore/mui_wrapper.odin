@@ -114,6 +114,29 @@ muiHeader :: proc(mui: ^Mui, label: string, opt: mu.Options = {.EXPANDED}) -> bo
     return mu.header(&mui.muiCtx, label, opt) != {}
 }
 
+/// Utility
+
+muiIsCursorOverUI :: proc(mui: ^Mui, cursorPos: iv2) -> bool {
+    for container in mui.muiCtx.containers {
+        if container.open {
+            left  := container.rect.x
+            top   := container.rect.y
+            right := container.rect.x + container.rect.w
+            bot   := container.rect.y + container.rect.h
+
+            if cursorPos.x >= left &&
+               cursorPos.x <= right &&
+               cursorPos.y >= top  &&
+               cursorPos.y <= bot
+            {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
 /// Input/Render
 muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
     ToColor :: proc(c: mu.Color) -> color {

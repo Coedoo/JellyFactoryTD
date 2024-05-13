@@ -51,6 +51,7 @@ Building :: struct {
 
     // Attack
     range: f32,
+    damage: f32,
     energyRequired: f32,
     reloadTime: f32,
 }
@@ -105,6 +106,7 @@ Buildings := [?]Building {
         range = 3,
         energyRequired = 10,
         reloadTime = 0.2,
+        damage = 10,
 
         // inputsPos = {{1, 0}}
         connectionsPos = {{1, 0}}

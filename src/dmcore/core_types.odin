@@ -17,6 +17,10 @@ mat4 :: math.mat4
 
 color :: math.vec4
 
+Range :: struct {
+    min, max: i32
+}
+
 WHITE   : color : {1, 1, 1, 1}
 BLACK   : color : {0, 0, 0, 1}
 GRAY    : color : {0.3, 0.3, 0.3, 1}

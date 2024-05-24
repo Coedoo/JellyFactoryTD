@@ -15,6 +15,9 @@ BuildingFlag :: enum {
     ProduceEnergy,
     RequireEnergy,
     Attack,
+
+    // Visuals
+    RotatingTurret,
 }
 
 BuildignFlags :: distinct bit_set[BuildingFlag]
@@ -34,6 +37,8 @@ Building :: struct {
     name: string,
     spriteName: string,
     spriteRect: dm.RectInt,
+    turretSpriteRect: dm.RectInt,
+    turretSpriteOrigin: v2,
 
     flags: BuildignFlags,
 
@@ -69,10 +74,29 @@ BuildingInstance :: struct {
 
     // attack
     attackTimer: f32,
+    targetEnemy: EnemyHandle,
+
+    turretAngle: f32,
+    targetTurretAngle: f32,
 
     connectedBuildings: [dynamic]BuildingHandle,
 }
 
+// RotatingTurretSpriteRects := [8]dm.RectInt{
+//     {2 * 32, 1 * 32, 32, 32},
+//     {2 * 32, 0 * 32, 32, 32},
+//     {1 * 32, 0 * 32, 32, 32},
+//     {0 * 32, 0 * 32, 32, 32},
+//     {0 * 32, 1 * 32, 32, 32},
+//     {0 * 32, 2 * 32, 32, 32},
+//     {1 * 32, 2 * 32, 32, 32},
+//     {2 * 32, 2 * 32, 32, 32},
+// }
+
+TurretSprite :: struct {
+    rect: dm.RectInt,
+    flipX, flipY: bool,
+}
 
 Buildings := [?]Building {
     {
@@ -93,20 +117,22 @@ Buildings := [?]Building {
 
     {
         name = "Turret 1",
-        spriteName = "buildings.png",
-        spriteRect = {32, 0, 32, 32},
+        spriteName = "turret_test_3.png",
+        spriteRect = {0, 32, 32, 32},
+        turretSpriteRect = {32, 0, 32, 64},
+        turretSpriteOrigin = {0.5, 0.75},
 
         size = {1, 1},
 
-        flags = {.Attack, .RequireEnergy},
+        flags = {.Attack, .RequireEnergy, .RotatingTurret},
 
         energyStorage = 100,
         // energyProduction = 25,
 
-        range = 3,
-        energyRequired = 10,
+        range = 4,
+        energyRequired = 20,
         reloadTime = 0.2,
-        damage = 10,
+        damage = 50,
 
         // inputsPos = {{1, 0}}
         connectionsPos = {{1, 0}}

@@ -39,7 +39,9 @@ GameState :: struct {
     pushedWire: bool, // @RENAME
     lastPushedCoord: iv2,
 
-    testWave: [dynamic]EnemiesCount,
+    currentWaveIdx: int,
+    wavesState: []WaveState,
+    levelFullySpawned: bool,
 }
 
 gameState: ^GameState
@@ -62,6 +64,7 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("turret_test_3.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 }
@@ -90,8 +93,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
 
-    SpawnEnemy(0)
-
     // Test level
     TryPlaceBuilding(1, {15, 20})
     TryPlaceBuilding(0, {20, 18})
@@ -108,6 +109,12 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     TryPlaceBuilding(0, {18, 17})
 
     CheckBuildingConnection({18, 20})
+
+    // @TODO: make StarLevel() or something
+    gameState.wavesState = make([]WaveState, len(Waves))
+    for &s, i in gameState.wavesState {
+        s.seriesStates = make([]SeriesState, len(Waves[i].series))
+    }
 }
 
 @(export)
@@ -181,6 +188,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             building.attackTimer -= f32(dm.time.deltaTime)
 
             handle := FindClosestEnemy(building.position, buildingData.range)
+            building.targetEnemy = handle
+
             if handle != {} && 
                building.currentEnergy >= buildingData.energyRequired &&
                building.attackTimer <= 0
@@ -192,7 +201,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 building.attackTimer = buildingData.reloadTime
 
-                building.currentEnergy = 0
+                building.currentEnergy -= buildingData.energyRequired
                 enemy.health -= buildingData.damage
 
                 if enemy.health <= 0 {
@@ -209,6 +218,49 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
+    // Wave
+    fullySpawnedWavesCount := 0
+    for i := 0; i < gameState.currentWaveIdx; i += 1 {
+        if gameState.wavesState[i].fullySpawned {
+            fullySpawnedWavesCount += 1
+            continue
+        }
+
+        spawnedCount := 0
+        comb := soa_zip(state = gameState.wavesState[i].seriesStates, series = Waves[i].series)
+        for &v in comb {
+            if v.state.fullySpawned {
+                spawnedCount += 1
+                continue
+            }
+
+            v.state.timer += f32(dm.time.deltaTime)
+
+            if v.state.timer >= v.series.timeBetweenSpawns
+            {
+                SpawnEnemy(v.series.enemyName)
+                v.state.timer = 0
+                v.state.count += 1
+
+                if v.state.count >= v.series.count {
+                    v.state.fullySpawned = true
+                }
+            }
+        }
+
+        if spawnedCount >= len(Waves[i].series) {
+            gameState.wavesState[i].fullySpawned = true
+            fmt.println("Wave", i, "Fully Spawned");
+        }
+    }
+
+    if gameState.levelFullySpawned == false && 
+       fullySpawnedWavesCount == len(Waves)
+    {
+        fmt.println("All waves Spawned")
+        gameState.levelFullySpawned = true
+    }
+
 
     // temp UI
     if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 100, 150}) {
@@ -222,6 +274,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if dm.muiButton(dm.mui, "Wire") {
             gameState.buildingWire = true
             gameState.selectedBuildingIdx = 0
+        }
+
+        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx)
+        if dm.muiButton(dm.mui, "SpawnWave") {
+            StartNextWave()
         }
 
         dm.muiEndWindow(dm.mui)
@@ -386,26 +443,46 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Buildings
-    for building in gameState.spawnedBuildings.elements {
+    for &building in gameState.spawnedBuildings.elements {
         // @TODO @CACHE
-        data := &Buildings[building.dataIdx]
-        tex := dm.GetTextureAsset(data.spriteName)
-        sprite := dm.CreateSprite(tex, data.spriteRect)
+        buildingData := &Buildings[building.dataIdx]
+        tex := dm.GetTextureAsset(buildingData.spriteName)
+        sprite := dm.CreateSprite(tex, buildingData.spriteRect)
 
         pos := building.position
         dm.DrawSprite(sprite, pos)
 
-        if data.energyStorage != 0 {
+        if buildingData.energyStorage != 0 {
+            // @TODO this breaks batching
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture, 
-                dm.ToV2(building.gridPos) + {f32(data.size.y), 0},
-                {0.1, building.currentEnergy / data.energyStorage}
+                dm.ToV2(building.gridPos) + {f32(buildingData.size.y), 0},
+                {0.1, building.currentEnergy / buildingData.energyStorage}
             )
         }
 
+        if .RotatingTurret in buildingData.flags {
+            enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
+            if ok && building.currentEnergy >= buildingData.energyRequired {
+                delta := building.position - enemy.position
+                building.targetTurretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
+            }
+
+            // @TODO: better easing function
+            building.turretAngle = math.lerp(
+                building.turretAngle, 
+                building.targetTurretAngle, 
+                f32(20 * dm.time.deltaTime)
+            )
+
+            sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
+            sprite.origin = buildingData.turretSpriteOrigin
+            dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
+        }
+
         if dm.platform.debugState {
-            if .Attack in data.flags {
-                dm.DrawCircle(dm.renderCtx, pos, data.range, false)
+            if .Attack in buildingData.flags {
+                dm.DrawCircle(dm.renderCtx, pos, buildingData.range, false)
             }
         }
 
@@ -450,17 +527,27 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         }
     }
 
-    // Player
-    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // Enemy
     for &enemy, i in gameState.enemies.elements {
         if gameState.enemies.slots[i].inUse {
             stats := Enemies[enemy.statsIdx]
-            color := math.lerp(dm.RED, dm.GREEN, enemy.health / stats.maxHealth)
-            dm.DrawBlankSprite(enemy.position, {1, 1}, color = color)
+            dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
         }
     }
+
+    for &enemy, i in gameState.enemies.elements {
+        if gameState.enemies.slots[i].inUse {
+            stats := Enemies[enemy.statsIdx]
+            p := enemy.health / stats.maxHealth
+            color := math.lerp(dm.RED, dm.GREEN, p)
+            
+            dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
+        }
+    }
+
+    // Player
+    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // path
     for i := 0; i < len(gameState.path) - 1; i += 1 {

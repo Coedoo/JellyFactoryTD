@@ -33,6 +33,12 @@ BuildingIO :: struct {
     type: IOType
 }
 
+AttackType :: enum {
+    None,
+    Simple,
+    Cannon,
+}
+
 Building :: struct {
     name: string,
     spriteName: string,

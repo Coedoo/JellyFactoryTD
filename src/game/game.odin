@@ -42,6 +42,9 @@ GameState :: struct {
     currentWaveIdx: int,
     wavesState: []WaveState,
     levelFullySpawned: bool,
+
+    // VFX
+    turretFireParticle: dm.ParticleSystem
 }
 
 gameState: ^GameState
@@ -115,6 +118,17 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     for &s, i in gameState.wavesState {
         s.seriesStates = make([]SeriesState, len(Waves[i].series))
     }
+
+    ///////////////////////
+
+    gameState.turretFireParticle = dm.DefaultParticleSystem
+    gameState.turretFireParticle.maxParticles = 100
+    gameState.turretFireParticle.texture = dm.renderCtx.whiteTexture
+    gameState.turretFireParticle.lifetime = dm.RandomFloat{0.1, 0.2}
+    gameState.turretFireParticle.startColor = dm.color{0, 1, 1, 1}
+    gameState.turretFireParticle.startSize = dm.RandomFloat{0.1, 0.3}
+
+    dm.InitParticleSystem(&gameState.turretFireParticle)
 }
 
 @(export)
@@ -184,6 +198,22 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
         }
 
+        if .RotatingTurret in buildingData.flags {
+            enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
+            if ok {
+                delta := building.position - enemy.position
+                // building.targetTurretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
+                building.turretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
+            }
+
+            // @TODO: better easing function
+            // building.turretAngle = math.lerp(
+            //     building.turretAngle, 
+            //     building.targetTurretAngle, 
+            //     f32(20 * dm.time.deltaTime)
+            // )
+        }
+
         if .Attack in buildingData.flags {
             building.attackTimer -= f32(dm.time.deltaTime)
 
@@ -204,11 +234,25 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 building.currentEnergy -= buildingData.energyRequired
                 enemy.health -= buildingData.damage
 
+                // delta := enemy.position - building.position
+                // delta = glsl.normalize(delta)
+
+                angle := building.turretAngle + math.PI / 2
+                delta := v2 {
+                    math.cos(angle),
+                    math.sin(angle),
+                }
+
+                dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
+
                 if enemy.health <= 0 {
                     dm.FreeSlot(gameState.enemies, handle)
                 }
             }
         }
+
+
+
     }
 
     // Update Enemies 
@@ -462,19 +506,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         }
 
         if .RotatingTurret in buildingData.flags {
-            enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
-            if ok && building.currentEnergy >= buildingData.energyRequired {
-                delta := building.position - enemy.position
-                building.targetTurretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
-            }
-
-            // @TODO: better easing function
-            building.turretAngle = math.lerp(
-                building.turretAngle, 
-                building.targetTurretAngle, 
-                f32(20 * dm.time.deltaTime)
-            )
-
             sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
             sprite.origin = buildingData.turretSpriteOrigin
             dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
@@ -556,4 +587,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
         dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.GREEN)
     }
+
+    dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)
 }

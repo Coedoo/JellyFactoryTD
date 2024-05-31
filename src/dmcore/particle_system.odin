@@ -220,3 +220,8 @@ DrawParticleSystem :: proc(ctx: ^RenderContext, system: ^ParticleSystem) {
                     )
     }
 }
+
+UpdateAndDrawParticleSystem :: proc(system: ^ParticleSystem) {
+    UpdateParticleSystem(system, f32(time.deltaTime))
+    DrawParticleSystem(renderCtx, system)
+}

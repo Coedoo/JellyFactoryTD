@@ -50,6 +50,8 @@ muiInit :: proc(renderCtx: ^dmcore.RenderContext) -> ^Mui {
     mu.begin(&mui.muiCtx)
     mu.end(&mui.muiCtx)
 
+    mui.muiCtx.style.colors[.WINDOW_BG].a = 160
+
     return mui
 }
 

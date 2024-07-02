@@ -21,6 +21,8 @@ import dm "../dmcore"
 
 import "core:image/png"
 
+import "core:math/rand"
+
 window: ^sdl.Window
 
 engineData: dm.Platform
@@ -69,6 +71,8 @@ main :: proc() {
 
     dm.TimeInit(&engineData)
 
+    context.random_generator = rand.default_random_generator()
+
     gameCode: GameCode
     if LoadGameCode(&gameCode, "Game.dll") == false {
         return
@@ -80,7 +84,7 @@ main :: proc() {
     if gameCode.preGameLoad != nil {
         gameCode.preGameLoad(&engineData.assets)
 
-        for name, asset in &engineData.assets.assetsMap {
+        for name, &asset in engineData.assets.assetsMap {
             if asset.descriptor == nil {
                 fmt.eprintln("Incorrect asset descriptor for asset:", name)
                 continue
@@ -287,12 +291,11 @@ main :: proc() {
             gameCode.gameRender(engineData.gameState)
         }
 
-        // dm.test_window(mui)
-
+       // dm.test_window(mui)
 
         dm.FlushCommands(cast(^dm.RenderContext_d3d) engineData.renderCtx)
 
-        // dm.DrawGrid(cast(^dm.RenderContext_d3d) engineData.renderCtx)
+        dm.DrawGrid(cast(^dm.RenderContext_d3d) engineData.renderCtx)
 
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatch, cast(^dm.RenderContext_d3d) engineData.renderCtx)
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatchScreen, cast(^dm.RenderContext_d3d) engineData.renderCtx)

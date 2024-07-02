@@ -50,6 +50,8 @@ Building :: struct {
 
     size: iv2,
 
+    cost: int,
+
     // Connections
     // inputsPos: []iv2,
     // outputsPos: []iv2,
@@ -114,6 +116,8 @@ Buildings := [?]Building {
 
         flags = {.ProduceEnergy},
 
+        cost = 100,
+
         energyStorage = 100,
         energyProduction = 25,
 
@@ -132,13 +136,15 @@ Buildings := [?]Building {
 
         flags = {.Attack, .RequireEnergy, .RotatingTurret},
 
+        cost = 200,
+
         energyStorage = 100,
         // energyProduction = 25,
 
         range = 4,
-        energyRequired = 20,
+        energyRequired = 10,
         reloadTime = 0.2,
-        damage = 50,
+        damage = 100,
 
         // inputsPos = {{1, 0}}
         connectionsPos = {{1, 0}}
@@ -180,14 +186,15 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
             dir := VecToDir(delta)
 
             if (dir in tile.wireDir) &&
+               (GetOppositeDir(dir) in neighbour.wireDir) &&
                 slice.contains(visited[:], neighbour.gridPos) == false
             {
                 append(&queue, neighbour.gridPos)
                 append(&visited, coord)
             }
 
-
-            if neighbour.building != {} &&
+            if (dir in tile.wireDir) &&
+               neighbour.building != {} &&
                slice.contains(buildingsInNetwork[:], neighbour.building) == false
             {
                 append(&buildingsInNetwork, neighbour.building)

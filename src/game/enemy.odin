@@ -16,6 +16,10 @@ Enemy :: struct {
     maxHealth: f32,
 
     tint: dm.color,
+
+    moneyValue: int,
+
+    damage: int,
 }
 
 EnemyInstance :: struct {
@@ -52,29 +56,34 @@ SeriesState :: struct {
 Enemies := [?]Enemy {
     {
         name = "Test 1",
-        speed = 5,
+        speed = 8,
         maxHealth = 100,
         tint = dm.RED,
+        moneyValue = 30,
+        damage = 10,
     },
 
     {
         name = "Test 2",
-        speed = 2,
+        speed = 5,
         maxHealth = 200,
         tint = dm.GREEN,
+        moneyValue = 70,
+        damage = 25,
     },
 }
 
 Waves := [?]EnemyWave {
     {
         series = {
-            {"Test 1", 5, 0.2},
-            {"Test 2", 2, 1},
+            {"Test 1", 20, 0.15},
+            {"Test 2", 10, 0.7},
         },
     },
     {
         series = {
-            {"Test 1", 5, 1},
+            {"Test 1", 40, 0.1},
+            {"Test 1", 5, 0.5},
         },
     }
 }
@@ -125,6 +134,9 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
         if enemy.pathPointIdx == len(gameState.path) {
             enemy.pathPointIdx = 0
             pos = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
+
+            gameState.hp -= enemyStat.damage
+
             break
         }
 

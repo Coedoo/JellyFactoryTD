@@ -3,7 +3,7 @@ package dmcore
 import "core:mem"
 import "core:slice"
 
-import "core:intrinsics"
+import "base:intrinsics"
 
 Handle :: struct {
     index: i32,

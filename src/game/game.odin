@@ -42,7 +42,9 @@ GameState :: struct {
         recentClickedCoords: [2]iv2,
 
         currentWaveIdx: int,
+        levelWaves: LevelWaves,
         wavesState: []WaveState,
+
         levelFullySpawned: bool,
 
         // VFX
@@ -278,7 +280,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
 
         spawnedCount := 0
-        comb := soa_zip(state = gameState.wavesState[i].seriesStates, series = Waves[i].series)
+        comb := soa_zip(
+            state = gameState.wavesState[i].seriesStates, 
+            series = gameState.levelWaves.waves[i],
+        )
+
         for &v in comb {
             if v.state.fullySpawned {
                 spawnedCount += 1
@@ -299,7 +305,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
         }
 
-        if spawnedCount >= len(Waves[i].series) {
+        if spawnedCount >= len(gameState.levelWaves.waves[i]) {
             gameState.wavesState[i].fullySpawned = true
             fmt.println("Wave", i, "Fully Spawned");
         }
@@ -329,7 +335,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.selectedBuildingIdx = 0
         }
 
-        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx)
+        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
         if dm.muiButton(dm.mui, "SpawnWave") {
             StartNextWave()
         }
@@ -351,6 +357,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiEndWindow(dm.mui)
     }
 
+    // @TODO: probably want to move this to respected
     // Cancell building/wire or destroy building
     if dm.GetMouseButton(.Right) == .JustPressed &&
        cursorOverUI == false
@@ -359,7 +366,13 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.selectedBuildingIdx = 0
         }
         else if gameState.buildingWire {
-            gameState.buildingWire = false
+            tile := TileUnderCursor()
+            if tile.wireDir == nil {
+                gameState.buildingWire = false
+            }
+            else {
+                tile.wireDir = nil
+            }
         }
         else {
             tile := TileUnderCursor()
@@ -425,7 +438,13 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
 
         if leftBtn == .JustReleased {
-            gameState.pushedWire = false
+            tile := TileUnderCursor()
+            if tile.wireDir == nil {
+                gameState.pushedWire = false
+            }
+            else {
+                tile.wireDir = nil
+            }
         }
 
         // if(gameState.pushedWire) {

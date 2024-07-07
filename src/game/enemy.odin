@@ -32,64 +32,6 @@ EnemyInstance :: struct {
     health: f32,
 }
 
-EnemiesSeries :: struct {
-    enemyName: string,
-    count: int,
-    timeBetweenSpawns: f32,
-}
-
-EnemyWave :: struct {
-    series: []EnemiesSeries,
-}
-
-WaveState :: struct {
-    fullySpawned: bool,
-    seriesStates: []SeriesState,
-}
-
-SeriesState :: struct {
-    timer: f32,
-    count: int,
-    fullySpawned: bool,
-}
-
-Enemies := [?]Enemy {
-    {
-        name = "Test 1",
-        speed = 8,
-        maxHealth = 100,
-        tint = dm.RED,
-        moneyValue = 30,
-        damage = 10,
-    },
-
-    {
-        name = "Test 2",
-        speed = 5,
-        maxHealth = 200,
-        tint = dm.GREEN,
-        moneyValue = 70,
-        damage = 25,
-    },
-}
-
-Waves := [?]EnemyWave {
-    {
-        series = {
-            {"Test 1", 20, 0.15},
-            {"Test 2", 10, 0.7},
-        },
-    },
-    {
-        series = {
-            {"Test 1", 40, 0.1},
-            {"Test 1", 5, 0.5},
-        },
-    }
-}
-
-
-
 SpawnEnemy :: proc {
     SpawnEnemyByIndex,
     SpawnEnemyByName,
@@ -187,12 +129,4 @@ FindEnemiesInRange :: proc(center: v2, radius: f32, allocator := context.allocat
     }
 
     return enemies[:]
-}
-
-//////////////////
-
-StartNextWave :: proc() {
-    if gameState.currentWaveIdx < len(Waves) {
-        gameState.currentWaveIdx += 1
-    }
 }

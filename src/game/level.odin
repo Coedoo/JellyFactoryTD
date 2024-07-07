@@ -172,9 +172,22 @@ OpenLevel :: proc(name: string) {
     // @TODO: is dererferencing a pointer a copy?
     gameState.path = CalculatePath(gameState.level^, gameState.level.startCoord, gameState.level.endCoord)
 
-    gameState.wavesState = make([]WaveState, len(Waves))
+    waves: LevelWaves
+    for w in Waves {
+        if w.levelName == name {
+            waves = w
+            break
+        }
+    }
+
+    if waves.waves == nil {
+        fmt.eprintln("Can't find waves list for level ", name)
+    }
+
+    gameState.levelWaves = waves
+    gameState.wavesState = make([]WaveState, len(waves.waves), allocator = gameState.levelAllocator)
     for &s, i in gameState.wavesState {
-        s.seriesStates = make([]SeriesState, len(Waves[i].series))
+        s.seriesStates = make([]SeriesState, len(waves.waves[i]), allocator = gameState.levelAllocator)
     }
 
     gameState.money = START_MONEY

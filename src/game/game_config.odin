@@ -1,5 +1,9 @@
 package game
 
+import "core:mem"
+
+LEVEL_MEMORY :: mem.Kilobyte * 512
+
 PLAYER_SPEED :: 10
 
 START_MONEY :: 1000

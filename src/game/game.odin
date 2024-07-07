@@ -6,6 +6,7 @@ import "core:math/rand"
 import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:slice"
+import "core:mem"
 
 import "../ldtk"
 
@@ -14,44 +15,42 @@ iv2 :: dm.iv2
 
 
 GameState :: struct {
+    levelArena: mem.Arena,
+    levelAllocator: mem.Allocator,
+
     levels: []Level,
-    level: Level, // currentLevel
+    level: ^Level, // currentLevel
 
-    spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
-    enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
+    using levelState: struct {
+        spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
+        enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
 
-    selectedBuildingIdx: int,
+        selectedBuildingIdx: int,
 
-    ////////
+        money: int,
+        hp: int,
 
-    money: int,
+        playerPosition: v2,
 
-    hp: int,
+        path: []iv2,
 
-    /////////////
-    // Player character
+        selectedTile: iv2,
+
+        buildingWire: bool,
+        pushedWire: bool, // @RENAME
+
+        recentClickedCoords: [2]iv2,
+
+        currentWaveIdx: int,
+        wavesState: []WaveState,
+        levelFullySpawned: bool,
+
+        // VFX
+        turretFireParticle: dm.ParticleSystem
+    },
 
     playerSprite: dm.Sprite,
-    playerPosition: v2,
-
-    path: []iv2,
-
-    ///
     arrowSprite: dm.Sprite,
-
-    selectedTile: iv2,
-
-    buildingWire: bool,
-    pushedWire: bool, // @RENAME
-
-    recentClickedCoords: [2]iv2,
-
-    currentWaveIdx: int,
-    wavesState: []WaveState,
-    levelFullySpawned: bool,
-
-    // VFX
-    turretFireParticle: dm.ParticleSystem
 }
 
 gameState: ^GameState
@@ -73,8 +72,6 @@ MousePosGrid :: proc() -> (gridPos: iv2) {
     gridPos.x = i32(mousePos.x)
     gridPos.y = i32(mousePos.y)
 
-    // rand.reset()
-
     return
 }
 
@@ -94,27 +91,24 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
+    levelMem := make([]byte, LEVEL_MEMORY)
+    mem.arena_init(&gameState.levelArena, levelMem)
+    gameState.levelAllocator = mem.arena_allocator(&gameState.levelArena)
+
     gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("ship.png"))
     gameState.playerSprite.scale = 2
 
-    dm.InitResourcePool(&gameState.spawnedBuildings, 128)
-    dm.InitResourcePool(&gameState.enemies, 128)
+    // gameState.levels = LoadLevels()
+    // if len(gameState.levels) > 0 {
+    //     gameState.level = gameState.levels[0]
+    // }
 
     gameState.levels = LoadLevels()
-    if len(gameState.levels) > 0 {
-        gameState.level = gameState.levels[0]
-    }
-
-    gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
-
-    gameState.path = CalculatePath(gameState.level, gameState.level.startCoord, gameState.level.endCoord)
-    // fmt.println(gameState.path)
+    OpenLevel("Level_0")
 
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
-
-
 
     // Test level
     // TryPlaceBuilding(1, {15, 20})
@@ -132,26 +126,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     // TryPlaceBuilding(0, {18, 17})
 
     // CheckBuildingConnection({18, 20})
-
-    // @TODO: make StarLevel() or something
-    gameState.wavesState = make([]WaveState, len(Waves))
-    for &s, i in gameState.wavesState {
-        s.seriesStates = make([]SeriesState, len(Waves[i].series))
-    }
-
-    gameState.money = START_MONEY
-    gameState.hp    = START_HP
-
-    ///////////////////////
-
-    gameState.turretFireParticle = dm.DefaultParticleSystem
-    gameState.turretFireParticle.maxParticles = 100
-    gameState.turretFireParticle.texture = dm.renderCtx.whiteTexture
-    gameState.turretFireParticle.lifetime = dm.RandomFloat{0.1, 0.2}
-    gameState.turretFireParticle.startColor = dm.color{0, 1, 1, 1}
-    gameState.turretFireParticle.startSize = dm.RandomFloat{0.1, 0.3}
-
-    dm.InitParticleSystem(&gameState.turretFireParticle)
 }
 
 @(export)
@@ -254,12 +228,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 building.attackTimer = buildingData.reloadTime
 
-                building.currentEnergy -= buildingData.energyRequired
-                enemy.health -= buildingData.damage
-
-                // delta := enemy.position - building.position
-                // delta = glsl.normalize(delta)
-
                 angle := building.turretAngle + math.PI / 2
                 delta := v2 {
                     math.cos(angle),
@@ -268,9 +236,24 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
-                if enemy.health <= 0 {
-                    gameState.money += Enemies[enemy.statsIdx].moneyValue
-                    dm.FreeSlot(gameState.enemies, handle)
+                building.currentEnergy -= buildingData.energyRequired
+                
+                switch buildingData.attackType {
+                case .Simple:
+                    DamageEnemy(enemy, buildingData.damage)
+
+                case .Cannon:
+                    enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
+                    for e in enemies {
+                        enemy, ok := dm.GetElementPtr(gameState.enemies, e)
+                        if ok == false {
+                            continue
+                        }
+
+                        DamageEnemy(enemy, buildingData.damage)
+                    }
+                case .None:
+                    assert(false) // TODO: Error handling/logger
                 }
             }
         }
@@ -330,7 +313,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // temp UI
-    if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 110, 250}) {
+    if dm.muiBeginWindow(dm.mui, "GAME MENU", {10, 10, 110, 450}) {
         dm.muiLabel(dm.mui, "Money:", gameState.money)
         dm.muiLabel(dm.mui, "HP:", gameState.hp)
 
@@ -350,6 +333,20 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if dm.muiButton(dm.mui, "SpawnWave") {
             StartNextWave()
         }
+
+        if dm.muiButton(dm.mui, "Reset level") {
+            name := gameState.level.name
+            CloseCurrentLevel()
+            OpenLevel(name)
+        }
+
+        dm.muiLabel(dm.mui, "LEVELS:")
+        for l in gameState.levels {
+            if dm.muiButton(dm.mui, l.name) {
+                OpenLevel(l.name)
+            }
+        }
+
 
         dm.muiEndWindow(dm.mui)
     }

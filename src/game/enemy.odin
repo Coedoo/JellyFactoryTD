@@ -147,6 +147,15 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     enemy.position = pos
 }
 
+DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32) {
+    enemy.health -= damage
+
+    if enemy.health <= 0 {
+        gameState.money += Enemies[enemy.statsIdx].moneyValue
+        dm.FreeSlot(gameState.enemies, enemy.handle)
+    }
+}
+
 FindClosestEnemy :: proc(pos: v2, radius: f32) -> (handle: EnemyHandle) {
     if len(gameState.enemies.elements) == 0 {
         return
@@ -165,6 +174,19 @@ FindClosestEnemy :: proc(pos: v2, radius: f32) -> (handle: EnemyHandle) {
     }
 
     return
+}
+
+FindEnemiesInRange :: proc(center: v2, radius: f32, allocator := context.allocator) -> []EnemyHandle {
+    enemies := make([dynamic]EnemyHandle, 0, 5, allocator)
+
+    for e in gameState.enemies.elements {
+        dist := glsl.distance(center, e.position)
+        if dist < radius {
+            append(&enemies, e.handle)
+        }
+    }
+
+    return enemies[:]
 }
 
 //////////////////

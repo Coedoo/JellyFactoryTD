@@ -1,8 +1,13 @@
 RUSH:
+ ✔ Level Reset @done (24-07-02 22:40)
+ ☐ Waves list per level
+ ✔ Second Level @done (24-07-04 22:23)
+
+ ✘ Turrets with .RotatingTurreg should fire only when they are facing enemy @cancelled (24-05-25 22:27)
   ☐ two turret types:
-    ☐ Simple
-    ☐ AoE
- ☐ Resources and building cost
+    ✔ Simple @done (24-05-25 22:27)
+    ✔ AoE @done (24-07-04 22:48)
+ ✔ Resources and building cost @done (24-07-01 22:39)
  ☐ Working, semi final wire placement and energy transfer
  ☐ Several enemies types
  ☐ Win/Lose conditions
@@ -54,7 +59,6 @@ Buildings:
    ✔ barrel rotation @done (24-05-23 21:01)
  ☐ Better wire visualution while building
    ☐ Red arrow when deleting
- ☐ Turrets with .RotatingTurreg should fire only when they are facing enemy
 
 MUI WRAPPER:
   ☐ Textbox

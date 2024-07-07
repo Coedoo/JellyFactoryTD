@@ -6,6 +6,8 @@ import "core:math/rand"
 import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:slice"
+import "core:strings"
+import "core:mem"
 import pq "core:container/priority_queue"
 
 import "../ldtk"
@@ -25,6 +27,7 @@ Tile :: struct {
 }
 
 Level  :: struct {
+    name: string,
     grid: []Tile,
     sizeX, sizeY: i32,
 
@@ -77,6 +80,8 @@ LoadLevels :: proc() -> (levels: []Level) {
         level.sizeX = i32(levelSize.x)
         level.sizeY = i32(levelSize.y)
 
+        level.name = strings.clone(loadedLevel.identifier)
+
         for layer in loadedLevel.layer_instances {
             yOffset := layer.c_height * layer.grid_size
 
@@ -105,12 +110,12 @@ LoadLevels :: proc() -> (levels: []Level) {
                     level.grid[idx] = Tile {
                         sprite = sprite,
                         gridPos = iv2{i32(coord.x), i32(coord.y)},
-                        worldPos = v2{posX, posY}
+                        worldPos = v2{posX, posY},
+                        type = cast(TileType) layer.int_grid_csv[i]
                     }
                 }
-            }
 
-            if layer.identifier == "TileTypes" {
+                // Setup tile's types
                 for type, i in layer.int_grid_csv {
                     coord := iv2{
                         i32(i) % level.sizeX,
@@ -123,8 +128,7 @@ LoadLevels :: proc() -> (levels: []Level) {
                     level.grid[idx].type = cast(TileType) type
                 }
             }
-
-            if layer.identifier == "Entities" {
+            else if layer.identifier == "Entities" {
                 for entity in layer.entity_instances {
                     coord := iv2{i32(entity.grid.x), i32(entity.grid.y)}
                     coord.y = level.sizeY - coord.y - 1
@@ -135,11 +139,76 @@ LoadLevels :: proc() -> (levels: []Level) {
                     }
                 }
             }
+            else {
+                fmt.eprintln("Unhandled level layer:", layer.identifier)
+            }
         }
     }
 
     return
 }
+
+
+OpenLevel :: proc(name: string) {
+    mem.zero_item(&gameState.levelState)
+    free_all(gameState.levelAllocator)
+
+    context.allocator = gameState.levelAllocator
+
+    dm.InitResourcePool(&gameState.spawnedBuildings, 128)
+    dm.InitResourcePool(&gameState.enemies, 128)
+
+    gameState.level = nil
+    for &l in gameState.levels {
+        if l.name == name {
+            gameState.level = &l
+            break;
+        }
+    }
+
+    //@TODO: it would be better to start test level in this case
+    assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
+
+    // @TODO: is dererferencing a pointer a copy?
+    gameState.path = CalculatePath(gameState.level^, gameState.level.startCoord, gameState.level.endCoord)
+
+    gameState.wavesState = make([]WaveState, len(Waves))
+    for &s, i in gameState.wavesState {
+        s.seriesStates = make([]SeriesState, len(Waves[i].series))
+    }
+
+    gameState.money = START_MONEY
+    gameState.hp    = START_HP
+
+    gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
+
+    // @TODO: this will probably need other place
+    // Also I don't think I have to completely destroy particles
+    // but that's TBD
+    gameState.turretFireParticle = dm.DefaultParticleSystem
+    gameState.turretFireParticle.maxParticles = 100
+    gameState.turretFireParticle.texture = dm.renderCtx.whiteTexture
+    gameState.turretFireParticle.lifetime = dm.RandomFloat{0.1, 0.2}
+    gameState.turretFireParticle.startColor = dm.color{0, 1, 1, 1}
+    gameState.turretFireParticle.startSize = dm.RandomFloat{0.1, 0.3}
+
+    dm.InitParticleSystem(&gameState.turretFireParticle)
+}
+
+CloseCurrentLevel :: proc() {
+    mem.zero_item(&gameState.levelState)
+    free_all(gameState.levelAllocator)
+
+    for &tile in gameState.level.grid {
+        tile.building = {}
+        tile.wireDir = nil
+    }
+
+    gameState.level = nil
+}
+
+
+///////////
 
 IsInsideGrid :: proc(coord: iv2) -> bool {
     return coord.x >= 0 && coord.x < gameState.level.sizeX &&

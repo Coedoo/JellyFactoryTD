@@ -63,10 +63,12 @@ Building :: struct {
     energyProduction: f32,
 
     // Attack
+    attackType: AttackType,
     range: f32,
     damage: f32,
     energyRequired: f32,
     reloadTime: f32,
+    attackRadius: f32,
 }
 
 BuildingInstance :: struct {
@@ -141,10 +143,40 @@ Buildings := [?]Building {
         energyStorage = 100,
         // energyProduction = 25,
 
+        attackType = .Simple,
         range = 4,
         energyRequired = 10,
         reloadTime = 0.2,
         damage = 100,
+
+        // inputsPos = {{1, 0}}
+        connectionsPos = {{1, 0}}
+
+    },
+
+    {
+        name = "Cannon 1",
+        spriteName = "turret_test_3.png",
+        spriteRect = {0, 32, 32, 32},
+        turretSpriteRect = {32, 0, 32, 64},
+        turretSpriteOrigin = {0.5, 0.75},
+
+        size = {1, 1},
+
+        flags = {.Attack, .RequireEnergy, .RotatingTurret},
+
+        cost = 200,
+
+        energyStorage = 100,
+        // energyProduction = 25,
+
+        attackType = .Cannon,
+
+        range = 4,
+        energyRequired = 10,
+        reloadTime = 0.2,
+        damage = 100,
+        attackRadius = 3,
 
         // inputsPos = {{1, 0}}
         connectionsPos = {{1, 0}}

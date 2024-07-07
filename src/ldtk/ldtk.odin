@@ -134,12 +134,12 @@ Project :: struct {
 
 
 // This section contains all the level data. It can be found in 2 distinct forms, depending
-// on Project current settings:  - If "*Separate level files*" is **disabled** (default):
+// on Project current settings:  - If "*Set JSON file will still contain most level data,
+// except heavy sections, like the `layerInstances` array (which will be nil). The
+// `externalRelPath` string points to the `ldparate level files*" is **disabled** (default):
 // full level data is *embedded* inside the main Project JSON file, - If "*Separate level
 // files*" is **enabled**: level data is stored in *separate* standalone `.ldtkl` files (one
-// per level). In this case, the main Project JSON file will still contain most level data,
-// except heavy sections, like the `layerInstances` array (which will be nil). The
-// `externalRelPath` string points to the `ldtkl` file.  A `ldtkl` file is just a JSON file
+// per level). In this case, the main Projectkl` file.  A `ldtkl` file is just a JSON file
 // containing exactly what is described below.
 Level :: struct {
     // Position informations of the background image, if there is one.

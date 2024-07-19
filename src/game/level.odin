@@ -150,6 +150,8 @@ LoadLevels :: proc() -> (levels: []Level) {
 
 
 OpenLevel :: proc(name: string) {
+    CloseCurrentLevel()
+
     mem.zero_item(&gameState.levelState)
     free_all(gameState.levelAllocator)
 
@@ -209,6 +211,10 @@ OpenLevel :: proc(name: string) {
 }
 
 CloseCurrentLevel :: proc() {
+    if gameState.level == nil {
+        return
+    }
+
     mem.zero_item(&gameState.levelState)
     free_all(gameState.levelAllocator)
 
@@ -348,13 +354,15 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
     buildingTile := GetTileAtCoord(gridPos)
 
-    for offset in building.connectionsPos {
-        coord := gridPos + offset
-        tile := GetTileAtCoord(coord)
 
-        buildingTile.wireDir += { VecToDir(offset) }
-        tile.wireDir += { VecToDir(-offset) }
-    }
+    buildingTile.wireDir = building.connections
+    // for offset in building.connectionsPos {
+    //     coord := gridPos + offset
+    //     tile := GetTileAtCoord(coord)
+
+    //     buildingTile.wireDir += { VecToDir(offset) }
+    //     tile.wireDir += { VecToDir(-offset) }
+    // }
 
     // TODO: check for outside grid coords
     for y in 0..<building.size.y {
@@ -363,6 +371,8 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
             gameState.level.grid[idx].building = handle
         }
     }
+
+    CheckBuildingConnection(gridPos)
 }
 
 

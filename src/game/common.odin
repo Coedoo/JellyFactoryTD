@@ -26,6 +26,13 @@ DirSW   :: DirectionSet{ .South, .West }
 
 DirSplitter :: DirectionSet{ .East, .North, .West, .South }
 
+NextDir := [Direction]Direction {
+    .East  = .South, 
+    .North = .East, 
+    .West  = .North, 
+    .South = .West
+}
+
 DirToRot := [Direction]f32 {
     .East  = 0, 
     .North = 90, 

@@ -56,7 +56,7 @@ Building :: struct {
     // inputsPos: []iv2,
     // outputsPos: []iv2,
 
-    connectionsPos: []iv2,
+    connections: DirectionSet,
 
     // Energy
     energyStorage: f32,
@@ -123,8 +123,7 @@ Buildings := [?]Building {
         energyStorage = 100,
         energyProduction = 25,
 
-        // outputsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
-        connectionsPos = {{-1, 0}, {1, 0}, {0, 1}, {0, -1}}
+        connections = {.East, .North, .West, .South},
     },
 
     {
@@ -149,9 +148,7 @@ Buildings := [?]Building {
         reloadTime = 0.2,
         damage = 100,
 
-        // inputsPos = {{1, 0}}
-        connectionsPos = {{1, 0}}
-
+        connections = DirHorizontal,
     },
 
     {
@@ -178,9 +175,7 @@ Buildings := [?]Building {
         damage = 100,
         attackRadius = 3,
 
-        // inputsPos = {{1, 0}}
-        connectionsPos = {{1, 0}}
-
+        connections = DirHorizontal,
     },
 }
 

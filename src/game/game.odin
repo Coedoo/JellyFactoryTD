@@ -37,6 +37,8 @@ GameState :: struct {
         selectedTile: iv2,
 
         buildingWire: bool,
+        buildingWireDir: DirectionSet,
+
         pushedWire: bool, // @RENAME
 
         recentClickedCoords: [2]iv2,
@@ -106,7 +108,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     // }
 
     gameState.levels = LoadLevels()
-    OpenLevel("Level_0")
+    OpenLevel(START_LEVEL)
 
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
@@ -330,9 +332,30 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
         }
 
-        if dm.muiButton(dm.mui, "Wire") {
+        dm.muiLabel(dm.mui, "Wires:")
+        if dm.muiButton(dm.mui, "Stright") {
             gameState.buildingWire = true
             gameState.selectedBuildingIdx = 0
+
+            gameState.buildingWireDir = DirVertical
+        }
+        if dm.muiButton(dm.mui, "Angled") {
+            gameState.buildingWire = true
+            gameState.selectedBuildingIdx = 0
+
+            gameState.buildingWireDir = DirNE
+        }
+        if dm.muiButton(dm.mui, "Triple") {
+            gameState.buildingWire = true
+            gameState.selectedBuildingIdx = 0
+
+            gameState.buildingWireDir = {.South, .North, .East}
+        }
+        if dm.muiButton(dm.mui, "Quad") {
+            gameState.buildingWire = true
+            gameState.selectedBuildingIdx = 0
+
+            gameState.buildingWireDir = DirSplitter
         }
 
         dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
@@ -342,7 +365,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         if dm.muiButton(dm.mui, "Reset level") {
             name := gameState.level.name
-            CloseCurrentLevel()
             OpenLevel(name)
         }
 
@@ -385,67 +407,79 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
        cursorOverUI == false
     {
         leftBtn := dm.GetMouseButton(.Left)
-        if leftBtn == .JustPressed {
-            pos := MousePosGrid()
-            gameState.recentClickedCoords[0] = pos
-            gameState.recentClickedCoords[1] = pos
-            gameState.pushedWire = true
-        }
+        // if leftBtn == .JustPressed {
+        //     pos := MousePosGrid()
+        //     gameState.recentClickedCoords[0] = pos
+        //     gameState.recentClickedCoords[1] = pos
+        //     gameState.pushedWire = true
+        // }
 
         if leftBtn == .Down {
             coord := MousePosGrid()
-            if gameState.recentClickedCoords[1] != coord {
-                tile := GetTileAtCoord(gameState.recentClickedCoords[1])
+            // if gameState.recentClickedCoords[1] != coord {
+            //     tile := GetTileAtCoord(gameState.recentClickedCoords[1])
 
-                // if tile.building == {} {
-                {
-                    delta := coord - gameState.recentClickedCoords[0]
+            //     if tile.building == {} {
+            //         delta := coord - gameState.recentClickedCoords[0]
 
-                    if delta == {1, 0} || delta == {-1, 0} {
-                        tile.wireDir += DirHorizontal
-                        CheckBuildingConnection(tile.gridPos)
-                    }
-                    else if delta == {0, 1} || delta == {0, -1} {
-                        tile.wireDir += DirVertical
-                        CheckBuildingConnection(tile.gridPos)
-                    }
-                    else if delta != {0, 0} {
-                        createdWire: DirectionSet
+            //         if delta == {1, 0} || delta == {-1, 0} {
+            //             tile.wireDir += DirHorizontal
+            //             CheckBuildingConnection(tile.gridPos)
+            //         }
+            //         else if delta == {0, 1} || delta == {0, -1} {
+            //             tile.wireDir += DirVertical
+            //             CheckBuildingConnection(tile.gridPos)
+            //         }
+            //         else if delta != {0, 0} {
+            //             createdWire: DirectionSet
 
-                        delta = gameState.recentClickedCoords[0] - gameState.recentClickedCoords[1]
-                        if      delta.x > 0 do createdWire += { .East }
-                        else if delta.x < 0 do createdWire += { .West }
-                        else if delta.y > 0 do createdWire += { .North }
-                        else if delta.y < 0 do createdWire += { .South }
+            //             delta = gameState.recentClickedCoords[0] - gameState.recentClickedCoords[1]
+            //             if      delta.x > 0 do createdWire += { .East }
+            //             else if delta.x < 0 do createdWire += { .West }
+            //             else if delta.y > 0 do createdWire += { .North }
+            //             else if delta.y < 0 do createdWire += { .South }
 
-                        delta = gameState.recentClickedCoords[1] - coord
-                        if      delta.x > 0 do createdWire += { .West }
-                        else if delta.x < 0 do createdWire += { .East }
-                        else if delta.y > 0 do createdWire += { .South }
-                        else if delta.y < 0 do createdWire += { .North }
+            //             delta = gameState.recentClickedCoords[1] - coord
+            //             if      delta.x > 0 do createdWire += { .West }
+            //             else if delta.x < 0 do createdWire += { .East }
+            //             else if delta.y > 0 do createdWire += { .South }
+            //             else if delta.y < 0 do createdWire += { .North }
 
-                        // if tile.wireDir == nil {
-                        {
-                            tile.wireDir += createdWire
-                            CheckBuildingConnection(tile.gridPos)
-                        }
-                    }
-                }
+            //             // if tile.wireDir == nil {
+            //             {
+            //                 tile.wireDir += createdWire
+            //                 CheckBuildingConnection(tile.gridPos)
+            //             }
+            //         }
+            //     }
 
-                gameState.recentClickedCoords[0] = gameState.recentClickedCoords[1]
-                gameState.recentClickedCoords[1] = coord
+            //     gameState.recentClickedCoords[0] = gameState.recentClickedCoords[1]
+            //     gameState.recentClickedCoords[1] = coord
+            // }
+
+            tile := GetTileAtCoord(coord)
+            if tile.building == {} {
+                tile.wireDir = gameState.buildingWireDir
+                CheckBuildingConnection(tile.gridPos)
             }
         }
 
-        if leftBtn == .JustReleased {
-            tile := TileUnderCursor()
-            if tile.wireDir == nil {
-                gameState.pushedWire = false
+        if dm.GetKeyState(.Q) == .JustReleased {
+            newSet: DirectionSet
+            for dir in gameState.buildingWireDir {
+                newSet += { NextDir[dir] }
             }
-            else {
-                tile.wireDir = nil
-            }
+            gameState.buildingWireDir = newSet
         }
+        // if leftBtn == .JustReleased {
+        //     tile := TileUnderCursor()
+        //     if tile.wireDir == nil {
+        //         gameState.pushedWire = false
+        //     }
+        //     else {
+        //         tile.wireDir = nil
+        //     }
+        // }
 
         // if(gameState.pushedWire) {
         //     a := dm.ToV2(gameState.t) + {0.5, 0.5}
@@ -480,31 +514,31 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
 
-    // if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
-    //     tile := GetTileAtCoord(gameState.selectedTile)
-    //     dm.muiLabel(dm.mui, tile.wireDir)
+    if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
+        tile := GetTileAtCoord(gameState.selectedTile)
+        dm.muiLabel(dm.mui, tile.wireDir)
 
-    //     if dm.muiHeader(dm.mui, "Building") {
-    //         if tile.building != {} {
-    //             building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
-    //             if ok {
-    //                 data := &Buildings[building.dataIdx]
-    //                 dm.muiLabel(dm.mui, "Name:", data.name)
-    //                 dm.muiLabel(dm.mui, building.handle)
-    //                 dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-    //                 dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
+        if dm.muiHeader(dm.mui, "Building") {
+            if tile.building != {} {
+                building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
+                if ok {
+                    data := &Buildings[building.dataIdx]
+                    dm.muiLabel(dm.mui, "Name:", data.name)
+                    dm.muiLabel(dm.mui, building.handle)
+                    dm.muiLabel(dm.mui, "Pos:", building.gridPos)
+                    dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
 
-    //                 if dm.muiHeader(dm.mui, "Connected Buildings") {
-    //                     for b in building.connectedBuildings {
-    //                         dm.muiLabel(dm.mui, b)
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+                    if dm.muiHeader(dm.mui, "Connected Buildings") {
+                        for b in building.connectedBuildings {
+                            dm.muiLabel(dm.mui, b)
+                        }
+                    }
+                }
+            }
+        }
 
-    //     dm.muiEndWindow(dm.mui)
-    // }
+        dm.muiEndWindow(dm.mui)
+    }
 
     // if dm.muiBeginWindow(dm.mui, "Selected Building", {10, 150, 140, 250}) {
     //     for &c in testWave {
@@ -618,13 +652,26 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Building Wire
-    if gameState.buildingWire && gameState.pushedWire {
-        tile := GetTileAtCoord(gameState.recentClickedCoords[1])
-        for dir in Direction {
-            if dir not_in tile.wireDir {
-                dm.DrawSprite(gameState.arrowSprite, tile.worldPos, rotation = math.to_radians(DirToRot[dir]))
-            }
+    if gameState.buildingWire {
+        coord := MousePosGrid()
+        for dir in gameState.buildingWireDir {
+            dm.DrawWorldRect(
+                dm.renderCtx.whiteTexture,
+                dm.ToV2(coord) + 0.5,
+                {0.5, 0.1},
+                rotation = math.to_radians(DirToRot[dir]),
+                color = {0, 0.1, 0.8, 0.5},
+                pivot = {0, 0.5}
+            )
         }
+
+
+    //     tile := GetTileAtCoord(gameState.recentClickedCoords[1])
+    //     for dir in Direction {
+    //         if dir not_in tile.wireDir {
+    //             dm.DrawSprite(gameState.arrowSprite, tile.worldPos, rotation = math.to_radians(DirToRot[dir]))
+    //         }
+    //     }
     }
 
 

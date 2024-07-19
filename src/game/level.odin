@@ -90,9 +90,6 @@ LoadLevels :: proc() -> (levels: []Level) {
                 level.grid = make([]Tile, layer.c_width * layer.c_height)
 
                 for tile, i in tiles {
-                    // posX := f32(tile.px.x) / f32(layer.grid_size) + 0.5
-                    // posY := f32(-tile.px.y + yOffset) / f32(layer.grid_size) - 0.5
-
                     sprite := dm.CreateSprite(
                         tilesHandle,
                         dm.RectInt{i32(tile.src.x), i32(tile.src.y), PixelsPerTile, PixelsPerTile}
@@ -343,26 +340,13 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     }
 
     toSpawn := BuildingInstance {
-        // definition = building,
         dataIdx = buildingIdx,
         gridPos = gridPos,
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
     }
 
-    // fmt.println(gridPos)
-
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
     buildingTile := GetTileAtCoord(gridPos)
-
-
-    buildingTile.wireDir = building.connections
-    // for offset in building.connectionsPos {
-    //     coord := gridPos + offset
-    //     tile := GetTileAtCoord(coord)
-
-    //     buildingTile.wireDir += { VecToDir(offset) }
-    //     tile.wireDir += { VecToDir(-offset) }
-    // }
 
     // TODO: check for outside grid coords
     for y in 0..<building.size.y {
@@ -372,6 +356,7 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         }
     }
 
+    buildingTile.wireDir = building.connections
     CheckBuildingConnection(gridPos)
 }
 
@@ -404,7 +389,6 @@ RemoveBuilding :: proc(building: BuildingHandle) {
 }
 
 CalculatePath :: proc(level: Level, start, goal: iv2) -> []iv2 {
-    // openCoords := make([dynamic]iv2, 0, level.sizeX, allocator = context.temp_allocator)
     openCoords: pq.Priority_Queue(iv2)
 
     // @TODO: I can probably make gScore and fScore as 2d array so 

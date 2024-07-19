@@ -39,10 +39,6 @@ GameState :: struct {
         buildingWire: bool,
         buildingWireDir: DirectionSet,
 
-        pushedWire: bool, // @RENAME
-
-        recentClickedCoords: [2]iv2,
-
         currentWaveIdx: int,
         levelWaves: LevelWaves,
         wavesState: []WaveState,
@@ -101,11 +97,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("ship.png"))
     gameState.playerSprite.scale = 2
-
-    // gameState.levels = LoadLevels()
-    // if len(gameState.levels) > 0 {
-    //     gameState.level = gameState.levels[0]
-    // }
 
     gameState.levels = LoadLevels()
     OpenLevel(START_LEVEL)
@@ -203,16 +194,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
             if ok {
                 delta := building.position - enemy.position
-                // building.targetTurretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
                 building.turretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
             }
-
-            // @TODO: better easing function
-            // building.turretAngle = math.lerp(
-            //     building.turretAngle, 
-            //     building.targetTurretAngle, 
-            //     f32(20 * dm.time.deltaTime)
-            // )
         }
 
         if .Attack in buildingData.flags {
@@ -407,55 +390,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
        cursorOverUI == false
     {
         leftBtn := dm.GetMouseButton(.Left)
-        // if leftBtn == .JustPressed {
-        //     pos := MousePosGrid()
-        //     gameState.recentClickedCoords[0] = pos
-        //     gameState.recentClickedCoords[1] = pos
-        //     gameState.pushedWire = true
-        // }
-
         if leftBtn == .Down {
             coord := MousePosGrid()
-            // if gameState.recentClickedCoords[1] != coord {
-            //     tile := GetTileAtCoord(gameState.recentClickedCoords[1])
-
-            //     if tile.building == {} {
-            //         delta := coord - gameState.recentClickedCoords[0]
-
-            //         if delta == {1, 0} || delta == {-1, 0} {
-            //             tile.wireDir += DirHorizontal
-            //             CheckBuildingConnection(tile.gridPos)
-            //         }
-            //         else if delta == {0, 1} || delta == {0, -1} {
-            //             tile.wireDir += DirVertical
-            //             CheckBuildingConnection(tile.gridPos)
-            //         }
-            //         else if delta != {0, 0} {
-            //             createdWire: DirectionSet
-
-            //             delta = gameState.recentClickedCoords[0] - gameState.recentClickedCoords[1]
-            //             if      delta.x > 0 do createdWire += { .East }
-            //             else if delta.x < 0 do createdWire += { .West }
-            //             else if delta.y > 0 do createdWire += { .North }
-            //             else if delta.y < 0 do createdWire += { .South }
-
-            //             delta = gameState.recentClickedCoords[1] - coord
-            //             if      delta.x > 0 do createdWire += { .West }
-            //             else if delta.x < 0 do createdWire += { .East }
-            //             else if delta.y > 0 do createdWire += { .South }
-            //             else if delta.y < 0 do createdWire += { .North }
-
-            //             // if tile.wireDir == nil {
-            //             {
-            //                 tile.wireDir += createdWire
-            //                 CheckBuildingConnection(tile.gridPos)
-            //             }
-            //         }
-            //     }
-
-            //     gameState.recentClickedCoords[0] = gameState.recentClickedCoords[1]
-            //     gameState.recentClickedCoords[1] = coord
-            // }
 
             tile := GetTileAtCoord(coord)
             if tile.building == {} {
@@ -471,32 +407,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
             gameState.buildingWireDir = newSet
         }
-        // if leftBtn == .JustReleased {
-        //     tile := TileUnderCursor()
-        //     if tile.wireDir == nil {
-        //         gameState.pushedWire = false
-        //     }
-        //     else {
-        //         tile.wireDir = nil
-        //     }
-        // }
-
-        // if(gameState.pushedWire) {
-        //     a := dm.ToV2(gameState.t) + {0.5, 0.5}
-        //     b := dm.ToV2(gameState.recentClickedCoords[0]) + {0.5, 0.5}
-        //     c := dm.ToV2(gameState.recentClickedCoords[1]) + {0.5, 0.5}
-
-        //     dm.DrawLine(dm.renderCtx, a, b, false, color = dm.SKYBLUE)
-        //     dm.DrawLine(dm.renderCtx, b, c, false, color = dm.SKYBLUE)
-        // }
     }
 
     // Highlight Building 
     if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 && cursorOverUI == false{
         if dm.GetMouseButton(.Left) == .JustPressed {
             coord := MousePosGrid()
-            // tile := GetTileAtCoord(coord)
-
             gameState.selectedTile = coord
         }
     }
@@ -539,14 +455,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         dm.muiEndWindow(dm.mui)
     }
-
-    // if dm.muiBeginWindow(dm.mui, "Selected Building", {10, 150, 140, 250}) {
-    //     for &c in testWave {
-             
-    //     }
-
-    //     dm.muiEndWindow(dm.mui)
-    // }
 }
 
 @(export)
@@ -618,20 +526,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 dm.DrawCircle(dm.renderCtx, pos, buildingData.range, false)
             }
         }
-
-        // for out in building.outputsPos {
-        //     pos := building.position + dm.ToV2(out) * 0.6
-
-        //     rot := math.atan2(f32(out.y), f32(out.x))
-        //     dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
-        // }
-
-        // for input in building.inputsPos {
-        //     pos := building.position + dm.ToV2(input) * 0.6
-
-        //     rot := math.atan2(f32(input.y), f32(input.x)) + math.to_radians(f32(180))
-        //     dm.DrawSprite(gameState.arrowSprite, pos, rotation = rot)
-        // }
     }
 
     // Selected building
@@ -664,14 +558,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 pivot = {0, 0.5}
             )
         }
-
-
-    //     tile := GetTileAtCoord(gameState.recentClickedCoords[1])
-    //     for dir in Direction {
-    //         if dir not_in tile.wireDir {
-    //             dm.DrawSprite(gameState.arrowSprite, tile.worldPos, rotation = math.to_radians(DirToRot[dir]))
-    //         }
-    //     }
     }
 
 

@@ -8,10 +8,6 @@ EnemiesSeries :: struct {
     timeBetweenSpawns: f32,
 }
 
-// EnemyWave :: struct {
-//     series: []EnemiesSeries,
-// }
-
 LevelWaves :: struct {
     levelName: string,
     waves: [][]EnemiesSeries,

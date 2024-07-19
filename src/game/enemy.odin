@@ -60,11 +60,6 @@ SpawnEnemyByName :: proc(name: string) -> ^EnemyInstance {
 }
 
 UpdateEnemy :: proc(enemy: ^EnemyInstance) {
-    // enemy, ok := dm.GetElementPtr(gameState.enemies, enemyHandle)
-    // if ok == false {
-    //     return
-    // }
-
     enemyStat := Enemies[enemy.statsIdx]
 
     dist := enemyStat.speed * f32(dm.time.deltaTime)

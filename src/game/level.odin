@@ -156,6 +156,7 @@ OpenLevel :: proc(name: string) {
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
     dm.InitResourcePool(&gameState.enemies, 128)
+    dm.InitResourcePool(&gameState.energyPackets, 1028)
 
     gameState.level = nil
     for &l in gameState.levels {
@@ -168,8 +169,7 @@ OpenLevel :: proc(name: string) {
     //@TODO: it would be better to start test level in this case
     assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
 
-    // @TODO: is dererferencing a pointer a copy?
-    gameState.path = CalculatePath(gameState.level^, gameState.level.startCoord, gameState.level.endCoord)
+    gameState.path = CalculatePath(gameState.level.startCoord, gameState.level.endCoord, WalkablePredicate)
 
     waves: LevelWaves
     for w in Waves {
@@ -262,7 +262,7 @@ TileUnderCursor :: proc() -> ^Tile {
     return GetTileAtCoord(coord)
 }
 
-GetNeighbours :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
+GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
     ret := make([dynamic]iv2, 0, 8, allocator = allocator)
 
     for x := i32(-1); x <= i32(1); x += 1 {
@@ -388,7 +388,21 @@ RemoveBuilding :: proc(building: BuildingHandle) {
     inst.handle = {}
 }
 
-CalculatePath :: proc(level: Level, start, goal: iv2) -> []iv2 {
+TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile) -> bool
+
+WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile) -> bool {
+    return neighbor.type == .WalkArea
+}
+
+WirePredicate :: proc(currentTile: Tile, neighbor: Tile) -> bool {
+    delta :=  neighbor.gridPos - currentTile.gridPos
+    dir := VecToDir(delta)
+    reverse := ReverseDir[dir]
+
+    return dir in currentTile.wireDir && reverse in neighbor.wireDir
+}
+
+CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredicate) -> []iv2 {
     openCoords: pq.Priority_Queue(iv2)
 
     // @TODO: I can probably make gScore and fScore as 2d array so 
@@ -431,27 +445,29 @@ CalculatePath :: proc(level: Level, start, goal: iv2) -> []iv2 {
             return ret[:]
         }
 
-        pq.pop(&openCoords)
-        neighbours := GetNeighbours(current, allocator = context.temp_allocator)
-        for n in neighbours {
-            tile := GetTileAtCoord(n)
+        currentTile := GetTileAtCoord(current)
 
-            if n != goal {
-                if tile.type != .WalkArea {
+        pq.pop(&openCoords)
+        neighboursCoords := GetNeighbourCoords(current, allocator = context.temp_allocator)
+        for neighborCoord in neighboursCoords {
+            neighbourTile := GetTileAtCoord(neighborCoord)
+
+            if neighborCoord != goal {
+                if traversalPredicate(currentTile^, neighbourTile^) == false {
                     continue
                 }
             }
 
             // @NOTE: I can make it depend on the edge on the tilemap
-            weight := glsl.distance(dm.ToV2(current), dm.ToV2(n))
+            weight := glsl.distance(dm.ToV2(current), dm.ToV2(neighborCoord))
             newScore := gScore[current] + weight
-            oldScore := gScore[n] or_else max(f32)
+            oldScore := gScore[neighborCoord] or_else max(f32)
             if newScore < oldScore {
-                cameFrom[n] = current
-                gScore[n] = newScore
-                fScore[n] = newScore + Heuristic(n, goal)
-                if slice.contains(openCoords.queue[:], n) == false {
-                    pq.push(&openCoords, n)
+                cameFrom[neighborCoord] = current
+                gScore[neighborCoord] = newScore
+                fScore[neighborCoord] = newScore + Heuristic(neighborCoord, goal)
+                if slice.contains(openCoords.queue[:], neighborCoord) == false {
+                    pq.push(&openCoords, neighborCoord)
                 }
             }
         }

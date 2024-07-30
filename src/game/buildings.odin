@@ -62,6 +62,9 @@ Building :: struct {
     energyStorage: f32,
     energyProduction: f32,
 
+    packetSize: f32,
+    packetSpawnInterval: f32,
+
     // Attack
     attackType: AttackType,
     range: f32,
@@ -81,6 +84,7 @@ BuildingInstance :: struct {
 
     // energy
     currentEnergy: f32,
+    packetSpawnTimer: f32,
 
     // attack
     attackTimer: f32,
@@ -123,6 +127,9 @@ Buildings := [?]Building {
         energyStorage = 100,
         energyProduction = 25,
 
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
         connections = {.East, .North, .West, .South},
     },
 
@@ -144,9 +151,9 @@ Buildings := [?]Building {
 
         attackType = .Simple,
         range = 4,
-        energyRequired = 10,
+        energyRequired = 8,
         reloadTime = 0.2,
-        damage = 100,
+        damage = 50,
 
         connections = DirHorizontal,
     },
@@ -172,11 +179,22 @@ Buildings := [?]Building {
         range = 4,
         energyRequired = 10,
         reloadTime = 0.2,
-        damage = 100,
+        damage = 70,
         attackRadius = 3,
 
         connections = DirHorizontal,
     },
+}
+
+EnergyPacketHandle :: distinct dm.Handle
+EnergyPacket :: struct {
+    handle: EnergyPacketHandle,
+    using pathFollower: PathFollower,
+
+    speed: f32,
+    energy: f32,
+
+    target: BuildingHandle,
 }
 
 AddEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
@@ -213,7 +231,7 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
             dir := VecToDir(delta)
 
             if (dir in tile.wireDir) &&
-               (GetOppositeDir(dir) in neighbour.wireDir) &&
+               (ReverseDir[dir] in neighbour.wireDir) &&
                 slice.contains(visited[:], neighbour.gridPos) == false
             {
                 append(&queue, neighbour.gridPos)
@@ -231,11 +249,31 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
 
     for handleA in buildingsInNetwork {
         building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
+        data := Buildings[building.dataIdx]
+
         clear(&building.connectedBuildings)
+
+        // Adding buildings only when building A Produces Energy,
+        // and the building B requires it.
+        // I'm not sure if connected buildings will be needed
+        // for anything else
+
+        if .ProduceEnergy in data.flags == false {
+            continue
+        }
 
         for handleB in buildingsInNetwork {
             if handleA != handleB {
-                append(&building.connectedBuildings, handleB)
+                otherBuilding := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
+                otherData := Buildings[otherBuilding.dataIdx]
+
+                if .RequireEnergy in otherData.flags {
+                    append(&building.connectedBuildings, handleB)
+
+                    key := PathKey{ building.handle, otherBuilding.handle }
+                    path := CalculatePath(building.gridPos, otherBuilding.gridPos, WirePredicate)
+                    gameState.pathsBetweenBuildings[key] = path
+                }
             }
         }
     }

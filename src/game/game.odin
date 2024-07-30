@@ -24,6 +24,7 @@ GameState :: struct {
     using levelState: struct {
         spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
         enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
+        energyPackets: dm.ResourcePool(EnergyPacket, EnergyPacketHandle),
 
         selectedBuildingIdx: int,
 
@@ -44,6 +45,8 @@ GameState :: struct {
         wavesState: []WaveState,
 
         levelFullySpawned: bool,
+
+        pathsBetweenBuildings: map[PathKey][]iv2,
 
         // VFX
         turretFireParticle: dm.ParticleSystem
@@ -106,21 +109,21 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.arrowSprite.origin = {0, 0.5}
 
     // Test level
-    // TryPlaceBuilding(1, {15, 20})
-    // TryPlaceBuilding(0, {20, 18})
+    TryPlaceBuilding(1, {15, 20})
+    TryPlaceBuilding(0, {20, 18})
 
-    // GetTileAtCoord({16, 20}).wireDir = {.West, .East}
-    // GetTileAtCoord({17, 20}).wireDir = {.West, .East}
-    // GetTileAtCoord({18, 20}).wireDir = {.West, .East}
-    // GetTileAtCoord({19, 20}).wireDir = {.West, .East}
-    // GetTileAtCoord({20, 20}).wireDir = {.West, .South}
-    // GetTileAtCoord({20, 19}).wireDir = {.North, .South}
+    GetTileAtCoord({16, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({17, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({18, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({19, 20}).wireDir = {.West, .East}
+    GetTileAtCoord({20, 20}).wireDir = {.West, .South}
+    GetTileAtCoord({20, 19}).wireDir = {.North, .South}
 
 
-    // TryPlaceBuilding(1, {15, 17})
-    // TryPlaceBuilding(0, {18, 17})
+    TryPlaceBuilding(1, {15, 17})
+    TryPlaceBuilding(0, {18, 17})
 
-    // CheckBuildingConnection({18, 20})
+    CheckBuildingConnection({18, 20})
 }
 
 @(export)
@@ -178,14 +181,31 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 otherData := Buildings[other.dataIdx]
 
                 if .RequireEnergy in otherData.flags {
-                    // @TODO: add flow value
-                    energy := 10 * f32(dm.time.deltaTime)
+                    building.packetSpawnTimer -= f32(dm.time.deltaTime)
 
-                    toRemove := min(energy, otherData.energyStorage - other.currentEnergy)
-                    toRemove = min(toRemove, building.currentEnergy)
+                    energyInTransit := GetTransitEnergy(other.handle)
 
-                    building.currentEnergy -= toRemove
-                    other.currentEnergy += toRemove
+                    canSpawn := building.packetSpawnTimer <= 0
+                    canSpawn &&= building.currentEnergy >= buildingData.packetSize
+                    canSpawn &&= (otherData.energyStorage - other.currentEnergy - energyInTransit) >= buildingData.packetSize
+
+                    if canSpawn {
+                        building.packetSpawnTimer = buildingData.packetSpawnInterval
+
+                        packet := dm.CreateElement(gameState.energyPackets)
+                        pathKey := PathKey{
+                            from = building.handle,
+                            to = other.handle,
+                        }
+
+                        packet.path = gameState.pathsBetweenBuildings[pathKey]
+                        packet.position = CoordToPos(packet.path[0])
+                        packet.speed = 6
+                        packet.energy = buildingData.packetSize
+                        packet.target = connected
+
+                        building.currentEnergy -= buildingData.packetSize
+                    }
                 }
             }
         }
@@ -244,9 +264,20 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 }
             }
         }
+    }
 
+    // Update Energy
+    for &packet, i in gameState.energyPackets.elements {
+        if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
+            if UpdateFollower(&packet, packet.speed) {
+                building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.target)
+                if ok {
+                    building.currentEnergy += packet.energy
+                }
 
-
+                dm.FreeSlot(gameState.energyPackets, packet.handle)
+            }
+        }
     }
 
     // Update Enemies 
@@ -382,6 +413,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         else {
             tile := TileUnderCursor()
             RemoveBuilding(tile.building)
+            tile.wireDir = nil
         }
     }
 
@@ -560,6 +592,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         }
     }
 
+    // Draw energy packets
+    for &packet, i in gameState.energyPackets.elements {
+        if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
+            dm.DrawBlankSprite(packet.position, .4, color = dm.LIME)
+        }
+    }
 
     // Enemy
     for &enemy, i in gameState.enemies.elements {
@@ -588,6 +626,15 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         b := gameState.path[i + 1]
 
         dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.GREEN)
+    }
+
+    for k, path in gameState.pathsBetweenBuildings {
+        for i := 0; i < len(path) - 1; i += 1 {
+            a := path[i]
+            b := path[i + 1]
+
+            dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
+        }
     }
 
     dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)

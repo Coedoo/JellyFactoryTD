@@ -27,8 +27,10 @@ EnemyInstance :: struct {
 
     statsIdx: int,
 
-    position: v2,
-    pathPointIdx: int,
+    // position: v2,
+    // pathPointIdx: int,
+    using pathFollower: PathFollower,
+
     health: f32,
 }
 
@@ -44,6 +46,8 @@ SpawnEnemyByIndex :: proc(idx: int) -> ^EnemyInstance {
     enemy.statsIdx = idx
     enemy.health = stats.maxHealth
     enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
+
+    enemy.path = gameState.path
 
     return enemy
 }
@@ -62,26 +66,31 @@ SpawnEnemyByName :: proc(name: string) -> ^EnemyInstance {
 UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     enemyStat := Enemies[enemy.statsIdx]
 
-    dist := enemyStat.speed * f32(dm.time.deltaTime)
-    target := dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
-
-    pos, distLeft := dm.MoveTowards(enemy.position, target, dist)
-    for distLeft != 0 {
-        enemy.pathPointIdx += 1
-        if enemy.pathPointIdx == len(gameState.path) {
-            enemy.pathPointIdx = 0
-            pos = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
-
-            gameState.hp -= enemyStat.damage
-
-            break
-        }
-
-        target = dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
-        pos, distLeft = dm.MoveTowards(pos, target, distLeft)
+    if UpdateFollower(enemy, enemyStat.speed) {
+        enemy.nextPointIdx = 0
+        gameState.hp -= enemyStat.damage
     }
 
-    enemy.position = pos
+    // dist := enemyStat.speed * f32(dm.time.deltaTime)
+    // target := dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
+
+    // pos, distLeft := dm.MoveTowards(enemy.position, target, dist)
+    // for distLeft != 0 {
+    //     enemy.pathPointIdx += 1
+    //     if enemy.pathPointIdx == len(gameState.path) {
+    //         enemy.pathPointIdx = 0
+    //         pos = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
+
+    //         gameState.hp -= enemyStat.damage
+
+    //         break
+    //     }
+
+    //     target = dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
+    //     pos, distLeft = dm.MoveTowards(pos, target, distLeft)
+    // }
+
+    // enemy.position = pos
 }
 
 DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32) {

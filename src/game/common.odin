@@ -33,6 +33,13 @@ NextDir := [Direction]Direction {
     .South = .West
 }
 
+ReverseDir := [Direction]Direction {
+    .East  = .West,
+    .West  = .East,
+    .North = .South,
+    .South = .North,
+}
+
 DirToRot := [Direction]f32 {
     .East  = 0, 
     .North = 90, 
@@ -49,13 +56,51 @@ VecToDir :: proc(vec: iv2) -> Direction {
     }
 }
 
-GetOppositeDir :: proc(dir: Direction) -> Direction {
-    switch dir {
-    case .East:  return .West
-    case .West:  return .East
-    case .North: return .South
-    case .South: return .North
+CoordToPos :: proc(coord: iv2) -> v2 {
+    return dm.ToV2(coord) + {0.5, 0.5}
+}
+
+PathKey :: struct {
+    from: BuildingHandle,
+    to: BuildingHandle,
+}
+
+PathFollower :: struct {
+    path: []iv2,
+    nextPointIdx: int,
+    position: v2,
+}
+
+UpdateFollower :: proc(follower: ^PathFollower, speed: f32) -> bool {
+    dist := speed * f32(dm.time.deltaTime)
+    target := CoordToPos(follower.path[follower.nextPointIdx])
+
+    pos, distLeft := dm.MoveTowards(follower.position, target, dist)
+    for distLeft != 0 {
+        follower.nextPointIdx += 1
+        if follower.nextPointIdx == len(follower.path) {
+            pos = CoordToPos(follower.path[0])
+
+            return true
+        }
+
+        target = CoordToPos(follower.path[follower.nextPointIdx])
+        pos, distLeft = dm.MoveTowards(pos, target, distLeft)
     }
 
-    return nil // to stop compiler from complaining
+    follower.position = pos
+    return false
+}
+
+
+GetTransitEnergy :: proc(handle: BuildingHandle) -> (amount: f32) {
+    for packet in gameState.energyPackets.elements {
+        if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
+            if packet.target == handle {
+                amount += packet.energy
+            }
+        }
+    }
+
+    return
 }

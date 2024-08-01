@@ -40,6 +40,8 @@ GameState :: struct {
         buildingWire: bool,
         buildingWireDir: DirectionSet,
 
+        destroyMode: bool,
+
         currentWaveIdx: int,
         levelWaves: LevelWaves,
         wavesState: []WaveState,
@@ -373,6 +375,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             gameState.buildingWireDir = DirSplitter
         }
 
+        dm.muiLabel(dm.mui)
+        if dm.muiButton(dm.mui, "Destroy") {
+            gameState.destroyMode = true
+        }
+
+
         dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
         if dm.muiButton(dm.mui, "SpawnWave") {
             StartNextWave()
@@ -394,28 +402,28 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiEndWindow(dm.mui)
     }
 
-    // @TODO: probably want to move this to respected
-    // Cancell building/wire or destroy building
+
+    // Destroy structres
+    if gameState.destroyMode &&
+       dm.GetMouseButton(.Left) == .JustPressed &&
+       cursorOverUI == false
+    {
+        tile := TileUnderCursor()
+        if tile.building != {} {
+            RemoveBuilding(tile.building)
+        }
+
+        if tile.wireDir != {} {
+            tile.wireDir = nil
+        }
+    }
+
     if dm.GetMouseButton(.Right) == .JustPressed &&
        cursorOverUI == false
     {
-        if gameState.selectedBuildingIdx != 0 {
-            gameState.selectedBuildingIdx = 0
-        }
-        else if gameState.buildingWire {
-            tile := TileUnderCursor()
-            if tile.wireDir == nil {
-                gameState.buildingWire = false
-            }
-            else {
-                tile.wireDir = nil
-            }
-        }
-        else {
-            tile := TileUnderCursor()
-            RemoveBuilding(tile.building)
-            tile.wireDir = nil
-        }
+        gameState.selectedBuildingIdx = 0
+        gameState.buildingWire = false
+        gameState.destroyMode = false
     }
 
     // Wire

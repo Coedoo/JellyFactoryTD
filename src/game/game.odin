@@ -192,11 +192,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     if canSpawn {
                         building.packetSpawnTimer = buildingData.packetSpawnInterval
 
-                        packet := dm.CreateElement(gameState.energyPackets)
+                        packet := dm.CreateElement(&gameState.energyPackets)
                         pathKey := PathKey{
                             from = building.handle,
                             to = other.handle,
                         }
+
+                        // fmt.println(packet.handle)
+                        // fmt.println(gameState.energyPackets.slots[packet.handle.index])
 
                         packet.path = gameState.pathsBetweenBuildings[pathKey]
                         packet.position = CoordToPos(packet.path[0])
@@ -267,24 +270,22 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // Update Energy
-    for &packet, i in gameState.energyPackets.elements {
-        if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
-            if UpdateFollower(&packet, packet.speed) {
-                building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.target)
-                if ok {
-                    building.currentEnergy += packet.energy
-                }
-
-                dm.FreeSlot(gameState.energyPackets, packet.handle)
+    packetIt := 0
+    for packet, i in dm.PoolIterate(gameState.energyPackets, &packetIt) {
+        if UpdateFollower(packet, packet.speed) {
+            building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.target)
+            if ok {
+                building.currentEnergy += packet.energy
             }
+
+            dm.FreeSlot(&gameState.energyPackets, packet.handle)
         }
     }
 
     // Update Enemies 
-    for &enemy, i in gameState.enemies.elements {
-        if gameState.enemies.slots[i].inUse {
-            UpdateEnemy(&enemy)
-        }
+    enemyIt := 0
+    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+        UpdateEnemy(enemy)
     }
 
     // Wave
@@ -600,21 +601,25 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Enemy
-    for &enemy, i in gameState.enemies.elements {
-        if gameState.enemies.slots[i].inUse {
+    enemyIt := 0
+    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+        // if gameState.enemies.slots[i].inUse {
             stats := Enemies[enemy.statsIdx]
             dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
-        }
+        // }
     }
 
-    for &enemy, i in gameState.enemies.elements {
-        if gameState.enemies.slots[i].inUse {
+
+    enemyIt = 0
+    // for &enemy, i in gameState.enemies.elements {
+    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+        // if gameState.enemies.slots[i].inUse {
             stats := Enemies[enemy.statsIdx]
             p := enemy.health / stats.maxHealth
             color := math.lerp(dm.RED, dm.GREEN, p)
             
             dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
-        }
+        // }
     }
 
     // Player

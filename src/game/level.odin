@@ -384,7 +384,7 @@ RemoveBuilding :: proc(building: BuildingHandle) {
         }
     }
 
-    dm.FreeSlot(gameState.spawnedBuildings, building)
+    dm.FreeSlot(&gameState.spawnedBuildings, building)
     inst.handle = {}
 }
 

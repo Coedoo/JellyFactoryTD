@@ -15,7 +15,7 @@ _Shader :: struct {
 CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> ShaderHandle {
     ctx := cast(^RenderContext_d3d) renderCtx
 
-    shader := CreateElement(ctx.shaders)
+    shader := CreateElement(&ctx.shaders)
 
     error: ^d3d11.IBlob
 

@@ -2,44 +2,52 @@ package dmcore
 
 import "core:mem"
 import "core:slice"
+import "core:fmt"
 
 import "base:intrinsics"
 
+import "base:runtime"
+
 Handle :: struct {
-    index: i32,
+    slotIndex: i32,
     gen: i32,
 }
 
 PoolSlot :: struct {
-    inUse: bool,
+    elemIndex: i32,
     gen: i32,
 }
 
 ResourcePool :: struct($T:typeid, $H:typeid) {
-    slots: []PoolSlot,
-    elements: []T,
+    slots:    [dynamic]PoolSlot,
+    elements: [dynamic]T,
 }
 
 InitResourcePool :: proc(pool: ^ResourcePool($T, $H), len: int, allocator := context.allocator) -> bool {
     assert(pool != nil)
 
-    pool.slots    = make([]PoolSlot, len, allocator)
-    pool.elements = make([]T, len, allocator)
+    pool.slots    = make([dynamic]PoolSlot, len, len, allocator)
+    pool.elements = make([dynamic]T,        0,   len, allocator)
+
+    // Append first "error" element
+    append(&pool.elements, T{})
 
     return pool.slots != nil && pool.elements != nil
 }
 
-CreateHandle :: proc(pool: ResourcePool($T, $H)) -> H {
+CreateHandle :: proc(pool: ^ResourcePool($T, $H)) -> H {
     for &s, i in pool.slots {
         // slot at index 0 is reserved as "invalid resorce" 
         // so never allocate at it
 
-        if s.inUse == false && i != 0 {
-            s.inUse = true
+        if s.elemIndex == 0 && i != 0 {
+            append(&pool.elements, T{})
+
+            s.elemIndex = i32(len(pool.elements) - 1)
             s.gen += 1
 
             return H {
-                index = i32(i),
+                slotIndex = i32(i),
                 gen = s.gen,
             }
         }
@@ -48,39 +56,43 @@ CreateHandle :: proc(pool: ResourcePool($T, $H)) -> H {
     return {}
 }
 
-CreateElement :: proc(pool: ResourcePool($T, $H)) -> ^T {
+CreateElement :: proc(pool: ^ResourcePool($T, $H)) -> ^T {
     handle := CreateHandle(pool)
-    assert(handle.index != 0)
+    assert(handle.slotIndex != 0)
 
-    elem := &pool.elements[handle.index]
+    slot := pool.slots[handle.slotIndex]
+    elem := &pool.elements[slot.elemIndex]
     elem.handle = handle
 
     return elem
 }
 
 AppendElement :: proc(pool: ^ResourcePool($T, $H), element: T) -> H {
-    handle := CreateHandle(pool^)
+    handle := CreateHandle(pool)
     if handle != {} {
-        pool.elements[handle.index] = element
-        pool.elements[handle.index].handle = handle
+        slot := pool.slots[handle.slotIndex]
+
+        pool.elements[slot.elemIndex] = element
+        pool.elements[slot.elemIndex].handle = handle
     }
 
     return handle
 }
 
 IsHandleValid :: proc(pool: ResourcePool($T, $H), handle: H) -> bool {
-    assert(int(handle.index) < len(pool.slots))
+    assert(int(handle.slotIndex) < len(pool.slots))
 
-    slot := pool.slots[handle.index]
-    return slot.inUse && slot.gen == handle.gen
+    slot := pool.slots[handle.slotIndex]
+    return slot.elemIndex != 0 && slot.gen == handle.gen
 }
 
 GetElementPtr :: proc(pool: ResourcePool($T, $H), handle: H) -> (element: ^T, ok: bool) {
     if IsHandleValid(pool, handle) == false {
-        return &pool.elements[handle.index], false
+        return nil, false
     }
 
-    return &pool.elements[handle.index], true
+    slot := pool.slots[handle.slotIndex]
+    return &pool.elements[slot.elemIndex], true
 }
 
 GetElement :: proc(pool: ResourcePool($T, $H), handle: H) -> T {
@@ -88,7 +100,8 @@ GetElement :: proc(pool: ResourcePool($T, $H), handle: H) -> T {
         return pool.elements[0]
     }
 
-    return pool.elements[handle.index]
+    slot := pool.slots[handle.slotIndex]
+    return pool.elements[slot.elemIndex]
 }
 
 FreeSlot :: proc {
@@ -96,18 +109,44 @@ FreeSlot :: proc {
     FreeSlotAtHandle,
 }
 
-FreeSlotAtIndex :: proc(pool: ResourcePool($T, $H), index: i32) {
+FreeSlotAtIndex :: proc(pool: ^ResourcePool($T, $H), index: i32) {
     assert(index < cast(i32) len(pool.slots))
 
-    pool.slots[index].inUse = false
-    mem.zero_item(&pool.elements[index])
+    lastHandle := pool.elements[len(pool.elements) - 1].handle
+
+    lastElementSlot := &pool.slots[lastHandle.slotIndex]
+    elemSlot := &pool.slots[index]
+
+    if lastElementSlot != elemSlot {
+        pool.elements[elemSlot.elemIndex] = pool.elements[lastElementSlot.elemIndex]
+
+        lastElementSlot.elemIndex = elemSlot.elemIndex
+    }
+
+    elemSlot.elemIndex = 0
+
+    (^runtime.Raw_Dynamic_Array)(&pool.elements).len -= 1
 }
 
-FreeSlotAtHandle :: proc(pool: ResourcePool($T, $H), handle: H) {
-    FreeSlotAtIndex(pool, handle.index)
+FreeSlotAtHandle :: proc(pool: ^ResourcePool($T, $H), handle: H) {
+    FreeSlotAtIndex(pool, handle.slotIndex)
 }
 
-ClearPool :: proc(pool: ResourcePool($T, $H)) {
-    slice.zero(pool.slots)
-    slice.zero(pool.elements)
+ClearPool :: proc(pool: ^ResourcePool($T, $H)) {
+    clear(&pool.slots)
+    clear(&pool.elements)
+}
+
+PoolIterate :: proc(pool: ResourcePool($T, $H), it: ^int) -> (^T, int, bool) {
+    if it^ == 0 {
+        it^ = 1
+    }
+
+    ret := it^
+    if ret < len(pool.elements) {
+        it^ += 1
+        return &pool.elements[ret], ret, true
+    }
+
+    return nil, 0, false
 }

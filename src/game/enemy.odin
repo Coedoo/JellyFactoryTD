@@ -40,7 +40,7 @@ SpawnEnemy :: proc {
 }
 
 SpawnEnemyByIndex :: proc(idx: int) -> ^EnemyInstance {
-    enemy := dm.CreateElement(gameState.enemies)
+    enemy := dm.CreateElement(&gameState.enemies)
 
     stats := Enemies[idx]
     enemy.statsIdx = idx
@@ -68,29 +68,10 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
 
     if UpdateFollower(enemy, enemyStat.speed) {
         enemy.nextPointIdx = 0
+        enemy.position = CoordToPos(enemy.path[0])
+
         gameState.hp -= enemyStat.damage
     }
-
-    // dist := enemyStat.speed * f32(dm.time.deltaTime)
-    // target := dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
-
-    // pos, distLeft := dm.MoveTowards(enemy.position, target, dist)
-    // for distLeft != 0 {
-    //     enemy.pathPointIdx += 1
-    //     if enemy.pathPointIdx == len(gameState.path) {
-    //         enemy.pathPointIdx = 0
-    //         pos = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
-
-    //         gameState.hp -= enemyStat.damage
-
-    //         break
-    //     }
-
-    //     target = dm.ToV2(gameState.path[enemy.pathPointIdx]) + {0.5, 0.5}
-    //     pos, distLeft = dm.MoveTowards(pos, target, distLeft)
-    // }
-
-    // enemy.position = pos
 }
 
 DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32) {
@@ -98,7 +79,7 @@ DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32) {
 
     if enemy.health <= 0 {
         gameState.money += Enemies[enemy.statsIdx].moneyValue
-        dm.FreeSlot(gameState.enemies, enemy.handle)
+        dm.FreeSlot(&gameState.enemies, enemy.handle)
     }
 }
 

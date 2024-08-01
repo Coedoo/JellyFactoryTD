@@ -33,11 +33,7 @@ Texture :: struct {
 // }
 
 GetTextureSize :: proc(handle: TexHandle) -> iv2 {
-    info, ok := GetElementPtr(renderCtx.textures, handle)
-    // if info == nil {
-    //     return {0, 0}
-    // }
-
+    info := GetElement(renderCtx.textures, handle)
     return {info.width, info.height}
 }
 
@@ -68,7 +64,7 @@ LoadTextureFromMemoryCtx :: proc(renderCtx: ^RenderContext, data: []u8, filter :
         return {}
     }
 
-    tex := CreateElement(renderCtx.textures)
+    tex := CreateElement(&renderCtx.textures)
     _InitTexture(renderCtx, tex, image.pixels.buf[:], image.width, image.height, image.channels, filter)
 
     // fmt.println(tex)
@@ -78,7 +74,7 @@ LoadTextureFromMemoryCtx :: proc(renderCtx: ^RenderContext, data: []u8, filter :
 
 CreateTexture :: proc(renderCtx: ^RenderContext, rawData: []u8, width, height, channels: int, filter: TextureFilter) -> TexHandle {
 
-    tex := CreateElement(renderCtx.textures)
+    tex := CreateElement(&renderCtx.textures)
     _InitTexture(renderCtx, tex, rawData, width, height, channels, filter)
 
     return tex.handle

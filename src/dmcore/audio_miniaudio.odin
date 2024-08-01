@@ -34,13 +34,13 @@ _InitAudio :: proc(audio: ^Audio) {
 }
 
 _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
-    sound := CreateElement(audio.sounds)
+    sound := CreateElement(&audio.sounds)
     sound.encodedData = slice.clone(data)
 
     result := ma.decoder_init_memory(raw_data(sound.encodedData), len(sound.encodedData), nil, &sound.decoder)
 
     defer if result != .SUCCESS {
-        FreeSlot(audio.sounds, sound.handle)
+        FreeSlot(&audio.sounds, sound.handle)
         delete(sound.encodedData)
     }
 
@@ -61,12 +61,12 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
 }
 
 _LoadSound :: proc(audio: ^Audio, path: string) -> SoundHandle {
-    sound := CreateElement(audio.sounds)
+    sound := CreateElement(&audio.sounds)
     path := strings.clone_to_cstring(path, context.temp_allocator)
     result := ma.sound_init_from_file(&audio.engine, path, 0, nil, nil, &sound.maSound)
 
     if result != .SUCCESS {
-        FreeSlot(audio.sounds, sound.handle)
+        FreeSlot(&audio.sounds, sound.handle)
         fmt.eprintf("Cant't load audio file at: '", path, "'")
         return {}
     }

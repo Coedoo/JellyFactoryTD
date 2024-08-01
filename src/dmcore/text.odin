@@ -138,7 +138,7 @@ DrawText :: proc(ctx: ^RenderContext, str: string, font: Font, position: v2, fon
 
 LoadDefaultFont :: proc(renderCtx: ^RenderContext) -> Font {
     // @NOTE: I'm not sure that's strong enough check
-    if font.atlas.index == 0 {
+    if font.atlas.slotIndex == 0 {
         atlasData := base64.decode(ATLAS, allocator = context.temp_allocator)
         font.atlas = CreateTexture(renderCtx, atlasData, ATLAS_SIZE, ATLAS_SIZE, 4, font.type == .SDF ? .Bilinear : .Point)
     }

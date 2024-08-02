@@ -189,12 +189,11 @@ Buildings := [?]Building {
 EnergyPacketHandle :: distinct dm.Handle
 EnergyPacket :: struct {
     handle: EnergyPacketHandle,
+    pathKey: PathKey,
     using pathFollower: PathFollower,
 
     speed: f32,
     energy: f32,
-
-    target: BuildingHandle,
 }
 
 AddEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
@@ -213,10 +212,11 @@ RemoveEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
     return removed
 }
 
-CheckBuildingConnection :: proc(startCoord: iv2) {
+GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -> []BuildingHandle {
     queue := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
     visited := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
-    buildingsInNetwork := make([dynamic]BuildingHandle, 0, 16, allocator = context.temp_allocator)
+
+    buildingsInNetwork := make([dynamic]BuildingHandle, 0, 16, allocator = allocator)
 
     append(&queue, startCoord)
     append(&visited, startCoord)
@@ -246,6 +246,12 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
             }
         }
     }
+
+    return buildingsInNetwork[:]
+}
+
+CheckBuildingConnection :: proc(startCoord: iv2) {
+    buildingsInNetwork := GetConnectedBuildings(startCoord, context.temp_allocator)
 
     for handleA in buildingsInNetwork {
         building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue

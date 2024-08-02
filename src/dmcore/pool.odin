@@ -137,16 +137,38 @@ ClearPool :: proc(pool: ^ResourcePool($T, $H)) {
     clear(&pool.elements)
 }
 
-PoolIterate :: proc(pool: ResourcePool($T, $H), it: ^int) -> (^T, int, bool) {
-    if it^ == 0 {
-        it^ = 1
+PoolIterator :: struct($T: typeid, $H: typeid) {
+    idx: int,
+    dir: int,
+
+    pool: ^ResourcePool(T, H)
+}
+
+MakePoolIter :: proc(pool: ^ResourcePool($T, $H)) -> PoolIterator(T, H) {
+    return {
+        idx = 1,
+        dir = 1,
+
+        pool = pool
+    }
+}
+
+MakePoolIterReverse :: proc(pool: ^ResourcePool($T, $H)) -> PoolIterator(T, H) {
+    return {
+        idx = len(pool.elements) - 1,
+        dir = -1,
+
+        pool = pool
+    }
+}
+
+PoolIterate :: proc(it: ^PoolIterator($T, $H)) -> (^T, bool) {
+    if it.idx < 0 || it.idx >= len(it.pool.elements) {
+        return nil, false
     }
 
-    ret := it^
-    if ret < len(pool.elements) {
-        it^ += 1
-        return &pool.elements[ret], ret, true
-    }
+    elem := &it.pool.elements[it.idx]
+    it.idx += it.dir
 
-    return nil, 0, false
+    return elem, true
 }

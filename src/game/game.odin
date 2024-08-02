@@ -207,7 +207,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         packet.position = CoordToPos(packet.path[0])
                         packet.speed = 6
                         packet.energy = buildingData.packetSize
-                        packet.target = connected
+                        packet.pathKey = { building.handle, connected }
 
                         building.currentEnergy -= buildingData.packetSize
                     }
@@ -272,10 +272,10 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // Update Energy
-    packetIt := 0
-    for packet, i in dm.PoolIterate(gameState.energyPackets, &packetIt) {
+    packetIt := dm.MakePoolIter(&gameState.energyPackets)
+    for packet in dm.PoolIterate(&packetIt) {
         if UpdateFollower(packet, packet.speed) {
-            building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.target)
+            building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.pathKey.to)
             if ok {
                 building.currentEnergy += packet.energy
             }
@@ -285,8 +285,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // Update Enemies 
-    enemyIt := 0
-    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+    enemyIt := dm.MakePoolIter(&gameState.enemies)
+    for enemy in dm.PoolIterate(&enemyIt) {
         UpdateEnemy(enemy)
     }
 
@@ -414,7 +414,42 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
 
         if tile.wireDir != {} {
+            connectedBuildings := GetConnectedBuildings(tile.gridPos, context.temp_allocator)
             tile.wireDir = nil
+
+            for handleA in connectedBuildings {
+                buildingA := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
+                #reverse for handleB, i in buildingA.connectedBuildings {
+                    buildingB := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
+
+                    key := PathKey{buildingA.handle, buildingB.handle}
+                    newPath := CalculatePath(buildingA.gridPos, buildingB.gridPos, WirePredicate)
+
+                    oldPath, ok := gameState.pathsBetweenBuildings[key]
+                    if ok {
+                        if key.from == handleA || key.to == handleA {
+                            it := dm.MakePoolIterReverse(&gameState.energyPackets)
+                            for packet in dm.PoolIterate(&it) {
+                                if packet.pathKey == key {
+                                    dm.FreeSlot(&gameState.energyPackets, packet.handle)
+                                }
+                            }
+
+                            delete_key(&gameState.pathsBetweenBuildings, key)
+                        }
+
+                        delete(oldPath)
+                    }
+
+                    if newPath != nil {
+                        gameState.pathsBetweenBuildings[key] = newPath
+                    }
+                    else {
+                        delete_key(&gameState.pathsBetweenBuildings, key)
+                        unordered_remove(&buildingA.connectedBuildings, i)
+                    }
+                }
+            }
         }
     }
 
@@ -609,8 +644,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Enemy
-    enemyIt := 0
-    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+    enemyIt := dm.MakePoolIter(&gameState.enemies)
+    for enemy in dm.PoolIterate(&enemyIt) {
         // if gameState.enemies.slots[i].inUse {
             stats := Enemies[enemy.statsIdx]
             dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
@@ -618,9 +653,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
 
-    enemyIt = 0
-    // for &enemy, i in gameState.enemies.elements {
-    for enemy, i in dm.PoolIterate(gameState.enemies, &enemyIt) {
+    enemyIt = dm.MakePoolIter(&gameState.enemies)
+    for enemy in dm.PoolIterate(&enemyIt) {
         // if gameState.enemies.slots[i].inUse {
             stats := Enemies[enemy.statsIdx]
             p := enemy.health / stats.maxHealth

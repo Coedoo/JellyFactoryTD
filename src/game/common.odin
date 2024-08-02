@@ -96,7 +96,7 @@ UpdateFollower :: proc(follower: ^PathFollower, speed: f32) -> bool {
 GetTransitEnergy :: proc(handle: BuildingHandle) -> (amount: f32) {
     for packet in gameState.energyPackets.elements {
         if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
-            if packet.target == handle {
+            if packet.pathKey.to == handle {
                 amount += packet.energy
             }
         }

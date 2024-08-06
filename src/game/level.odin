@@ -318,9 +318,20 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
                 return false
             }
 
-            tile := GetTileAtCoord(pos)
-            if tile.type != .BuildArea {
-                return false
+            if len(building.restrictedTiles) != 0 {
+                tile := GetTileAtCoord(pos)
+
+                found := false
+                for restrictedTile in building.restrictedTiles {
+                    if tile.type == restrictedTile {
+                        found = true
+                        break
+                    }
+                }
+
+                if found == false {
+                    return false
+                }
             }
 
             if IsTileFree(pos) == false {
@@ -334,11 +345,15 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
 
 TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     building := Buildings[buildingIdx]
-
     if CanBePlaced(building, gridPos) == false {
         return
     }
 
+    PlaceBuilding(buildingIdx, gridPos)
+}
+
+PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
+    building := Buildings[buildingIdx]
     toSpawn := BuildingInstance {
         dataIdx = buildingIdx,
         gridPos = gridPos,
@@ -358,6 +373,7 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     buildingTile.wireDir = building.connections
     CheckBuildingConnection(gridPos)
+
 }
 
 

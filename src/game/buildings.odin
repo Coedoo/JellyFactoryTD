@@ -47,18 +47,16 @@ Building :: struct {
     turretSpriteOrigin: v2,
 
     flags: BuildignFlags,
+    restrictedTiles: []TileType,
 
     size: iv2,
 
     cost: int,
 
-    // Connections
-    // inputsPos: []iv2,
-    // outputsPos: []iv2,
-
     connections: DirectionSet,
 
     // Energy
+    producedEnergyType: EnergyType,
     energyStorage: f32,
     energyProduction: f32,
 
@@ -83,7 +81,7 @@ BuildingInstance :: struct {
     position: v2,
 
     // energy
-    currentEnergy: f32,
+    currentEnergy: EnergySet,
     packetSpawnTimer: f32,
 
     // attack
@@ -96,21 +94,6 @@ BuildingInstance :: struct {
     connectedBuildings: [dynamic]BuildingHandle,
 }
 
-// RotatingTurretSpriteRects := [8]dm.RectInt{
-//     {2 * 32, 1 * 32, 32, 32},
-//     {2 * 32, 0 * 32, 32, 32},
-//     {1 * 32, 0 * 32, 32, 32},
-//     {0 * 32, 0 * 32, 32, 32},
-//     {0 * 32, 1 * 32, 32, 32},
-//     {0 * 32, 2 * 32, 32, 32},
-//     {1 * 32, 2 * 32, 32, 32},
-//     {2 * 32, 2 * 32, 32, 32},
-// }
-
-TurretSprite :: struct {
-    rect: dm.RectInt,
-    flipX, flipY: bool,
-}
 
 Buildings := [?]Building {
     {
@@ -122,8 +105,33 @@ Buildings := [?]Building {
 
         flags = {.ProduceEnergy},
 
+        restrictedTiles = { .Walls },
+
         cost = 100,
 
+        energyStorage = 100,
+        energyProduction = 25,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+    
+    {
+        name = "Factory 2",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = {.ProduceEnergy},
+
+        restrictedTiles = { .Walls },
+
+        cost = 100,
+
+        producedEnergyType = .Green,
         energyStorage = 100,
         energyProduction = 25,
 
@@ -184,32 +192,6 @@ Buildings := [?]Building {
 
         connections = DirHorizontal,
     },
-}
-
-EnergyPacketHandle :: distinct dm.Handle
-EnergyPacket :: struct {
-    handle: EnergyPacketHandle,
-    pathKey: PathKey,
-    using pathFollower: PathFollower,
-
-    speed: f32,
-    energy: f32,
-}
-
-AddEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
-    data := &Buildings[building.dataIdx]
-    spaceLeft := data.energyStorage - building.currentEnergy
-    clamped := clamp(value, 0, spaceLeft)
-
-    building.currentEnergy += clamped
-    return value - clamped
-}
-
-RemoveEnergy :: proc(building: ^BuildingInstance, value: f32) -> f32 {
-    removed := min(value, building.currentEnergy)
-    building.currentEnergy -= removed
-
-    return removed
 }
 
 GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -> []BuildingHandle {

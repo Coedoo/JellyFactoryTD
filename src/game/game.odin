@@ -175,8 +175,13 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         buildingData := &Buildings[building.dataIdx]
 
         if .ProduceEnergy in buildingData.flags {
-            building.currentEnergy += buildingData.energyProduction * f32(dm.time.deltaTime)
-            building.currentEnergy = min(building.currentEnergy, buildingData.energyStorage)
+            produced := buildingData.energyProduction * f32(dm.time.deltaTime)
+
+            currentEnergy := BuildingEnergy(&building)
+            storageLeft := buildingData.energyStorage - currentEnergy
+            produced = min(produced, storageLeft)
+
+            building.currentEnergy[buildingData.producedEnergyType] += produced
 
             for connected in building.connectedBuildings {
                 other := dm.GetElementPtr(gameState.spawnedBuildings, connected) or_continue
@@ -187,9 +192,10 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                     energyInTransit := GetTransitEnergy(other.handle)
 
+                    otherCurrentEnergy := BuildingEnergy(other)
                     canSpawn := building.packetSpawnTimer <= 0
-                    canSpawn &&= building.currentEnergy >= buildingData.packetSize
-                    canSpawn &&= (otherData.energyStorage - other.currentEnergy - energyInTransit) >= buildingData.packetSize
+                    canSpawn &&= currentEnergy >= buildingData.packetSize
+                    canSpawn &&= (otherData.energyStorage - otherCurrentEnergy - energyInTransit) >= buildingData.packetSize
 
                     if canSpawn {
                         building.packetSpawnTimer = buildingData.packetSpawnInterval
@@ -206,10 +212,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         packet.path = gameState.pathsBetweenBuildings[pathKey]
                         packet.position = CoordToPos(packet.path[0])
                         packet.speed = 6
+                        packet.energyType = buildingData.producedEnergyType
                         packet.energy = buildingData.packetSize
                         packet.pathKey = { building.handle, connected }
 
-                        building.currentEnergy -= buildingData.packetSize
+                        building.currentEnergy[buildingData.producedEnergyType] -= buildingData.packetSize
                     }
                 }
             }
@@ -229,8 +236,9 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             handle := FindClosestEnemy(building.position, buildingData.range)
             building.targetEnemy = handle
 
+            currentEnergy := BuildingEnergy(&building)
             if handle != {} && 
-               building.currentEnergy >= buildingData.energyRequired &&
+               currentEnergy >= buildingData.energyRequired &&
                building.attackTimer <= 0
             {
                 enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
@@ -248,8 +256,9 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
-                building.currentEnergy -= buildingData.energyRequired
-                
+                // building.currentEnergy -= buildingData.energyRequired
+                RemoveEnergyFromBuilding(&building, buildingData.energyRequired)
+
                 switch buildingData.attackType {
                 case .Simple:
                     DamageEnemy(enemy, buildingData.damage)
@@ -277,7 +286,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if UpdateFollower(packet, packet.speed) {
             building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.pathKey.to)
             if ok {
-                building.currentEnergy += packet.energy
+                building.currentEnergy[packet.energyType] += packet.energy
             }
 
             dm.FreeSlot(&gameState.energyPackets, packet.handle)
@@ -499,9 +508,13 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
        cursorOverUI == false
     {
         idx := gameState.selectedBuildingIdx - 1
-        if RemoveMoney(Buildings[idx].cost) {
-            pos := MousePosGrid()
-            TryPlaceBuilding(idx, pos)
+        building := Buildings[idx]
+
+        pos := MousePosGrid()
+        if CanBePlaced(building, pos) {
+            if RemoveMoney(building.cost) {
+                PlaceBuilding(idx, pos)
+            }
         }
     }
 
@@ -582,14 +595,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         pos := building.position
         dm.DrawSprite(sprite, pos)
 
-        if buildingData.energyStorage != 0 {
-            // @TODO this breaks batching
-            dm.DrawWorldRect(
-                dm.renderCtx.whiteTexture, 
-                dm.ToV2(building.gridPos) + {f32(buildingData.size.y), 0},
-                {0.1, building.currentEnergy / buildingData.energyStorage}
-            )
-        }
+        // if buildingData.energyStorage != 0 {
+        //     // @TODO this breaks batching
+        //     dm.DrawWorldRect(
+        //         dm.renderCtx.whiteTexture, 
+        //         dm.ToV2(building.gridPos) + {f32(buildingData.size.y), 0},
+        //         {0.1, building.currentEnergy / buildingData.energyStorage}
+        //     )
+        // }
 
         if .RotatingTurret in buildingData.flags {
             sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
@@ -637,31 +650,26 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Draw energy packets
-    for &packet, i in gameState.energyPackets.elements {
-        if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
-            dm.DrawBlankSprite(packet.position, .4, color = dm.LIME)
-        }
+    packetIt := dm.MakePoolIter(&gameState.energyPackets)
+    for packet in dm.PoolIterate(&packetIt) {
+        dm.DrawBlankSprite(packet.position, .4, EnergyColor[packet.energyType])
     }
 
     // Enemy
     enemyIt := dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
-        // if gameState.enemies.slots[i].inUse {
-            stats := Enemies[enemy.statsIdx]
-            dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
-        // }
+        stats := Enemies[enemy.statsIdx]
+        dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
     }
 
 
     enemyIt = dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
-        // if gameState.enemies.slots[i].inUse {
-            stats := Enemies[enemy.statsIdx]
-            p := enemy.health / stats.maxHealth
-            color := math.lerp(dm.RED, dm.GREEN, p)
-            
-            dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
-        // }
+        stats := Enemies[enemy.statsIdx]
+        p := enemy.health / stats.maxHealth
+        color := math.lerp(dm.RED, dm.GREEN, p)
+        
+        dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
     }
 
     // Player

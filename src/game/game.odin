@@ -171,39 +171,61 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     dm.renderCtx.camera.position.xy = cast([2]f32) camPos
 
     // Update Buildings
-    for &building in gameState.spawnedBuildings.elements {
+    buildingIt := dm.MakePoolIter(&gameState.spawnedBuildings)
+    for building in dm.PoolIterate(&buildingIt) {
         buildingData := &Buildings[building.dataIdx]
 
         if .ProduceEnergy in buildingData.flags {
             produced := buildingData.energyProduction * f32(dm.time.deltaTime)
 
-            currentEnergy := BuildingEnergy(&building)
+            currentEnergy := BuildingEnergy(building)
             storageLeft := buildingData.energyStorage - currentEnergy
             produced = min(produced, storageLeft)
 
             building.currentEnergy[buildingData.producedEnergyType] += produced
+        }
 
-            for connected in building.connectedBuildings {
-                other := dm.GetElementPtr(gameState.spawnedBuildings, connected) or_continue
-                otherData := Buildings[other.dataIdx]
+        if .SendsEnergy in buildingData.flags {
+            building.packetSpawnTimer -= f32(dm.time.deltaTime)
+        }
 
-                if .RequireEnergy in otherData.flags {
-                    building.packetSpawnTimer -= f32(dm.time.deltaTime)
+        if .RequireEnergy in buildingData.flags {
 
-                    energyInTransit := GetTransitEnergy(other.handle)
+            // the loop here is weird because I want to start
+            // the iteration from next unused energy source
+            // to prevent situations where building is
+            // supplied energy from just one source
+            // which happened to be updated first
 
-                    otherCurrentEnergy := BuildingEnergy(other)
-                    canSpawn := building.packetSpawnTimer <= 0
-                    canSpawn &&= currentEnergy >= buildingData.packetSize
-                    canSpawn &&= (otherData.energyStorage - otherCurrentEnergy - energyInTransit) >= buildingData.packetSize
+            for i := 0; i < len(building.energySources); i += 1 {
+
+                idx := (building.lastUsedSourceIdx + i) % len(building.energySources)
+                sourceHandle := building.energySources[idx]
+
+                source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+                sourceData := Buildings[source.dataIdx]
+
+                if .SendsEnergy in sourceData.flags {
+                    energyInTransit := GetTransitEnergy(building.handle)
+
+                    sourceEnergy := BuildingEnergy(source)
+
+                    targetEnergy := BuildingEnergy(building)
+                    canSpawn := source.packetSpawnTimer <= 0
+                    canSpawn &&= sourceEnergy >= sourceData.packetSize
+                    canSpawn &&= (buildingData.energyStorage - targetEnergy - energyInTransit) >= sourceData.packetSize
+
+                    if len(building.energySources) > 1 {
+                        canSpawn &&= building.lastUsedSourceIdx != idx
+                    }
 
                     if canSpawn {
-                        building.packetSpawnTimer = buildingData.packetSpawnInterval
+                        source.packetSpawnTimer = sourceData.packetSpawnInterval
 
                         packet := dm.CreateElement(&gameState.energyPackets)
                         pathKey := PathKey{
-                            from = building.handle,
-                            to = other.handle,
+                            from = source.handle,
+                            to = building.handle,
                         }
 
                         // fmt.println(packet.handle)
@@ -212,11 +234,13 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         packet.path = gameState.pathsBetweenBuildings[pathKey]
                         packet.position = CoordToPos(packet.path[0])
                         packet.speed = 6
-                        packet.energyType = buildingData.producedEnergyType
-                        packet.energy = buildingData.packetSize
-                        packet.pathKey = { building.handle, connected }
+                        packet.energyType = sourceData.producedEnergyType
+                        packet.energy = sourceData.packetSize
+                        packet.pathKey = pathKey
 
-                        building.currentEnergy[buildingData.producedEnergyType] -= buildingData.packetSize
+                        source.currentEnergy[buildingData.producedEnergyType] -= sourceData.packetSize
+
+                        building.lastUsedSourceIdx = idx
                     }
                 }
             }
@@ -236,7 +260,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             handle := FindClosestEnemy(building.position, buildingData.range)
             building.targetEnemy = handle
 
-            currentEnergy := BuildingEnergy(&building)
+            currentEnergy := BuildingEnergy(building)
             if handle != {} && 
                currentEnergy >= buildingData.energyRequired &&
                building.attackTimer <= 0
@@ -257,7 +281,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
                 // building.currentEnergy -= buildingData.energyRequired
-                RemoveEnergyFromBuilding(&building, buildingData.energyRequired)
+                RemoveEnergyFromBuilding(building, buildingData.energyRequired)
 
                 switch buildingData.attackType {
                 case .Simple:
@@ -428,7 +452,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
             for handleA in connectedBuildings {
                 buildingA := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
-                #reverse for handleB, i in buildingA.connectedBuildings {
+                #reverse for handleB, i in buildingA.energyTargets {
                     buildingB := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
 
                     key := PathKey{buildingA.handle, buildingB.handle}
@@ -455,7 +479,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     }
                     else {
                         delete_key(&gameState.pathsBetweenBuildings, key)
-                        unordered_remove(&buildingA.connectedBuildings, i)
+                        unordered_remove(&buildingA.energyTargets, i)
                     }
                 }
             }
@@ -474,14 +498,20 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     if gameState.buildingWire &&
        cursorOverUI == false
     {
+        @static prevCoord: iv2
+
         leftBtn := dm.GetMouseButton(.Left)
         if leftBtn == .Down {
             coord := MousePosGrid()
 
-            tile := GetTileAtCoord(coord)
-            if tile.building == {} {
-                tile.wireDir = gameState.buildingWireDir
-                CheckBuildingConnection(tile.gridPos)
+            if prevCoord != coord {
+                tile := GetTileAtCoord(coord)
+                if tile.building == {} && tile.wireDir != gameState.buildingWireDir {
+                    tile.wireDir = gameState.buildingWireDir
+                    CheckBuildingConnection(tile.gridPos)
+                }
+
+                prevCoord = coord
             }
         }
 
@@ -533,8 +563,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     dm.muiLabel(dm.mui, "Pos:", building.gridPos)
                     dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
 
-                    if dm.muiHeader(dm.mui, "Connected Buildings") {
-                        for b in building.connectedBuildings {
+                    if dm.muiHeader(dm.mui, "Energy Targets") {
+                        for b in building.energyTargets {
+                            dm.muiLabel(dm.mui, b)
+                        }
+                    }
+
+                    if dm.muiHeader(dm.mui, "Energy Sources") {
+                        for b in building.energySources {
                             dm.muiLabel(dm.mui, b)
                         }
                     }

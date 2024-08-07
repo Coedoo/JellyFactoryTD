@@ -11,12 +11,14 @@ EnergyType :: enum {
     Blue,
     Green,
     Cyan,
+    Red,
 }
 
 EnergyColor := [EnergyType]dm.color {
     .Blue = dm.BLUE,
     .Green = dm.GREEN,
     .Cyan = dm.SKYBLUE,
+    .Red = dm.RED,
 }
 
 EnergyPacketHandle :: distinct dm.Handle

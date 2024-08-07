@@ -13,6 +13,7 @@ BuildingHandle :: dm.Handle
 
 BuildingFlag :: enum {
     ProduceEnergy,
+    SendsEnergy,
     RequireEnergy,
     Attack,
 
@@ -91,7 +92,11 @@ BuildingInstance :: struct {
     turretAngle: f32,
     targetTurretAngle: f32,
 
-    connectedBuildings: [dynamic]BuildingHandle,
+    // connectedBuildings: [dynamic]BuildingHandle,
+
+    lastUsedSourceIdx: int,
+    energySources: [dynamic]BuildingHandle,
+    energyTargets: [dynamic]BuildingHandle,
 }
 
 
@@ -103,7 +108,7 @@ Buildings := [?]Building {
 
         size = {1, 1},
 
-        flags = {.ProduceEnergy},
+        flags = { .ProduceEnergy, .SendsEnergy },
 
         restrictedTiles = { .Walls },
 
@@ -125,13 +130,36 @@ Buildings := [?]Building {
 
         size = {1, 1},
 
-        flags = {.ProduceEnergy},
+        flags = { .ProduceEnergy, .SendsEnergy },
 
         restrictedTiles = { .Walls },
 
         cost = 100,
 
         producedEnergyType = .Green,
+        energyStorage = 100,
+        energyProduction = 25,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+
+    {
+        name = "Factory 3",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .ProduceEnergy, .SendsEnergy },
+
+        restrictedTiles = { .Walls },
+
+        cost = 100,
+
+        producedEnergyType = .Red,
         energyStorage = 100,
         energyProduction = 25,
 
@@ -235,28 +263,30 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
 CheckBuildingConnection :: proc(startCoord: iv2) {
     buildingsInNetwork := GetConnectedBuildings(startCoord, context.temp_allocator)
 
+    for handle in buildingsInNetwork {
+        building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
+
+        clear(&building.energyTargets)
+        clear(&building.energySources)
+    }
+
     for handleA in buildingsInNetwork {
         building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
         data := Buildings[building.dataIdx]
 
-        clear(&building.connectedBuildings)
-
-        // Adding buildings only when building A Produces Energy,
-        // and the building B requires it.
-        // I'm not sure if connected buildings will be needed
-        // for anything else
-
-        if .ProduceEnergy in data.flags == false {
+        if (.SendsEnergy in data.flags) == false {
             continue
         }
 
         for handleB in buildingsInNetwork {
             if handleA != handleB {
+
                 otherBuilding := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
                 otherData := Buildings[otherBuilding.dataIdx]
 
                 if .RequireEnergy in otherData.flags {
-                    append(&building.connectedBuildings, handleB)
+                    append(&building.energyTargets, handleB)
+                    append(&otherBuilding.energySources, handleA)
 
                     key := PathKey{ building.handle, otherBuilding.handle }
                     path := CalculatePath(building.gridPos, otherBuilding.gridPos, WirePredicate)

@@ -383,13 +383,13 @@ RemoveBuilding :: proc(building: BuildingHandle) {
         return
     }
 
-    #reverse for connectedHandle in inst.connectedBuildings {
+    #reverse for connectedHandle in inst.energyTargets {
         other := dm.GetElementPtr(gameState.spawnedBuildings, connectedHandle) or_continue
-        idx := slice.linear_search(other.connectedBuildings[:], building) or_continue
+        idx := slice.linear_search(other.energySources[:], building) or_continue
 
         // @NOTE: @TODO: this will change update order and potentially
         // game outcome. Is that ok?
-        unordered_remove(&other.connectedBuildings, idx)
+        unordered_remove(&other.energySources, idx)
     }
 
     for key, path in gameState.pathsBetweenBuildings {

@@ -131,8 +131,15 @@ LoadLevels :: proc() -> (levels: []Level) {
                     coord.y = level.sizeY - coord.y - 1
 
                     switch entity.identifier {
-                    case "StartPoint": level.startCoord = coord
-                    case "EndPoint": level.endCoord = coord
+                    case "StartPoint": level.startCoord = coord; continue
+                    case "EndPoint": level.endCoord = coord; continue
+                    }
+
+                    newIdentifier, _ := strings.replace_all(entity.identifier, "_", " ", context.temp_allocator)
+                    for building, i in Buildings {
+                        if building.name == newIdentifier {
+                            
+                        }
                     }
                 }
             }
@@ -343,21 +350,23 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
     return true
 }
 
-TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
+TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) -> bool {
     building := Buildings[buildingIdx]
     if CanBePlaced(building, gridPos) == false {
-        return
+        return false
     }
 
-    PlaceBuilding(buildingIdx, gridPos)
+    PlaceBuilding(buildingIdx, gridPos, rotation)
+    return true
 }
 
-PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
+PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) {
     building := Buildings[buildingIdx]
     toSpawn := BuildingInstance {
         dataIdx = buildingIdx,
         gridPos = gridPos,
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
+        rotation = rotation,
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
@@ -371,9 +380,10 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         }
     }
 
-    buildingTile.wireDir = building.connections
-    CheckBuildingConnection(gridPos)
+    pipes := RotateByDir(building.connections, rotation)
+    buildingTile.wireDir = pipes
 
+    CheckBuildingConnection(gridPos)
 }
 
 

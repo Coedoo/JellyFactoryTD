@@ -44,6 +44,7 @@ Building :: struct {
     name: string,
     spriteName: string,
     spriteRect: dm.RectInt,
+
     turretSpriteRect: dm.RectInt,
     turretSpriteOrigin: v2,
 
@@ -80,6 +81,7 @@ BuildingInstance :: struct {
 
     gridPos: iv2,
     position: v2,
+    rotation: Direction,
 
     // energy
     currentEnergy: EnergySet,

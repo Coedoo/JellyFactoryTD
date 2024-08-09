@@ -33,6 +33,13 @@ NextDir := [Direction]Direction {
     .South = .West
 }
 
+PrevDir := [Direction]Direction {
+    .East  = .North, 
+    .North = .West, 
+    .West  = .South, 
+    .South = .East
+}
+
 ReverseDir := [Direction]Direction {
     .East  = .West,
     .West  = .East,
@@ -54,6 +61,29 @@ VecToDir :: proc(vec: iv2) -> Direction {
     else {
         return vec.y < 0 ? .South : .North
     }
+}
+
+// @TODO: I'm pretty sure that it can be done easier
+RotateByDir :: proc(set: DirectionSet, direction: Direction) -> (ret: DirectionSet) {
+    iter: int
+    switch direction {
+    case .East:  iter = 0
+    case .North: iter = 1
+    case .West:  iter = 2
+    case .South: iter = 3
+    }
+
+    ret = set
+    for i in 0..<iter {
+        new: DirectionSet
+        for dir in ret {
+            new += { NextDir[dir] }
+        }
+
+        ret = new
+    }
+
+    return
 }
 
 CoordToPos :: proc(coord: iv2) -> v2 {

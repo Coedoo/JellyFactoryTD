@@ -295,7 +295,7 @@ main :: proc() {
 
         dm.FlushCommands(cast(^dm.RenderContext_d3d) engineData.renderCtx)
 
-        dm.DrawGrid(cast(^dm.RenderContext_d3d) engineData.renderCtx)
+        // dm.DrawGrid(cast(^dm.RenderContext_d3d) engineData.renderCtx)
 
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatch, cast(^dm.RenderContext_d3d) engineData.renderCtx)
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatchScreen, cast(^dm.RenderContext_d3d) engineData.renderCtx)

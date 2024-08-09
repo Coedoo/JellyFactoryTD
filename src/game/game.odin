@@ -14,6 +14,14 @@ v2 :: dm.v2
 iv2 :: dm.iv2
 
 
+BuildUpMode :: enum {
+    None,
+    Building,
+    Pipe,
+    Destroy,
+}
+
+
 GameState :: struct {
     levelArena: mem.Arena,
     levelAllocator: mem.Allocator,
@@ -26,7 +34,6 @@ GameState :: struct {
         enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
         energyPackets: dm.ResourcePool(EnergyPacket, EnergyPacketHandle),
 
-        selectedBuildingIdx: int,
 
         money: int,
         hp: int,
@@ -37,10 +44,10 @@ GameState :: struct {
 
         selectedTile: iv2,
 
-        buildingWire: bool,
+        buildUpMode: BuildUpMode,
+        buildedStructureRotation: Direction,
+        selectedBuildingIdx: int,
         buildingWireDir: DirectionSet,
-
-        destroyMode: bool,
 
         currentWaveIdx: int,
         levelWaves: LevelWaves,
@@ -109,23 +116,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
-
-    // Test level
-    TryPlaceBuilding(1, {15, 20})
-    TryPlaceBuilding(0, {20, 18})
-
-    GetTileAtCoord({16, 20}).wireDir = {.West, .East}
-    GetTileAtCoord({17, 20}).wireDir = {.West, .East}
-    GetTileAtCoord({18, 20}).wireDir = {.West, .East}
-    GetTileAtCoord({19, 20}).wireDir = {.West, .East}
-    GetTileAtCoord({20, 20}).wireDir = {.West, .South}
-    GetTileAtCoord({20, 19}).wireDir = {.North, .South}
-
-
-    TryPlaceBuilding(1, {15, 17})
-    TryPlaceBuilding(0, {18, 17})
-
-    CheckBuildingConnection({18, 20})
 }
 
 @(export)
@@ -155,9 +145,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         f32(gameState.level.sizeY - 1),
     }
 
-    scroll := dm.input.scroll if cursorOverUI == false else 0
-    camHeight = camHeight - f32(scroll) * 0.3
-    camWidth = camAspect * camHeight
+    if gameState.buildUpMode == .None {
+        scroll := dm.input.scroll if cursorOverUI == false else 0
+        camHeight = camHeight - f32(scroll) * 0.3
+        camWidth = camAspect * camHeight
+    }
 
     camHeight = clamp(camHeight, 1, levelSize.x / 2)
     camWidth  = clamp(camWidth,  1, levelSize.y / 2)
@@ -370,74 +362,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         gameState.levelFullySpawned = true
     }
 
-    // temp UI
-    if dm.muiBeginWindow(dm.mui, "GAME MENU", {10, 10, 110, 450}) {
-        dm.muiLabel(dm.mui, "Money:", gameState.money)
-        dm.muiLabel(dm.mui, "HP:", gameState.hp)
-
-        for b, idx in Buildings {
-            if dm.muiButton(dm.mui, b.name) {
-                gameState.selectedBuildingIdx = idx + 1
-                gameState.buildingWire = false
-            }
-        }
-
-        dm.muiLabel(dm.mui, "Wires:")
-        if dm.muiButton(dm.mui, "Stright") {
-            gameState.buildingWire = true
-            gameState.selectedBuildingIdx = 0
-
-            gameState.buildingWireDir = DirVertical
-        }
-        if dm.muiButton(dm.mui, "Angled") {
-            gameState.buildingWire = true
-            gameState.selectedBuildingIdx = 0
-
-            gameState.buildingWireDir = DirNE
-        }
-        if dm.muiButton(dm.mui, "Triple") {
-            gameState.buildingWire = true
-            gameState.selectedBuildingIdx = 0
-
-            gameState.buildingWireDir = {.South, .North, .East}
-        }
-        if dm.muiButton(dm.mui, "Quad") {
-            gameState.buildingWire = true
-            gameState.selectedBuildingIdx = 0
-
-            gameState.buildingWireDir = DirSplitter
-        }
-
-        dm.muiLabel(dm.mui)
-        if dm.muiButton(dm.mui, "Destroy") {
-            gameState.destroyMode = true
-        }
-
-
-        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
-        if dm.muiButton(dm.mui, "SpawnWave") {
-            StartNextWave()
-        }
-
-        if dm.muiButton(dm.mui, "Reset level") {
-            name := gameState.level.name
-            OpenLevel(name)
-        }
-
-        dm.muiLabel(dm.mui, "LEVELS:")
-        for l in gameState.levels {
-            if dm.muiButton(dm.mui, l.name) {
-                OpenLevel(l.name)
-            }
-        }
-
-
-        dm.muiEndWindow(dm.mui)
-    }
-
-
     // Destroy structres
-    if gameState.destroyMode &&
+    if gameState.buildUpMode == .Destroy &&
        dm.GetMouseButton(.Left) == .JustPressed &&
        cursorOverUI == false
     {
@@ -489,13 +415,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     if dm.GetMouseButton(.Right) == .JustPressed &&
        cursorOverUI == false
     {
-        gameState.selectedBuildingIdx = 0
-        gameState.buildingWire = false
-        gameState.destroyMode = false
+        gameState.buildUpMode = .None
     }
 
     // Wire
-    if gameState.buildingWire &&
+    if gameState.buildUpMode == .Pipe &&
        cursorOverUI == false
     {
         @static prevCoord: iv2
@@ -515,17 +439,18 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
         }
 
-        if dm.GetKeyState(.Q) == .JustReleased {
+        if dm.input.scroll != 0 {
+            dirSet := NextDir if dm.input.scroll < 0 else PrevDir
             newSet: DirectionSet
             for dir in gameState.buildingWireDir {
-                newSet += { NextDir[dir] }
+                newSet += { dirSet[dir] }
             }
             gameState.buildingWireDir = newSet
         }
     }
 
     // Highlight Building 
-    if gameState.buildingWire == false && gameState.selectedBuildingIdx == 0 && cursorOverUI == false{
+    if gameState.buildUpMode == .None && cursorOverUI == false {
         if dm.GetMouseButton(.Left) == .JustPressed {
             coord := MousePosGrid()
             gameState.selectedTile = coord
@@ -533,52 +458,143 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // Building
-    if gameState.selectedBuildingIdx != 0 &&
-       dm.GetMouseButton(.Left) == .JustPressed &&
-       cursorOverUI == false
+    if gameState.buildUpMode == .Building
     {
-        idx := gameState.selectedBuildingIdx - 1
-        building := Buildings[idx]
+        if dm.input.scroll != 0 {
+            dirSet := NextDir if dm.input.scroll < 0 else PrevDir
+            gameState.buildedStructureRotation = dirSet[gameState.buildedStructureRotation]
+        }
 
-        pos := MousePosGrid()
-        if CanBePlaced(building, pos) {
-            if RemoveMoney(building.cost) {
-                PlaceBuilding(idx, pos)
+        if dm.GetMouseButton(.Left) == .JustPressed &&
+           cursorOverUI == false
+        {
+            idx := gameState.selectedBuildingIdx
+            building := Buildings[idx]
+
+
+            pos := MousePosGrid()
+            if CanBePlaced(building, pos) {
+                if RemoveMoney(building.cost) {
+                    PlaceBuilding(idx, pos, gameState.buildedStructureRotation)
+                }
             }
         }
     }
 
+    // temp UI
+    if dm.muiBeginWindow(dm.mui, "GAME MENU", {10, 10, 110, 450}) {
+        dm.muiLabel(dm.mui, "Money:", gameState.money)
+        dm.muiLabel(dm.mui, "HP:", gameState.hp)
 
-    if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}) {
-        tile := GetTileAtCoord(gameState.selectedTile)
-        dm.muiLabel(dm.mui, tile.wireDir)
+        for b, idx in Buildings {
+            if dm.muiButton(dm.mui, b.name) {
+                gameState.selectedBuildingIdx = idx
+                gameState.buildUpMode = .Building
+                gameState.buildedStructureRotation = nil
+            }
+        }
 
-        if dm.muiHeader(dm.mui, "Building") {
-            if tile.building != {} {
-                building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
-                if ok {
-                    data := &Buildings[building.dataIdx]
-                    dm.muiLabel(dm.mui, "Name:", data.name)
-                    dm.muiLabel(dm.mui, building.handle)
-                    dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-                    dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
+        dm.muiLabel(dm.mui, "Pipes:")
+        if dm.muiButton(dm.mui, "Stright") {
+            gameState.buildUpMode = .Pipe
+            gameState.buildingWireDir = DirVertical
+        }
+        if dm.muiButton(dm.mui, "Angled") {
+            gameState.buildUpMode = .Pipe
+            gameState.buildingWireDir = DirNE
+        }
+        if dm.muiButton(dm.mui, "Triple") {
+            gameState.buildUpMode = .Pipe
+            gameState.buildingWireDir = {.South, .North, .East}
+        }
+        if dm.muiButton(dm.mui, "Quad") {
+            gameState.buildUpMode = .Pipe
+            gameState.buildingWireDir = DirSplitter
+        }
 
-                    if dm.muiHeader(dm.mui, "Energy Targets") {
-                        for b in building.energyTargets {
-                            dm.muiLabel(dm.mui, b)
+        dm.muiLabel(dm.mui)
+        if dm.muiButton(dm.mui, "Destroy") {
+            gameState.buildUpMode = .Destroy
+        }
+
+
+        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
+        if dm.muiButton(dm.mui, "SpawnWave") {
+            StartNextWave()
+        }
+
+        if dm.muiButton(dm.mui, "Reset level") {
+            name := gameState.level.name
+            OpenLevel(name)
+        }
+
+        dm.muiLabel(dm.mui, "LEVELS:")
+        for l in gameState.levels {
+            if dm.muiButton(dm.mui, l.name) {
+                OpenLevel(l.name)
+            }
+        }
+
+
+        dm.muiEndWindow(dm.mui)
+    }
+
+    tile := GetTileAtCoord(gameState.selectedTile)
+    if tile.building != {} || tile.wireDir != {} {
+        if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}, {.NO_CLOSE}) {
+            dm.muiLabel(dm.mui, tile.wireDir)
+
+            if dm.muiHeader(dm.mui, "Building") {
+                if tile.building != {} {
+                    building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
+                    if ok {
+                        data := &Buildings[building.dataIdx]
+                        dm.muiLabel(dm.mui, "Name:", data.name)
+                        dm.muiLabel(dm.mui, building.handle)
+                        dm.muiLabel(dm.mui, "Pos:", building.gridPos)
+                        dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
+
+                        if dm.muiHeader(dm.mui, "Energy Targets") {
+                            for b in building.energyTargets {
+                                dm.muiLabel(dm.mui, b)
+                            }
                         }
-                    }
 
-                    if dm.muiHeader(dm.mui, "Energy Sources") {
-                        for b in building.energySources {
-                            dm.muiLabel(dm.mui, b)
+                        if dm.muiHeader(dm.mui, "Energy Sources") {
+                            for b in building.energySources {
+                                dm.muiLabel(dm.mui, b)
+                            }
                         }
                     }
                 }
             }
+
+            dm.muiEndWindow(dm.mui)
+        }
+    }
+
+    if gameState.buildUpMode != .None {
+        size := iv2{
+            100, 60
         }
 
-        dm.muiEndWindow(dm.mui)
+        pos := iv2{
+            dm.renderCtx.frameSize.x / 2 - size.x / 2,
+            dm.renderCtx.frameSize.y - 100,
+        }
+
+        if dm.muiBeginWindow(dm.mui, "Current Mode", {pos.x, pos.y, size.x, size.y}, 
+            {.NO_CLOSE, .NO_RESIZE})
+        {
+            label := gameState.buildUpMode == .Building ? "Building" :
+                     gameState.buildUpMode == .Pipe     ? "Pipe" :
+                     gameState.buildUpMode == .Destroy  ? "Destroy" :
+                                                          "UNKNOWN MODE"
+
+            dm.muiLabel(dm.mui, label)
+
+            dm.muiEndWindow(dm.mui)
+        }
     }
 }
 
@@ -629,7 +645,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite := dm.CreateSprite(tex, buildingData.spriteRect)
 
         pos := building.position
-        dm.DrawSprite(sprite, pos)
+        dm.DrawSprite(sprite, pos, rotation = math.to_radians(DirToRot[building.rotation]))
 
         // if buildingData.energyStorage != 0 {
         //     // @TODO this breaks batching
@@ -654,10 +670,10 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Selected building
-    if gameState.selectedBuildingIdx != 0 {
+    if gameState.buildUpMode == .Building {
         gridPos := MousePosGrid()
 
-        building := Buildings[gameState.selectedBuildingIdx - 1]
+        building := Buildings[gameState.selectedBuildingIdx]
 
         // @TODO @CACHE
         tex := dm.GetTextureAsset(building.spriteName)
@@ -667,11 +683,16 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                  dm.GREEN : 
                  dm.RED)
 
-        dm.DrawSprite(sprite, dm.ToV2(gridPos) + dm.ToV2(building.size) / 2, color = color)
+        dm.DrawSprite(
+            sprite, 
+            dm.ToV2(gridPos) + dm.ToV2(building.size) / 2, 
+            color = color, 
+            rotation = math.to_radians(DirToRot[gameState.buildedStructureRotation])
+        )
     }
 
-    // Building Wire
-    if gameState.buildingWire {
+    // Building Pipe
+    if gameState.buildUpMode == .Pipe {
         coord := MousePosGrid()
         for dir in gameState.buildingWireDir {
             dm.DrawWorldRect(
@@ -682,6 +703,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 color = {0, 0.1, 0.8, 0.5},
                 pivot = {0, 0.5}
             )
+        }
+    }
+
+    // Destroying
+    if gameState.buildUpMode == .Destroy {
+        tile := TileUnderCursor()
+        if tile.building != {} || tile.wireDir != nil {
+            dm.DrawBlankSprite(tile.worldPos, 1, {1, 0, 0, 0.5})
         }
     }
 

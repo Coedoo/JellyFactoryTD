@@ -26,9 +26,16 @@ Tile :: struct {
     type: TileType,
 }
 
+TileStartingValues :: struct {
+    hasBuilding: bool,
+    buildingIdx: int,
+    pipeDir: DirectionSet,
+}
+
 Level  :: struct {
     name: string,
     grid: []Tile,
+    startingState: []TileStartingValues,
     sizeX, sizeY: i32,
 
     startCoord: iv2,
@@ -68,6 +75,8 @@ LoadLevels :: proc() -> (levels: []Level) {
     }
 
     levels = make([]Level, len(project.levels))
+
+    buildingsNameCache := make(map[string]int, allocator = context.temp_allocator)
 
     // @TODO: it's kinda error prone
     PixelsPerTile :: 16
@@ -126,6 +135,8 @@ LoadLevels :: proc() -> (levels: []Level) {
                 }
             }
             else if layer.identifier == "Entities" {
+                level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
+
                 for entity in layer.entity_instances {
                     coord := iv2{i32(entity.grid.x), i32(entity.grid.y)}
                     coord.y = level.sizeY - coord.y - 1
@@ -135,12 +146,23 @@ LoadLevels :: proc() -> (levels: []Level) {
                     case "EndPoint": level.endCoord = coord; continue
                     }
 
-                    newIdentifier, _ := strings.replace_all(entity.identifier, "_", " ", context.temp_allocator)
-                    for building, i in Buildings {
-                        if building.name == newIdentifier {
-                            
+                    buildingIdx, ok := buildingsNameCache[entity.identifier]
+                    if ok == false {
+                        newIdentifier, _ := strings.replace_all(entity.identifier, "_", " ", context.temp_allocator)
+                        for building, i in Buildings {
+                            if building.name == newIdentifier {
+                                buildingsNameCache[entity.identifier] = i
+                                buildingIdx = i
+                                break
+                            }
                         }
                     }
+
+                    idx := coord.y * level.sizeX + coord.x
+                    level.startingState[idx].buildingIdx = buildingIdx
+                    level.startingState[idx].hasBuilding = true
+
+                    fmt.println("Adding", entity.identifier, "At:", coord)
                 }
             }
             else {
@@ -201,6 +223,16 @@ OpenLevel :: proc(name: string) {
 
     gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
 
+
+    for &tile, i in gameState.level.grid {
+        if gameState.level.startingState[i].hasBuilding {
+            TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
+        }
+        else {
+            tile.wireDir = gameState.level.startingState[i].pipeDir
+        }
+    }
+
     // @TODO: this will probably need other place
     // Also I don't think I have to completely destroy particles
     // but that's TBD
@@ -241,6 +273,13 @@ IsInsideGrid :: proc(coord: iv2) -> bool {
 CoordToIdx :: proc(coord: iv2) -> i32 {
     assert(IsInsideGrid(coord))
     return coord.y * gameState.level.sizeX + coord.x
+}
+
+WorldPosToCoord :: proc(pos: v2) -> iv2 {
+    x := i32(pos.x)
+    y := i32(pos.y)
+
+    return {x, y}
 }
 
 IsTileFree :: proc(coord: iv2) -> bool {
@@ -356,17 +395,16 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) ->
         return false
     }
 
-    PlaceBuilding(buildingIdx, gridPos, rotation)
+    PlaceBuilding(buildingIdx, gridPos)
     return true
 }
 
-PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) {
+PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     building := Buildings[buildingIdx]
     toSpawn := BuildingInstance {
         dataIdx = buildingIdx,
         gridPos = gridPos,
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
-        rotation = rotation,
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
@@ -379,9 +417,6 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) {
             gameState.level.grid[idx].building = handle
         }
     }
-
-    pipes := RotateByDir(building.connections, rotation)
-    buildingTile.wireDir = pipes
 
     CheckBuildingConnection(gridPos)
 }
@@ -490,7 +525,7 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
         for neighborCoord in neighboursCoords {
             neighbourTile := GetTileAtCoord(neighborCoord)
 
-            if neighborCoord != goal {
+            if current != start && neighborCoord != goal {
                 if traversalPredicate(currentTile^, neighbourTile^) == false {
                     continue
                 }

@@ -7,9 +7,11 @@ import dm "../dmcore"
 LEVEL_MEMORY :: mem.Kilobyte * 512
 
 PLAYER_SPEED :: 10
+BUILDING_DISTANCE :: 5
 
 START_MONEY :: 1000
 START_HP :: 200
+
 
 
 START_LEVEL :: "Level_0"
@@ -64,5 +66,129 @@ Waves := [?]LevelWaves {
                 {"Test 2", 30, 0.15},
             },
         },
+    },
+}
+
+// BUILDINGS
+
+Buildings := [?]Building {
+    {
+        name = "Factory 1",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .ProduceEnergy, .SendsEnergy },
+
+        restrictedTiles = { .Walls },
+
+        cost = 100,
+
+        energyStorage = 100,
+        energyProduction = 25,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+    
+    {
+        name = "Factory 2",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .ProduceEnergy, .SendsEnergy },
+
+        restrictedTiles = { .Walls },
+
+        cost = 100,
+
+        producedEnergyType = .Green,
+        energyStorage = 100,
+        energyProduction = 25,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+
+    {
+        name = "Factory 3",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .ProduceEnergy, .SendsEnergy },
+
+        restrictedTiles = { .Walls },
+
+        cost = 100,
+
+        producedEnergyType = .Red,
+        energyStorage = 100,
+        energyProduction = 25,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+
+    {
+        name = "Turret 1",
+        spriteName = "turret_test_3.png",
+        spriteRect = {0, 32, 32, 32},
+        turretSpriteRect = {32, 0, 32, 64},
+        turretSpriteOrigin = {0.5, 0.75},
+
+        size = {1, 1},
+
+        flags = {.Attack, .RequireEnergy, .RotatingTurret},
+
+        cost = 200,
+
+        energyStorage = 100,
+        // energyProduction = 25,
+
+        attackType = .Simple,
+        range = 4,
+        energyRequired = 8,
+        reloadTime = 0.2,
+        damage = 50,
+
+        connections = DirHorizontal,
+    },
+
+    {
+        name = "Cannon 1",
+        spriteName = "turret_test_3.png",
+        spriteRect = {0, 32, 32, 32},
+        turretSpriteRect = {32, 0, 32, 64},
+        turretSpriteOrigin = {0.5, 0.75},
+
+        size = {1, 1},
+
+        flags = {.Attack, .RequireEnergy, .RotatingTurret},
+
+        cost = 200,
+
+        energyStorage = 100,
+        // energyProduction = 25,
+
+        attackType = .Cannon,
+
+        range = 4,
+        energyRequired = 10,
+        reloadTime = 0.2,
+        damage = 70,
+        attackRadius = 3,
+
+        connections = DirHorizontal,
     },
 }

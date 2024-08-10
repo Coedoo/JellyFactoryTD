@@ -780,9 +780,9 @@
 			"tileRect": null,
 			"uiTileRect": { "tilesetUid": 187, "x": 288, "y": 208, "w": 16, "h": 16 },
 			"nineSliceBorders": [],
-			"maxCount": 0,
+			"maxCount": 1,
 			"limitScope": "PerLevel",
-			"limitBehavior": "MoveLastOne",
+			"limitBehavior": "PreventAdding",
 			"pivotX": 0,
 			"pivotY": 0,
 			"fieldDefs": []
@@ -815,9 +815,9 @@
 			"tileRect": null,
 			"uiTileRect": { "tilesetUid": 187, "x": 272, "y": 192, "w": 16, "h": 16 },
 			"nineSliceBorders": [],
-			"maxCount": 0,
+			"maxCount": 1,
 			"limitScope": "PerLevel",
-			"limitBehavior": "MoveLastOne",
+			"limitBehavior": "PreventAdding",
 			"pivotX": 0,
 			"pivotY": 0,
 			"fieldDefs": []

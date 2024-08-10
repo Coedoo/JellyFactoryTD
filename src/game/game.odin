@@ -45,7 +45,6 @@ GameState :: struct {
         selectedTile: iv2,
 
         buildUpMode: BuildUpMode,
-        buildedStructureRotation: Direction,
         selectedBuildingIdx: int,
         buildingWireDir: DirectionSet,
 
@@ -214,25 +213,29 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     if canSpawn {
                         source.packetSpawnTimer = sourceData.packetSpawnInterval
 
-                        packet := dm.CreateElement(&gameState.energyPackets)
                         pathKey := PathKey{
                             from = source.handle,
                             to = building.handle,
                         }
+                        path, ok := gameState.pathsBetweenBuildings[pathKey]
 
                         // fmt.println(packet.handle)
                         // fmt.println(gameState.energyPackets.slots[packet.handle.index])
 
-                        packet.path = gameState.pathsBetweenBuildings[pathKey]
-                        packet.position = CoordToPos(packet.path[0])
-                        packet.speed = 6
-                        packet.energyType = sourceData.producedEnergyType
-                        packet.energy = sourceData.packetSize
-                        packet.pathKey = pathKey
+                        if ok {
+                            packet := dm.CreateElement(&gameState.energyPackets)
 
-                        source.currentEnergy[buildingData.producedEnergyType] -= sourceData.packetSize
+                            packet.path = path
+                            packet.position = CoordToPos(packet.path[0])
+                            packet.speed = 6
+                            packet.energyType = sourceData.producedEnergyType
+                            packet.energy = sourceData.packetSize
+                            packet.pathKey = pathKey
 
-                        building.lastUsedSourceIdx = idx
+                            source.currentEnergy[buildingData.producedEnergyType] -= sourceData.packetSize
+
+                            building.lastUsedSourceIdx = idx
+                        }
                     }
                 }
             }
@@ -272,7 +275,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
-                // building.currentEnergy -= buildingData.energyRequired
                 RemoveEnergyFromBuilding(building, buildingData.energyRequired)
 
                 switch buildingData.attackType {
@@ -427,13 +429,15 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         leftBtn := dm.GetMouseButton(.Left)
         if leftBtn == .Down {
             coord := MousePosGrid()
+            tile := GetTileAtCoord(coord)
 
-            if prevCoord != coord {
-                tile := GetTileAtCoord(coord)
-                if tile.building == {} && tile.wireDir != gameState.buildingWireDir {
-                    tile.wireDir = gameState.buildingWireDir
-                    CheckBuildingConnection(tile.gridPos)
-                }
+            canPlace :=  (prevCoord != coord || tile.wireDir != gameState.buildingWireDir)
+            canPlace &&= tile.wireDir != gameState.buildingWireDir
+            canPlace &&= tile.building == {}
+
+            if canPlace {
+                tile.wireDir = gameState.buildingWireDir
+                CheckBuildingConnection(tile.gridPos)
 
                 prevCoord = coord
             }
@@ -460,10 +464,10 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     // Building
     if gameState.buildUpMode == .Building
     {
-        if dm.input.scroll != 0 {
-            dirSet := NextDir if dm.input.scroll < 0 else PrevDir
-            gameState.buildedStructureRotation = dirSet[gameState.buildedStructureRotation]
-        }
+        // if dm.input.scroll != 0 {
+        //     dirSet := NextDir if dm.input.scroll < 0 else PrevDir
+        //     gameState.buildedStructureRotation = dirSet[gameState.buildedStructureRotation]
+        // }
 
         if dm.GetMouseButton(.Left) == .JustPressed &&
            cursorOverUI == false
@@ -471,11 +475,16 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             idx := gameState.selectedBuildingIdx
             building := Buildings[idx]
 
-
             pos := MousePosGrid()
-            if CanBePlaced(building, pos) {
-                if RemoveMoney(building.cost) {
-                    PlaceBuilding(idx, pos, gameState.buildedStructureRotation)
+            playerPos := WorldPosToCoord(gameState.playerPosition)
+
+            delta := pos - playerPos
+
+            if delta.x * delta.x + delta.y * delta.y <= BUILDING_DISTANCE * BUILDING_DISTANCE {
+                if CanBePlaced(building, pos) {
+                    if RemoveMoney(building.cost) {
+                        PlaceBuilding(idx, pos)
+                    }
                 }
             }
         }
@@ -490,7 +499,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             if dm.muiButton(dm.mui, b.name) {
                 gameState.selectedBuildingIdx = idx
                 gameState.buildUpMode = .Building
-                gameState.buildedStructureRotation = nil
             }
         }
 
@@ -645,7 +653,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite := dm.CreateSprite(tex, buildingData.spriteRect)
 
         pos := building.position
-        dm.DrawSprite(sprite, pos, rotation = math.to_radians(DirToRot[building.rotation]))
+        dm.DrawSprite(sprite, pos)
 
         // if buildingData.energyStorage != 0 {
         //     // @TODO this breaks batching
@@ -679,15 +687,25 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         tex := dm.GetTextureAsset(building.spriteName)
         sprite := dm.CreateSprite(tex, building.spriteRect)
 
-        color := (CanBePlaced(building, gridPos) ?
-                 dm.GREEN : 
-                 dm.RED)
+        color := dm.GREEN
+        if CanBePlaced(building, gridPos) == false {
+            color = dm.RED
+        }
+
+        // @TODO: make this a function
+        pos := MousePosGrid()
+        playerPos := WorldPosToCoord(gameState.playerPosition)
+
+        delta := pos - playerPos
+
+        if delta.x * delta.x + delta.y * delta.y > BUILDING_DISTANCE * BUILDING_DISTANCE {
+            color = dm.RED
+        }
 
         dm.DrawSprite(
             sprite, 
             dm.ToV2(gridPos) + dm.ToV2(building.size) / 2, 
             color = color, 
-            rotation = math.to_radians(DirToRot[gameState.buildedStructureRotation])
         )
     }
 

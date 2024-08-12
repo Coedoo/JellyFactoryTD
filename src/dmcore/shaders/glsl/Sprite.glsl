@@ -28,7 +28,7 @@ void main() {
     // @ TODO: I can lower amount of buffers needed by 
     // combining those to rects:
     vec4 pos = vec4(anchor, anchor + vec2(aSize.x, -aSize.y));
-    vec4 texRect  = vec4(aTexPos, aTexPos + aTexSize);
+    vec4 texRect  = vec4(aTexPos + 0.5, aTexPos + aTexSize - 0.5);
 
     ivec2 i = ivec2(gl_VertexID & 2, (gl_VertexID << 1 & 2) ^ 3);
 

@@ -1,6 +1,6 @@
 package platform_wasm
 
-import "core:runtime"
+import "base:runtime"
 import "core:fmt"
 
 import "core:mem"
@@ -13,8 +13,7 @@ import "vendor:wasm/js"
 
 import coreTime "core:time"
 
-import game "../../examples/Arkanoid/src"
-// import game "../game"
+import game "../game"
 
 platform: dm.Platform
 
@@ -89,9 +88,9 @@ LoadNextAsset :: proc() {
 }
 
 main :: proc() {
-    InitContext()
+    // InitContext()
 
-    context = wasmContext
+    // context = wasmContext
 
     gl.SetCurrentContextById("game_viewport")
 
@@ -116,12 +115,12 @@ main :: proc() {
         assetsLoadingState.nowLoading = platform.assets.toLoad[0]
     }
 
+    fmt.println("AAAAAAAAA")
     LoadNextAsset()
 }
 
 @(export, link_name="step")
-step :: proc "contextless" (delta: f32, ctx: ^runtime.Context) {
-    context = wasmContext
+step :: proc (delta: f32) -> bool {
     free_all(context.temp_allocator)
 
     ////////
@@ -133,10 +132,13 @@ step :: proc "contextless" (delta: f32, ctx: ^runtime.Context) {
         //         dm.LoadDefaultFont(platform.renderCtx), dm.ToV2(platform.renderCtx.frameSize) / 2)
         //     dm.FlushCommands(platform.renderCtx)
         // }
-        return
+        return true
     }
     else if gameLoaded == false {
         gameLoaded = true
+
+        fmt.println("LOADING GAME")
+        
         game.GameLoad(&platform)
     }
 
@@ -245,4 +247,6 @@ step :: proc "contextless" (delta: f32, ctx: ^runtime.Context) {
 
     dm.muiEnd(mui)
     dm.muiRender(mui, renderCtx)
+
+    return true
 }

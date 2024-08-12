@@ -88,7 +88,7 @@ MousePosGrid :: proc() -> (gridPos: iv2) {
 
 @export
 PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
-    dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
+    // dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
@@ -655,14 +655,15 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         pos := building.position
         dm.DrawSprite(sprite, pos)
 
-        // if buildingData.energyStorage != 0 {
-        //     // @TODO this breaks batching
-        //     dm.DrawWorldRect(
-        //         dm.renderCtx.whiteTexture, 
-        //         dm.ToV2(building.gridPos) + {f32(buildingData.size.y), 0},
-        //         {0.1, building.currentEnergy / buildingData.energyStorage}
-        //     )
-        // }
+        currentEnergy := BuildingEnergy(&building)
+        if buildingData.energyStorage != 0 {
+            // @TODO this breaks batching
+            dm.DrawWorldRect(
+                dm.renderCtx.whiteTexture, 
+                dm.ToV2(building.gridPos) + {f32(buildingData.size.y), 0},
+                {0.1, currentEnergy / buildingData.energyStorage}
+            )
+        }
 
         if .RotatingTurret in buildingData.flags {
             sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)

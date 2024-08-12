@@ -15,10 +15,10 @@ class FilesInterface {
 
                 let that = this;
                 req.onload = (e) => {
-                    const odin_ctx = this.wmi.exports.get_ctx_ptr();
+                    const odin_ctx = this.wmi.exports.default_context_ptr();
 
                     const arraybuffer = req.response;
-                    let ptr = that.wmi.exports.wasm_alloc(arraybuffer.byteLength)
+                    let ptr = that.wmi.exports.wasm_alloc(arraybuffer.byteLength, odin_ctx)
                     let src = new Uint8Array(arraybuffer)
                     let dest = new Uint8Array(that.wmi.memory.buffer, ptr, arraybuffer.byteLength);
 

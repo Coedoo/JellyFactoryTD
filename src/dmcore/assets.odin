@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:strings"
 import "core:os"
 
-ASSETS_ROOT :: #config(ASSET_ROOT, "../assets/")
+ASSETS_ROOT :: #config(ASSET_ROOT, "./assets/")
 
 TextureAssetDescriptor :: struct {
     filter: TextureFilter

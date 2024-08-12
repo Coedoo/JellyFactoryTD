@@ -24,8 +24,6 @@ InitRenderContext :: proc(ctx: ^RenderContext) {
     InitResourcePool(&ctx.textures, 128)
     InitResourcePool(&ctx.shaders, 16)
 
-    ctx.DrawBatch = DrawBatch
-
     ctx.defaultShaders[.ScreenSpaceRect] = CompileShaderSource(ctx, ScreenSpaceRectShaderSource)
     ctx.defaultShaders[.Sprite] = CompileShaderSource(ctx, SpriteShaderSource)
     ctx.defaultShaders[.SDFFont] = CompileShaderSource(ctx, SDFFontSource)
@@ -35,6 +33,7 @@ InitRenderContext :: proc(ctx: ^RenderContext) {
     gl.BufferData(gl.UNIFORM_BUFFER, size_of(PerFrameData), nil, gl.DYNAMIC_DRAW)
     gl.BindBufferRange(gl.UNIFORM_BUFFER, PerFrameDataBindingPoint,
                        perFrameDataBuffer, 0, size_of(PerFrameData))
+    gl.BindBufferBase(gl.UNIFORM_BUFFER, 0, perFrameDataBuffer)
     gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 
     //////
@@ -53,6 +52,7 @@ InitRenderContext :: proc(ctx: ^RenderContext) {
     gl.Enable(gl.BLEND)
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
+    ctx.camera = CreateCamera(5, 4./3.)
 }
 
 ////////
@@ -61,11 +61,20 @@ MVP: mat4
 FlushCommands :: proc(using ctx: ^RenderContext) {
     frameData: PerFrameData
 
-    //@TODO: set proper viewport
-    gl.Viewport(0, 0, 800, 600)
+    gl.Viewport(0, 0, ctx.frameSize.x, ctx.frameSize.y)
+
+    // Default camera
+    view := GetViewMatrix(ctx.camera)
+    proj := GetProjectionMatrixNTO(ctx.camera)
+    frameData.MVP = proj * view
+
+    gl.BindBuffer(gl.UNIFORM_BUFFER, perFrameDataBuffer)
+    gl.BufferSubData(gl.UNIFORM_BUFFER, 0, size_of(PerFrameData), &frameData)
+    gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
+
 
     for c in &commandBuffer.commands {
-        switch cmd in &c {
+        switch cmd in c {
         case ClearColorCommand:
             c := cmd.clearColor
             gl.ClearColor(c.r, c.g, c.b, c.a)
@@ -76,7 +85,6 @@ FlushCommands :: proc(using ctx: ^RenderContext) {
             proj := GetProjectionMatrixNTO(cmd.camera)
 
             frameData.MVP = proj * view
-            MVP = proj * view
 
             gl.BindBuffer(gl.UNIFORM_BUFFER, perFrameDataBuffer)
             gl.BufferSubData(gl.UNIFORM_BUFFER, 0, size_of(PerFrameData), &frameData)

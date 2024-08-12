@@ -30,7 +30,7 @@ _LoadSound :: proc(audio: ^Audio, path: string) -> SoundHandle {
 
 _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
     Load(raw_data(data), len(data))
-    sound := CreateElement(audio.sounds)
+    sound := CreateElement(&audio.sounds)
 
     sound._volume = 1
     sound.ptr = raw_data(data)

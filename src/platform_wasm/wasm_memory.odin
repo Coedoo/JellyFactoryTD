@@ -1,58 +1,53 @@
 package platform_wasm
 
 import "core:mem"
-import "core:runtime"
+import "base:runtime"
 import dm "../dmcore"
 import "vendor:wasm/js"
 import "core:fmt"
 
-wasmContext: runtime.Context
+// wasmContext: runtime.Context
 
-// @TODO make it configurable
-tempBackingBuffer: [64 * mem.Megabyte]byte
-tempArena: mem.Arena
+// // @TODO make it configurable
+// tempBackingBuffer: [64 * mem.Megabyte]byte
+// tempArena: mem.Arena
 
 
-WASM_MEMORY_PAGES :: #config(MLW_WASM_MEMORY_PAGES_CONFIG, 16384) // 1 GiB default
+// WASM_MEMORY_PAGES :: #config(MLW_WASM_MEMORY_PAGES_CONFIG, 16384) // 1 GiB default
 
-// mainBackingBuffer: [200 * mem.Megabyte]byte
-mainAllocator: dm.Free_List
+// // mainBackingBuffer: [200 * mem.Megabyte]byte
+// mainAllocator: dm.Free_List
 
-InitContext :: proc () {
-    wasmContext = context
+// InitContext :: proc () {
+//     wasmContext = context
 
-    mem.arena_init(&tempArena, tempBackingBuffer[:])
-    wasmContext.temp_allocator = mem.arena_allocator(&tempArena)
+//     mem.arena_init(&tempArena, tempBackingBuffer[:])
+//     wasmContext.temp_allocator = mem.arena_allocator(&tempArena)
 
-    if data, err := js.page_alloc(WASM_MEMORY_PAGES); err == .None {
-        // sj.free_list_init(&free_list, data)
+//     if data, err := js.page_alloc(WASM_MEMORY_PAGES); err == .None {
+//         // sj.free_list_init(&free_list, data)
 
-        dm.free_list_init(&mainAllocator, data)
-        wasmContext.allocator = dm.free_list_allocator(&mainAllocator)
-    }
-    else {
-        fmt.printf("Failed to allocate %v pages.", WASM_MEMORY_PAGES)
-    }
+//         dm.free_list_init(&mainAllocator, data)
+//         wasmContext.allocator = dm.free_list_allocator(&mainAllocator)
+//     }
+//     else {
+//         fmt.printf("Failed to allocate %v pages.", WASM_MEMORY_PAGES)
+//     }
 
-    wasmContext.logger = context.logger
-}
-
-@(export, link_name = "get_ctx_ptr")
-GetContextPtr :: proc "contextless" () -> (^runtime.Context) {
-    return &wasmContext
-}
+//     wasmContext.logger = context.logger
+// }
 
 @(export, link_name="wasm_alloc")
-WasmAlloc :: proc "contextless" (byteLength: uint) -> rawptr {
-    context = wasmContext
-    rec := make([]byte, byteLength, context.allocator)
+WasmAlloc :: proc "contextless" (byteLength: uint, ctx: ^runtime.Context) -> rawptr {
+    context = ctx^
+    rec := make([]byte, byteLength, ctx.allocator)
     return raw_data(rec)
 }
 
 @(export, link_name="wasm_temp_alloc")
-WasmTempAlloc :: proc "contextless" (byteLength: uint) -> rawptr {
-    context = wasmContext
-    rec := make([]byte, byteLength, context.temp_allocator)
+WasmTempAlloc :: proc "contextless" (byteLength: uint, ctx: ^runtime.Context) -> rawptr {
+    context = ctx^
+    rec := make([]byte, byteLength, ctx.temp_allocator)
     return raw_data(rec)
 }
 

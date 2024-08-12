@@ -49,7 +49,7 @@ CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> Shader
         panic("failed linking shader")
     }
 
-    shader := CreateElement(renderCtx.shaders)
+    shader := CreateElement(&renderCtx.shaders)
     shader.backend.shaderID = shaderProg
 
     return shader.handle

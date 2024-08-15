@@ -63,10 +63,14 @@ muiEnd :: proc(using mui: ^Mui) {
     mu.end(&muiCtx)
 }
 
+muiLayoutRow :: proc(mui: ^Mui, widths: []i32, height: i32 = 0) {
+    mu.layout_row(&mui.muiCtx, widths, height)
+}
+
 muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: mu.Options = {}) -> (ret: bool) {
     ret = mu.begin_window(&muiCtx, label, rect, options)
     if ret {
-        mu.layout_row(&muiCtx, {-1})
+        mu.layout_row(&muiCtx, {-1}, 13)
     }
 
     return ret
@@ -74,6 +78,14 @@ muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: m
 
 muiEndWindow :: proc(using mui: ^Mui) {
     mu.end_window(&muiCtx)
+}
+
+muiPushID :: proc(mui: ^Mui, id: int) {
+    mu.push_id(&mui.muiCtx, uintptr(id))
+}
+
+muiPopID :: proc(mui: ^Mui) {
+    mu.pop_id(&mui.muiCtx)
 }
 
 muiShowWindow :: proc(mui: ^Mui, label: string) {

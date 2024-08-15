@@ -8,6 +8,7 @@ import "core:fmt"
 import "core:slice"
 
 EnergyType :: enum {
+    None,
     Blue,
     Green,
     Cyan,
@@ -15,6 +16,7 @@ EnergyType :: enum {
 }
 
 EnergyColor := [EnergyType]dm.color {
+    .None = dm.MAGENTA,
     .Blue = dm.BLUE,
     .Green = dm.GREEN,
     .Cyan = dm.SKYBLUE,
@@ -34,6 +36,13 @@ EnergyPacket :: struct {
 
 EnergySet :: distinct [EnergyType]f32
 
+EnergyBalanceType :: enum {
+    None,
+    Balanced,
+    Full,
+}
+
+
 BuildingEnergy :: proc(building: ^BuildingInstance) -> (sum: f32) {
     for e in building.currentEnergy {
         sum += e
@@ -41,6 +50,18 @@ BuildingEnergy :: proc(building: ^BuildingInstance) -> (sum: f32) {
 
     return sum
 }
+
+BiggestEnergy :: proc(building: ^BuildingInstance) -> (energy: f32, type: EnergyType) {
+    for e, i in building.currentEnergy {
+        if e >= energy {
+            energy = e
+            type = EnergyType(i)
+        }
+    }
+
+    return
+}
+
 
 AddEnergy :: proc(building: ^BuildingInstance, type: EnergyType, value: f32) -> f32 {
     data := &Buildings[building.dataIdx]

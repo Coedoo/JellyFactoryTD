@@ -71,6 +71,5 @@ float4 ps_main(pixel p) : SV_TARGET
     // float4 c = float4(color.rgb * p.color.rgb, 1);
     // return c;
 
-    // float3 c = p.color.rgb * p.color.a;
     return p.color * texColor;
 }

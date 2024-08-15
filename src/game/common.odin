@@ -54,6 +54,13 @@ DirToRot := [Direction]f32 {
     .South = 270
 }
 
+DirToVec := [Direction]iv2 {
+    .East  = {1,  0}, 
+    .North = {0,  1}, 
+    .West  = {-1, 0},
+    .South = {0, -1},
+}
+
 VecToDir :: proc(vec: iv2) -> Direction {
     if abs(vec.x) > abs(vec.y) {
         return vec.x < 0 ? .West : .East
@@ -133,4 +140,18 @@ GetTransitEnergy :: proc(handle: BuildingHandle) -> (amount: f32) {
     }
 
     return
+}
+
+PathsEqual :: proc(pathA: []iv2, pathB: []iv2) -> bool {
+    if len(pathA) != len(pathB) {
+        return false
+    }
+
+    for i in 0..<len(pathA) {
+        if pathA[i] != pathB[i] {
+            return false
+        }
+    }
+
+    return true
 }

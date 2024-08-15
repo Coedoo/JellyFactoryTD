@@ -65,6 +65,8 @@ Building :: struct {
     packetSize: f32,
     packetSpawnInterval: f32,
 
+    balanceType: EnergyBalanceType,
+
     // Attack
     attackType: AttackType,
     range: f32,
@@ -84,6 +86,8 @@ BuildingInstance :: struct {
 
     // energy
     currentEnergy: EnergySet,
+    requestedEnergy: f32,
+
     packetSpawnTimer: f32,
 
     // attack
@@ -93,11 +97,11 @@ BuildingInstance :: struct {
     turretAngle: f32,
     targetTurretAngle: f32,
 
-    // connectedBuildings: [dynamic]BuildingHandle,
-
     lastUsedSourceIdx: int,
     energySources: [dynamic]BuildingHandle,
     energyTargets: [dynamic]BuildingHandle,
+
+    requestedEnergyQueue: [dynamic]BuildingHandle
 }
 
 GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -> []BuildingHandle {
@@ -143,12 +147,12 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
 CheckBuildingConnection :: proc(startCoord: iv2) {
     buildingsInNetwork := GetConnectedBuildings(startCoord, context.temp_allocator)
 
-    for handle in buildingsInNetwork {
-        building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
+    // for handle in buildingsInNetwork {
+    //     building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
 
-        clear(&building.energyTargets)
-        clear(&building.energySources)
-    }
+    //     clear(&building.energyTargets)
+    //     clear(&building.energySources)
+    // }
 
     for handleA in buildingsInNetwork {
         building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
@@ -168,8 +172,13 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
                     path := CalculatePath(building.gridPos, otherBuilding.gridPos, WirePredicate)
 
                     if path != nil {
-                        append(&building.energyTargets, handleB)
-                        append(&otherBuilding.energySources, handleA)
+                        if slice.contains(building.energyTargets[:], handleB) == false {
+                            append(&building.energyTargets, handleB)
+                        }
+
+                        if slice.contains(otherBuilding.energySources[:], handleA) == false {
+                            append(&otherBuilding.energySources, handleA)
+                        }
 
                         key := PathKey{ building.handle, otherBuilding.handle }
                         gameState.pathsBetweenBuildings[key] = path

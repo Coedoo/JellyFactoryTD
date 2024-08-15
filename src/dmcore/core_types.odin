@@ -30,6 +30,8 @@ BLUE    : color : {0, 0, 1, 1}
 SKYBLUE : color : {0.4, 0.75, 1, 1}
 LIME    : color : {0, 0.62, 0.18, 1}
 DARKGREEN : color : {0, 0.46, 0.17, 1}
+MAGENTA : color : {1, 0, 1, 1}
+
 
 Rect :: struct {
     x, y: f32,

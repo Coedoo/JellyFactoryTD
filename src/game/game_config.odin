@@ -85,8 +85,10 @@ Buildings := [?]Building {
 
         cost = 100,
 
+        producedEnergyType = .Blue, 
         energyStorage = 100,
         energyProduction = 25,
+        balanceType = .Full,
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
@@ -110,6 +112,7 @@ Buildings := [?]Building {
         producedEnergyType = .Green,
         energyStorage = 100,
         energyProduction = 25,
+        balanceType = .Full,
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
@@ -133,6 +136,7 @@ Buildings := [?]Building {
         producedEnergyType = .Red,
         energyStorage = 100,
         energyProduction = 25,
+        balanceType = .Full,
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
@@ -155,6 +159,7 @@ Buildings := [?]Building {
 
         energyStorage = 100,
         // energyProduction = 25,
+        balanceType = .Full,
 
         attackType = .Simple,
         range = 4,
@@ -164,6 +169,29 @@ Buildings := [?]Building {
 
         connections = DirHorizontal,
     },
+
+    {
+        name = "Battery",
+        spriteName = "buildings.png",
+        spriteRect = {32, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .RequireEnergy, .SendsEnergy },
+
+        restrictedTiles = {},
+
+        cost = 100,
+
+        energyStorage = 500,
+        balanceType = .Balanced,
+
+        packetSize = 10,
+        packetSpawnInterval = 0.2,
+
+        connections = {.East, .North, .West, .South},
+    },
+
 
     {
         name = "Cannon 1",
@@ -180,6 +208,7 @@ Buildings := [?]Building {
 
         energyStorage = 100,
         // energyProduction = 25,
+        balanceType = .Full,
 
         attackType = .Cannon,
 

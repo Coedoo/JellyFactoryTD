@@ -135,7 +135,9 @@ LoadLevels :: proc() -> (levels: []Level) {
                 }
             }
             else if layer.identifier == "Entities" {
-                level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
+                if level.startingState == nil {
+                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
+                }
 
                 for entity in layer.entity_instances {
                     coord := iv2{i32(entity.grid.x), i32(entity.grid.y)}
@@ -164,6 +166,13 @@ LoadLevels :: proc() -> (levels: []Level) {
 
                     fmt.println("Adding", entity.identifier, "At:", coord)
                 }
+            }
+            else if layer.identifier == "Entities" {
+                if level.startingState == nil {
+                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
+                }
+
+                
             }
             else {
                 fmt.eprintln("Unhandled level layer:", layer.identifier)
@@ -410,6 +419,10 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
     buildingTile := GetTileAtCoord(gridPos)
 
+    if .SendsEnergy in building.flags {
+        toSpawn.requestedEnergyQueue = make([dynamic]BuildingHandle, 0, 64, gameState.levelAllocator)
+    }
+
     // TODO: check for outside grid coords
     for y in 0..<building.size.y {
         for x in 0..<building.size.x {
@@ -461,18 +474,21 @@ RemoveBuilding :: proc(building: BuildingHandle) {
     dm.FreeSlot(&gameState.spawnedBuildings, building)
 }
 
-TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile) -> bool
+TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool
 
-WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile) -> bool {
-    return neighbor.type == .WalkArea
+WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
+    return neighbor.type == .WalkArea || neighbor.gridPos == goal
 }
 
-WirePredicate :: proc(currentTile: Tile, neighbor: Tile) -> bool {
+WirePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     delta :=  neighbor.gridPos - currentTile.gridPos
     dir := VecToDir(delta)
     reverse := ReverseDir[dir]
 
-    return dir in currentTile.wireDir && reverse in neighbor.wireDir
+    return (dir in currentTile.wireDir && 
+            reverse in neighbor.wireDir) && 
+           (neighbor.building == {} ||
+            neighbor.gridPos == goal)
 }
 
 CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredicate) -> []iv2 {
@@ -525,10 +541,8 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
         for neighborCoord in neighboursCoords {
             neighbourTile := GetTileAtCoord(neighborCoord)
 
-            if current != start && neighborCoord != goal {
-                if traversalPredicate(currentTile^, neighbourTile^) == false {
-                    continue
-                }
+            if traversalPredicate(currentTile^, neighbourTile^, goal) == false {
+                continue
             }
 
             // @NOTE: I can make it depend on the edge on the tilemap

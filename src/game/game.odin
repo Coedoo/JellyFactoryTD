@@ -94,6 +94,7 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("turret_test_3.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("Energy.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 }
@@ -176,12 +177,9 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             building.currentEnergy[buildingData.producedEnergyType] += produced
         }
 
-        if .SendsEnergy in buildingData.flags {
-            building.packetSpawnTimer -= f32(dm.time.deltaTime)
-        }
-
         if .RequireEnergy in buildingData.flags {
 
+            allEnergy := BuildingEnergy(building)
             // the loop here is weird because I want to start
             // the iteration from next unused energy source
             // to prevent situations where building is
@@ -189,6 +187,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             // which happened to be updated first
 
             for i := 0; i < len(building.energySources); i += 1 {
+                neededEnergy := buildingData.energyStorage - building.requestedEnergy - allEnergy
 
                 idx := (building.lastUsedSourceIdx + i) % len(building.energySources)
                 sourceHandle := building.energySources[idx]
@@ -196,46 +195,69 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
                 sourceData := Buildings[source.dataIdx]
 
-                if .SendsEnergy in sourceData.flags {
-                    energyInTransit := GetTransitEnergy(building.handle)
+                if neededEnergy < sourceData.packetSize {
+                    continue
+                }
 
-                    sourceEnergy := BuildingEnergy(source)
+                if slice.contains(source.requestedEnergyQueue[:], building.handle) {
+                    continue
+                }
 
-                    targetEnergy := BuildingEnergy(building)
-                    canSpawn := source.packetSpawnTimer <= 0
-                    canSpawn &&= sourceEnergy >= sourceData.packetSize
-                    canSpawn &&= (buildingData.energyStorage - targetEnergy - energyInTransit) >= sourceData.packetSize
+                append(&source.requestedEnergyQueue, building.handle)
+                building.lastUsedSourceIdx = idx
+                building.requestedEnergy += sourceData.packetSize
+            }
+        }
 
-                    if len(building.energySources) > 1 {
-                        canSpawn &&= building.lastUsedSourceIdx != idx
-                    }
+        if .SendsEnergy in buildingData.flags {
+            sourceEnergy, sourceEnergyType := BiggestEnergy(building)
 
-                    if canSpawn {
-                        source.packetSpawnTimer = sourceData.packetSpawnInterval
+            building.packetSpawnTimer -= f32(dm.time.deltaTime)
+            canSpawn := building.packetSpawnTimer <= 0 &&
+                        len(building.requestedEnergyQueue) > 0 &&
+                        sourceEnergy >= buildingData.packetSize
 
-                        pathKey := PathKey{
-                            from = source.handle,
-                            to = building.handle,
+            if  canSpawn {
+                building.packetSpawnTimer = building.packetSpawnTimer
+
+                targetHandle := building.requestedEnergyQueue[0]
+
+                target, ok := dm.GetElementPtr(gameState.spawnedBuildings, targetHandle)
+                targetData := Buildings[target.dataIdx]
+
+                balanceType := (int(buildingData.balanceType) >= int(targetData.balanceType) ?
+                               buildingData.balanceType :
+                               targetData.balanceType)
+
+                if balanceType == .Balanced {
+                    targetEnergy := BuildingEnergy(target) / targetData.energyStorage
+                    sourceEnergy := (BuildingEnergy(building) - buildingData.packetSize) / buildingData.energyStorage
+
+                    canSpawn = sourceEnergy > targetEnergy
+                }
+
+                if canSpawn {
+                    ordered_remove(&building.requestedEnergyQueue, 0)
+
+                    building.packetSpawnTimer = buildingData.packetSpawnInterval
+
+                    pathKey := PathKey{
+                        from = building.handle,
+                        to   = target.handle,
                         }
-                        path, ok := gameState.pathsBetweenBuildings[pathKey]
+                    path, ok := gameState.pathsBetweenBuildings[pathKey]
 
-                        // fmt.println(packet.handle)
-                        // fmt.println(gameState.energyPackets.slots[packet.handle.index])
+                    if ok {
+                        packet := dm.CreateElement(&gameState.energyPackets)
 
-                        if ok {
-                            packet := dm.CreateElement(&gameState.energyPackets)
+                        packet.path = path
+                        packet.position = CoordToPos(packet.path[0])
+                        packet.speed = 6
+                        packet.energyType = sourceEnergyType
+                        packet.energy = buildingData.packetSize
+                        packet.pathKey = pathKey
 
-                            packet.path = path
-                            packet.position = CoordToPos(packet.path[0])
-                            packet.speed = 6
-                            packet.energyType = sourceData.producedEnergyType
-                            packet.energy = sourceData.packetSize
-                            packet.pathKey = pathKey
-
-                            source.currentEnergy[buildingData.producedEnergyType] -= sourceData.packetSize
-
-                            building.lastUsedSourceIdx = idx
-                        }
+                        building.currentEnergy[sourceEnergyType] -= buildingData.packetSize
                     }
                 }
             }
@@ -305,6 +327,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.pathKey.to)
             if ok {
                 building.currentEnergy[packet.energyType] += packet.energy
+                building.requestedEnergy -= packet.energy
             }
 
             dm.FreeSlot(&gameState.energyPackets, packet.handle)
@@ -376,38 +399,52 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         if tile.wireDir != {} {
             connectedBuildings := GetConnectedBuildings(tile.gridPos, context.temp_allocator)
+
+            for dir in tile.wireDir {
+                neighborCoord := tile.gridPos + DirToVec[dir]
+                neighbor := GetTileAtCoord(neighborCoord)
+                if neighbor.building != {} {
+                    neighbor.wireDir -= { ReverseDir[dir] }
+                }
+            }
+
             tile.wireDir = nil
 
             for handleA in connectedBuildings {
                 buildingA := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
+
                 #reverse for handleB, i in buildingA.energyTargets {
                     buildingB := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
 
                     key := PathKey{buildingA.handle, buildingB.handle}
+                    oldPath := gameState.pathsBetweenBuildings[key] or_continue
                     newPath := CalculatePath(buildingA.gridPos, buildingB.gridPos, WirePredicate)
 
-                    oldPath, ok := gameState.pathsBetweenBuildings[key]
-                    if ok {
-                        if key.from == handleA || key.to == handleA {
-                            it := dm.MakePoolIterReverse(&gameState.energyPackets)
-                            for packet in dm.PoolIterate(&it) {
-                                if packet.pathKey == key {
-                                    dm.FreeSlot(&gameState.energyPackets, packet.handle)
-                                }
-                            }
-
-                            delete_key(&gameState.pathsBetweenBuildings, key)
-                        }
-
-                        delete(oldPath)
+                    if PathsEqual(oldPath, newPath) {
+                        continue
                     }
+
+                    delete(oldPath)
 
                     if newPath != nil {
                         gameState.pathsBetweenBuildings[key] = newPath
                     }
                     else {
                         delete_key(&gameState.pathsBetweenBuildings, key)
+
                         unordered_remove(&buildingA.energyTargets, i)
+
+                        if idx, found := slice.linear_search(buildingB.energySources[:], handleA); found {
+                            unordered_remove(&buildingB.energySources, idx)
+                        }
+                    }
+
+                    // Delete packets on old path
+                    it := dm.MakePoolIterReverse(&gameState.energyPackets)
+                    for packet in dm.PoolIterate(&it) {
+                        if packet.pathKey == key {
+                            dm.FreeSlot(&gameState.energyPackets, packet.handle)
+                        }
                     }
                 }
             }
@@ -437,6 +474,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
             if canPlace {
                 tile.wireDir = gameState.buildingWireDir
+                for dir in gameState.buildingWireDir {
+                    neighborCoord := coord + DirToVec[dir]
+                    neighbor := GetTileAtCoord(neighborCoord)
+                    if neighbor.building != {} {
+                        neighbor.wireDir += { ReverseDir[dir] }
+                    }
+                }
+
                 CheckBuildingConnection(tile.gridPos)
 
                 prevCoord = coord
@@ -560,7 +605,16 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         dm.muiLabel(dm.mui, "Name:", data.name)
                         dm.muiLabel(dm.mui, building.handle)
                         dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-                        dm.muiLabel(dm.mui, "energy:", building.currentEnergy, "/", data.energyStorage)
+                        dm.muiLabel(dm.mui, "requestedEnergy:", building.requestedEnergy)
+
+                        dm.muiLabel(dm.mui, "Energy:", BuildingEnergy(building), "/", data.energyStorage)
+                        if dm.muiHeader(dm.mui, "Energy") {
+                            for eType in EnergyType {
+                                dm.muiLayoutRow(dm.mui, {40, -1}, 13)
+                                dm.muiLabel(dm.mui, eType)
+                                dm.muiSlider(dm.mui, &building.currentEnergy[eType], 0, data.energyStorage)
+                            }
+                        }
 
                         if dm.muiHeader(dm.mui, "Energy Targets") {
                             for b in building.energyTargets {
@@ -570,6 +624,14 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                         if dm.muiHeader(dm.mui, "Energy Sources") {
                             for b in building.energySources {
+                                dm.muiLabel(dm.mui, b)
+                            }
+                        }
+
+                        if .SendsEnergy in data.flags &&
+                            dm.muiHeader(dm.mui, "Request Queue")
+                        {
+                            for b in building.requestedEnergyQueue {
                                 dm.muiLabel(dm.mui, b)
                             }
                         }
@@ -627,8 +689,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Level
     for tile, idx in gameState.level.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
+        if DEBUG_TILE_OVERLAY {
+            dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
+        }
+    }
 
-        // Wire
+
+    // Wire
+    for tile, idx in gameState.level.grid {
         for dir in tile.wireDir {
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture,
@@ -638,10 +706,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 color = {0, 0.1, 0.8, 0.9},
                 pivot = {0, 0.5}
             )
-        }
-
-        if DEBUG_TILE_OVERLAY {
-            dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
         }
     }
 
@@ -735,8 +799,9 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Draw energy packets
     packetIt := dm.MakePoolIter(&gameState.energyPackets)
+    energyTex := dm.GetTextureAsset("Energy.png")
     for packet in dm.PoolIterate(&packetIt) {
-        dm.DrawBlankSprite(packet.position, .4, EnergyColor[packet.energyType])
+        dm.DrawWorldRect(energyTex, packet.position, 1, color = EnergyColor[packet.energyType])
     }
 
     // Enemy

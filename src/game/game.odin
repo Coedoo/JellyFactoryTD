@@ -695,7 +695,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
 
-    // Wire
+    // Pipe
     for tile, idx in gameState.level.grid {
         for dir in tile.wireDir {
             dm.DrawWorldRect(
@@ -824,6 +824,10 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
+    if gameState.buildUpMode == .Building {
+        dm.DrawCircle(dm.renderCtx, gameState.playerPosition, BUILDING_DISTANCE, false)
+    }
+    
     // path
     for i := 0; i < len(gameState.path) - 1; i += 1 {
         a := gameState.path[i]

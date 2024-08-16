@@ -238,7 +238,7 @@ OpenLevel :: proc(name: string) {
             TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
         }
         else {
-            tile.wireDir = gameState.level.startingState[i].pipeDir
+            // tile.wireDir = gameState.level.startingState[i].pipeDir
         }
     }
 
@@ -318,7 +318,7 @@ TileUnderCursor :: proc() -> ^Tile {
 }
 
 GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
-    ret := make([dynamic]iv2, 0, 8, allocator = allocator)
+    ret := make([dynamic]iv2, 0, 4, allocator = allocator)
 
     for x := i32(-1); x <= i32(1); x += 1 {
         for y := i32(-1); y <= i32(1); y += 1 {
@@ -331,7 +331,7 @@ GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 
             }
 
 
-            if(IsInsideGrid(n)) {
+            if IsInsideGrid(n) {
                 append(&ret, n)
             }
         }
@@ -429,6 +429,40 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
             idx := CoordToIdx(gridPos + {x, y})
             gameState.level.grid[idx].building = handle
         }
+    }
+
+    // Find and place pipes
+    startX := gridPos.x - 1
+    endX   := gridPos.x + building.size.x
+
+    startY := gridPos.y - 1
+    endY   := gridPos.y + building.size.y
+
+    SetPipe :: proc(coord, neighbor: iv2, targetDir: Direction) {
+        buildingTile := GetTileAtCoord(coord)
+
+        if IsInsideGrid(neighbor) {
+            tile := GetTileAtCoord(neighbor)
+            if ReverseDir[targetDir] in tile.wireDir {
+                buildingTile.wireDir += { targetDir }
+            }
+        }
+    }
+
+    for x in startX + 1 ..= endX - 1 {
+        SetPipe({x, startY + 1}, {x, startY}, .South)
+    }
+
+    for x in startX + 1 ..= endX - 1 {
+        SetPipe({x, endY - 1}, {x, endY}, .North)
+    }
+
+    for y in startY + 1 ..= endY - 1 {
+        SetPipe({startX + 1, y}, {startX, y}, .West)
+    }
+
+    for y in startY + 1 ..= endY - 1 {
+        SetPipe({endX - 1, y}, {endX, y}, .East)
     }
 
     CheckBuildingConnection(gridPos)

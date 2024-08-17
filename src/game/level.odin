@@ -98,6 +98,25 @@ LoadLevels :: proc() -> (levels: []Level) {
                 tiles := layer.type == .Tiles ? layer.grid_tiles : layer.auto_layer_tiles
                 level.grid = make([]Tile, layer.c_width * layer.c_height)
 
+                // Setup tile's types
+                for type, i in layer.int_grid_csv {
+                    coord := iv2{
+                        i32(i) % level.sizeX,
+                        i32(i) / level.sizeX,
+                    }
+
+                    coord.y = level.sizeY - coord.y - 1
+                    idx := coord.y * level.sizeX + coord.x
+                    
+                    level.grid[idx] = Tile {
+                        gridPos = iv2{i32(coord.x), i32(coord.y)},
+                        worldPos = CoordToPos(coord),
+                        type = cast(TileType) type,
+                    }
+                    level.grid[idx].type = cast(TileType) type
+                }
+
+                // Tile's sprites
                 for tile, i in tiles {
                     sprite := dm.CreateSprite(
                         tilesHandle,
@@ -109,29 +128,7 @@ LoadLevels :: proc() -> (levels: []Level) {
                     coord.y = int(level.sizeY) - coord.y - 1
 
                     idx := coord.y * int(level.sizeX) + coord.x
-
-                    posX := f32(coord.x) + 0.5
-                    posY := f32(coord.y) + 0.5
-
-                    level.grid[idx] = Tile {
-                        sprite = sprite,
-                        gridPos = iv2{i32(coord.x), i32(coord.y)},
-                        worldPos = v2{posX, posY},
-                        type = cast(TileType) layer.int_grid_csv[i]
-                    }
-                }
-
-                // Setup tile's types
-                for type, i in layer.int_grid_csv {
-                    coord := iv2{
-                        i32(i) % level.sizeX,
-                        i32(i) / level.sizeX,
-                    }
-
-                    coord.y = level.sizeY - coord.y - 1
-                    idx := coord.y * level.sizeX + coord.x
-
-                    level.grid[idx].type = cast(TileType) type
+                    level.grid[idx].sprite = sprite
                 }
             }
             else if layer.identifier == "Entities" {
@@ -200,7 +197,7 @@ OpenLevel :: proc(name: string) {
     for &l in gameState.levels {
         if l.name == name {
             gameState.level = &l
-            break;
+            break
         }
     }
 
@@ -511,7 +508,7 @@ RemoveBuilding :: proc(building: BuildingHandle) {
 TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool
 
 WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
-    return neighbor.type == .WalkArea || neighbor.gridPos == goal
+    return neighbor.gridPos == goal || neighbor.type == .WalkArea
 }
 
 WirePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {

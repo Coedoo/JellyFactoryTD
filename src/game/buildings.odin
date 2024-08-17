@@ -169,7 +169,7 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
                 otherData := Buildings[otherBuilding.dataIdx]
 
                 if .RequireEnergy in otherData.flags {
-                    path := CalculatePath(building.gridPos, otherBuilding.gridPos, WirePredicate)
+                    path := CalculatePath(building.gridPos, otherBuilding.gridPos, PipePredicate)
 
                     if path != nil {
                         if slice.contains(building.energyTargets[:], handleB) == false {

@@ -189,7 +189,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             for i := 0; i < len(building.energySources); i += 1 {
                 neededEnergy := buildingData.energyStorage - building.requestedEnergy - allEnergy
 
-                idx := (building.lastUsedSourceIdx + i) % len(building.energySources)
+                idx := (building.lastUsedSourceIdx + i + 1) % len(building.energySources)
                 sourceHandle := building.energySources[idx]
 
                 source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
@@ -418,7 +418,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                     key := PathKey{buildingA.handle, buildingB.handle}
                     oldPath := gameState.pathsBetweenBuildings[key] or_continue
-                    newPath := CalculatePath(buildingA.gridPos, buildingB.gridPos, WirePredicate)
+                    newPath := CalculatePath(buildingA.gridPos, buildingB.gridPos, PipePredicate)
 
                     if PathsEqual(oldPath, newPath) {
                         continue
@@ -464,27 +464,29 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         @static prevCoord: iv2
 
         leftBtn := dm.GetMouseButton(.Left)
-        if leftBtn == .Down {
+        if leftBtn == .Down  {
             coord := MousePosGrid()
-            tile := GetTileAtCoord(coord)
+            if IsInDistance(gameState.playerPosition, coord) {
+                tile := GetTileAtCoord(coord)
 
-            canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
-            canPlace &&= tile.pipeDir != gameState.buildingPipeDir
-            canPlace &&= tile.building == {}
+                canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
+                canPlace &&= tile.pipeDir != gameState.buildingPipeDir
+                canPlace &&= tile.building == {}
 
-            if canPlace {
-                tile.pipeDir = gameState.buildingPipeDir
-                for dir in gameState.buildingPipeDir {
-                    neighborCoord := coord + DirToVec[dir]
-                    neighbor := GetTileAtCoord(neighborCoord)
-                    if neighbor.building != {} {
-                        neighbor.pipeDir += { ReverseDir[dir] }
+                if canPlace {
+                    tile.pipeDir = gameState.buildingPipeDir
+                    for dir in gameState.buildingPipeDir {
+                        neighborCoord := coord + DirToVec[dir]
+                        neighbor := GetTileAtCoord(neighborCoord)
+                        if neighbor.building != {} {
+                            neighbor.pipeDir += { ReverseDir[dir] }
+                        }
                     }
+
+                    CheckBuildingConnection(tile.gridPos)
+
+                    prevCoord = coord
                 }
-
-                CheckBuildingConnection(tile.gridPos)
-
-                prevCoord = coord
             }
         }
 
@@ -771,16 +773,21 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         )
     }
 
-    // Building Pipe
+    // Draw Building Pipe
     if gameState.buildUpMode == .Pipe {
         coord := MousePosGrid()
+
+        color: dm.color = (IsInDistance(gameState.playerPosition, coord) ?
+                           {0, 0.1, 0.8, 0.5} :
+                           {0.8, 0.1, 0, 0.5})
+
         for dir in gameState.buildingPipeDir {
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture,
                 dm.ToV2(coord) + 0.5,
                 {0.5, 0.1},
                 rotation = math.to_radians(DirToRot[dir]),
-                color = {0, 0.1, 0.8, 0.5},
+                color = color,
                 pivot = {0, 0.5}
             )
         }
@@ -788,9 +795,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Destroying
     if gameState.buildUpMode == .Destroy {
-        tile := TileUnderCursor()
-        if tile.building != {} || tile.pipeDir != nil {
-            dm.DrawBlankSprite(tile.worldPos, 1, {1, 0, 0, 0.5})
+        if IsInDistance(gameState.playerPosition, MousePosGrid()) {
+            tile := TileUnderCursor()
+            if tile.building != {} || tile.pipeDir != nil {
+                dm.DrawBlankSprite(tile.worldPos, 1, {1, 0, 0, 0.5})
+            }
         }
     }
 
@@ -860,7 +869,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
-    
     // path
     for i := 0; i < len(gameState.path) - 1; i += 1 {
         a := gameState.path[i]

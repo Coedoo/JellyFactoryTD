@@ -510,7 +510,7 @@ WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool 
     return neighbor.gridPos == goal || neighbor.type == .WalkArea
 }
 
-WirePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
+PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     delta :=  neighbor.gridPos - currentTile.gridPos
     dir := VecToDir(delta)
     reverse := ReverseDir[dir]

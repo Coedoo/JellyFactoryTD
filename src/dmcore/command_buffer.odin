@@ -9,6 +9,7 @@ Command :: union {
     CameraCommand,
     DrawRectCommand,
     DrawMeshCommand,
+    DrawGridCommand,
 }
 
 ClearColorCommand :: struct {
@@ -38,6 +39,8 @@ DrawMeshCommand :: struct {
     position: v2,
     shader: ShaderHandle,
 }
+
+DrawGridCommand :: struct{}
 
 ClearColor :: proc(color: color) {
     ClearColorCtx(renderCtx, color)
@@ -233,4 +236,8 @@ DrawMesh :: proc(mesh: ^Mesh, pos: v2, shader: ShaderHandle) {
         position = pos,
         shader = shader,
     });
+}
+
+DrawGrid :: proc() {
+    append(&renderCtx.commandBuffer.commands, DrawGridCommand{})
 }

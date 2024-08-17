@@ -818,13 +818,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
     }
 
-    // Player
-    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
-
+    // Building Range
     if gameState.buildUpMode != .None {
+
         playerCoord := WorldPosToCoord(gameState.playerPosition)
         building := Buildings[gameState.selectedBuildingIdx]
-        
+
         for y in -BUILDING_DISTANCE..=BUILDING_DISTANCE {
             for x in -BUILDING_DISTANCE..=BUILDING_DISTANCE {
 
@@ -837,7 +836,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                         color = (CanBePlaced(building, coord) ?
                                            {0, 1, 0, 0.2} :
                                            {1, 0, 0, 0.2})
-                    
+
                     case .Pipe: 
                         tile := GetTileAtCoord(coord)
                         color = (tile.building == {} ?
@@ -854,8 +853,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                 }
             }
         }
-        // dm.DrawCircle(dm.renderCtx, gameState.playerPosition, BUILDING_DISTANCE, false)
+
+        dm.DrawGrid()
     }
+
+    // Player
+    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+
     
     // path
     for i := 0; i < len(gameState.path) - 1; i += 1 {

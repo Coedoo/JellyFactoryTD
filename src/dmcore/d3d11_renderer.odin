@@ -302,6 +302,15 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
 
             AddBatchEntry(ctx, &ctx.defaultBatch, entry)
 
+        case DrawGridCommand:
+            shaderHandle := ctx.defaultShaders[.Grid]
+            shader := GetElement(ctx.shaders, shaderHandle)
+
+            ctx.deviceContext->VSSetShader(shader.backend.vertexShader, nil, 0)
+            ctx.deviceContext->PSSetShader(shader.backend.pixelShader, nil, 0)
+
+            ctx.deviceContext->Draw(4, 0)
+
         case DrawMeshCommand:
 
         }
@@ -326,16 +335,6 @@ ResizeFrambuffer :: proc(renderCtx: ^RenderContext, width, height: int) {
     ctx.device->CreateRenderTargetView(framebuffer, nil, &ctx.framebufferView)
 
     framebuffer->Release()
-}
-
-DrawGrid :: proc(ctx: ^RenderContext_d3d) {
-    shaderHandle := ctx.defaultShaders[.Grid]
-    shader := GetElement(ctx.shaders, shaderHandle)
-
-    ctx.deviceContext->VSSetShader(shader.backend.vertexShader, nil, 0)
-    ctx.deviceContext->PSSetShader(shader.backend.pixelShader, nil, 0)
-
-    ctx.deviceContext->Draw(4, 0)
 }
 
 

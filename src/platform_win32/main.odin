@@ -291,11 +291,7 @@ main :: proc() {
             gameCode.gameRender(engineData.gameState)
         }
 
-       // dm.test_window(mui)
-
         dm.FlushCommands(cast(^dm.RenderContext_d3d) engineData.renderCtx)
-
-        // dm.DrawGrid(cast(^dm.RenderContext_d3d) engineData.renderCtx)
 
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatch, cast(^dm.RenderContext_d3d) engineData.renderCtx)
         dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatchScreen, cast(^dm.RenderContext_d3d) engineData.renderCtx)

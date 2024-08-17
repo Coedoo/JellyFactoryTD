@@ -155,3 +155,9 @@ PathsEqual :: proc(pathA: []iv2, pathB: []iv2) -> bool {
 
     return true
 }
+
+IsInDistance :: proc(playerPos: v2, target: iv2) -> bool {
+    playerPos := WorldPosToCoord(playerPos)
+    delta := target - playerPos
+    return delta.x * delta.x + delta.y * delta.y <= BUILDING_DISTANCE * BUILDING_DISTANCE
+}

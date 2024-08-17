@@ -457,7 +457,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         gameState.buildUpMode = .None
     }
 
-    // Wire
+    // Pipe
     if gameState.buildUpMode == .Pipe &&
        cursorOverUI == false
     {
@@ -521,11 +521,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             building := Buildings[idx]
 
             pos := MousePosGrid()
-            playerPos := WorldPosToCoord(gameState.playerPosition)
 
-            delta := pos - playerPos
-
-            if delta.x * delta.x + delta.y * delta.y <= BUILDING_DISTANCE * BUILDING_DISTANCE {
+            if IsInDistance(gameState.playerPosition, pos) {
                 if CanBePlaced(building, pos) {
                     if RemoveMoney(building.cost) {
                         PlaceBuilding(idx, pos)
@@ -824,8 +821,40 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Player
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
-    if gameState.buildUpMode == .Building {
-        dm.DrawCircle(dm.renderCtx, gameState.playerPosition, BUILDING_DISTANCE, false)
+    if gameState.buildUpMode != .None {
+        playerCoord := WorldPosToCoord(gameState.playerPosition)
+        building := Buildings[gameState.selectedBuildingIdx]
+        
+        for y in -BUILDING_DISTANCE..=BUILDING_DISTANCE {
+            for x in -BUILDING_DISTANCE..=BUILDING_DISTANCE {
+
+                coord := playerCoord + iv2{i32(x), i32(y)}
+                if IsInDistance(gameState.playerPosition, coord) {
+
+                    color: dm.color
+                    switch gameState.buildUpMode {
+                    case .Building: 
+                        color = (CanBePlaced(building, coord) ?
+                                           {0, 1, 0, 0.2} :
+                                           {1, 0, 0, 0.2})
+                    
+                    case .Pipe: 
+                        tile := GetTileAtCoord(coord)
+                        color = (tile.building == {} ?
+                                           {0, 0, 1, 0.2} :
+                                           {1, 0, 0, 0.2})
+
+                    case .Destroy:
+                        color = {1, 0, 0, 0.2}
+
+                    case .None:
+                    }
+
+                    dm.DrawBlankSprite(CoordToPos(coord), {1, 1}, color)
+                }
+            }
+        }
+        // dm.DrawCircle(dm.renderCtx, gameState.playerPosition, BUILDING_DISTANCE, false)
     }
     
     // path

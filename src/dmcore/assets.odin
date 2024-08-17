@@ -4,7 +4,12 @@ import "core:fmt"
 import "core:strings"
 import "core:os"
 
-ASSETS_ROOT :: #config(ASSET_ROOT, "./assets/")
+when ODIN_OS != .JS {
+    ASSETS_ROOT :: #config(ASSET_ROOT, "../assets/")
+}
+else {
+    ASSETS_ROOT :: #config(ASSET_ROOT, "./assets/")
+}
 
 TextureAssetDescriptor :: struct {
     filter: TextureFilter

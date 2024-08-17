@@ -122,7 +122,7 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
             delta := neighbour.gridPos - coord
             dir := VecToDir(delta)
 
-            canBeAdded := (dir in tile.wireDir) &&(ReverseDir[dir] in neighbour.wireDir)
+            canBeAdded := (dir in tile.pipeDir) &&(ReverseDir[dir] in neighbour.pipeDir)
             canBeAdded &&= slice.contains(visited[:], neighbour.gridPos) == false
             canBeAdded ||= coord == startCoord
 
@@ -132,7 +132,7 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
                 append(&visited, coord)
             }
 
-            if (dir in tile.wireDir) &&
+            if (dir in tile.pipeDir) &&
                neighbour.building != {} &&
                slice.contains(buildingsInNetwork[:], neighbour.building) == false
             {

@@ -20,8 +20,7 @@ Tile :: struct {
 
     building: BuildingHandle,
 
-    // hasWire: bool,
-    wireDir: DirectionSet,
+    pipeDir: DirectionSet,
 
     type: TileType,
 }
@@ -235,7 +234,7 @@ OpenLevel :: proc(name: string) {
             TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
         }
         else {
-            // tile.wireDir = gameState.level.startingState[i].pipeDir
+            // tile.pipeDir = gameState.level.startingState[i].pipeDir
         }
     }
 
@@ -262,7 +261,7 @@ CloseCurrentLevel :: proc() {
 
     for &tile in gameState.level.grid {
         tile.building = {}
-        tile.wireDir = nil
+        tile.pipeDir = nil
     }
 
     gameState.level = nil
@@ -440,8 +439,8 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
         if IsInsideGrid(neighbor) {
             tile := GetTileAtCoord(neighbor)
-            if ReverseDir[targetDir] in tile.wireDir {
-                buildingTile.wireDir += { targetDir }
+            if ReverseDir[targetDir] in tile.pipeDir {
+                buildingTile.pipeDir += { targetDir }
             }
         }
     }
@@ -516,8 +515,8 @@ WirePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     dir := VecToDir(delta)
     reverse := ReverseDir[dir]
 
-    return (dir in currentTile.wireDir && 
-            reverse in neighbor.wireDir) && 
+    return (dir in currentTile.pipeDir && 
+            reverse in neighbor.pipeDir) && 
            (neighbor.building == {} ||
             neighbor.gridPos == goal)
 }

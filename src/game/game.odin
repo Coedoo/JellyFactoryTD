@@ -46,7 +46,7 @@ GameState :: struct {
 
         buildUpMode: BuildUpMode,
         selectedBuildingIdx: int,
-        buildingWireDir: DirectionSet,
+        buildingPipeDir: DirectionSet,
 
         currentWaveIdx: int,
         levelWaves: LevelWaves,
@@ -397,18 +397,18 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             RemoveBuilding(tile.building)
         }
 
-        if tile.wireDir != {} {
+        if tile.pipeDir != {} {
             connectedBuildings := GetConnectedBuildings(tile.gridPos, context.temp_allocator)
 
-            for dir in tile.wireDir {
+            for dir in tile.pipeDir {
                 neighborCoord := tile.gridPos + DirToVec[dir]
                 neighbor := GetTileAtCoord(neighborCoord)
                 if neighbor.building != {} {
-                    neighbor.wireDir -= { ReverseDir[dir] }
+                    neighbor.pipeDir -= { ReverseDir[dir] }
                 }
             }
 
-            tile.wireDir = nil
+            tile.pipeDir = nil
 
             for handleA in connectedBuildings {
                 buildingA := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
@@ -468,17 +468,17 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             coord := MousePosGrid()
             tile := GetTileAtCoord(coord)
 
-            canPlace :=  (prevCoord != coord || tile.wireDir != gameState.buildingWireDir)
-            canPlace &&= tile.wireDir != gameState.buildingWireDir
+            canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
+            canPlace &&= tile.pipeDir != gameState.buildingPipeDir
             canPlace &&= tile.building == {}
 
             if canPlace {
-                tile.wireDir = gameState.buildingWireDir
-                for dir in gameState.buildingWireDir {
+                tile.pipeDir = gameState.buildingPipeDir
+                for dir in gameState.buildingPipeDir {
                     neighborCoord := coord + DirToVec[dir]
                     neighbor := GetTileAtCoord(neighborCoord)
                     if neighbor.building != {} {
-                        neighbor.wireDir += { ReverseDir[dir] }
+                        neighbor.pipeDir += { ReverseDir[dir] }
                     }
                 }
 
@@ -491,10 +491,10 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if dm.input.scroll != 0 {
             dirSet := NextDir if dm.input.scroll < 0 else PrevDir
             newSet: DirectionSet
-            for dir in gameState.buildingWireDir {
+            for dir in gameState.buildingPipeDir {
                 newSet += { dirSet[dir] }
             }
-            gameState.buildingWireDir = newSet
+            gameState.buildingPipeDir = newSet
         }
     }
 
@@ -547,19 +547,19 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         dm.muiLabel(dm.mui, "Pipes:")
         if dm.muiButton(dm.mui, "Stright") {
             gameState.buildUpMode = .Pipe
-            gameState.buildingWireDir = DirVertical
+            gameState.buildingPipeDir = DirVertical
         }
         if dm.muiButton(dm.mui, "Angled") {
             gameState.buildUpMode = .Pipe
-            gameState.buildingWireDir = DirNE
+            gameState.buildingPipeDir = DirNE
         }
         if dm.muiButton(dm.mui, "Triple") {
             gameState.buildUpMode = .Pipe
-            gameState.buildingWireDir = {.South, .North, .East}
+            gameState.buildingPipeDir = {.South, .North, .East}
         }
         if dm.muiButton(dm.mui, "Quad") {
             gameState.buildUpMode = .Pipe
-            gameState.buildingWireDir = DirSplitter
+            gameState.buildingPipeDir = DirSplitter
         }
 
         dm.muiLabel(dm.mui)
@@ -590,9 +590,9 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     tile := GetTileAtCoord(gameState.selectedTile)
-    if tile.building != {} || tile.wireDir != {} {
+    if tile.building != {} || tile.pipeDir != {} {
         if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}, {.NO_CLOSE}) {
-            dm.muiLabel(dm.mui, tile.wireDir)
+            dm.muiLabel(dm.mui, tile.pipeDir)
 
             if dm.muiHeader(dm.mui, "Building") {
                 if tile.building != {} {
@@ -694,7 +694,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Pipe
     for tile, idx in gameState.level.grid {
-        for dir in tile.wireDir {
+        for dir in tile.pipeDir {
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture,
                 tile.worldPos,
@@ -774,7 +774,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Building Pipe
     if gameState.buildUpMode == .Pipe {
         coord := MousePosGrid()
-        for dir in gameState.buildingWireDir {
+        for dir in gameState.buildingPipeDir {
             dm.DrawWorldRect(
                 dm.renderCtx.whiteTexture,
                 dm.ToV2(coord) + 0.5,
@@ -789,7 +789,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Destroying
     if gameState.buildUpMode == .Destroy {
         tile := TileUnderCursor()
-        if tile.building != {} || tile.wireDir != nil {
+        if tile.building != {} || tile.pipeDir != nil {
             dm.DrawBlankSprite(tile.worldPos, 1, {1, 0, 0, 0.5})
         }
     }

@@ -103,7 +103,7 @@ MoveTowards :: proc(current, target: v2, maxDist: f32) -> (v2, f32)
     delta := target - current
     magnitude := glsl.length(delta)
     if magnitude <= maxDist || magnitude == 0 {
-        return target, magnitude - maxDist
+        return target, maxDist - magnitude
     }
 
     point := current + delta / magnitude * maxDist

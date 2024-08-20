@@ -163,7 +163,7 @@ MakePoolIterReverse :: proc(pool: ^ResourcePool($T, $H)) -> PoolIterator(T, H) {
 }
 
 PoolIterate :: proc(it: ^PoolIterator($T, $H)) -> (^T, bool) {
-    if it.idx < 0 || it.idx >= len(it.pool.elements) {
+    if it.idx <= 0 || it.idx >= len(it.pool.elements) {
         return nil, false
     }
 

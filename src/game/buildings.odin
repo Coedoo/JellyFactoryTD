@@ -86,9 +86,11 @@ BuildingInstance :: struct {
 
     // energy
     currentEnergy: EnergySet,
-    requestedEnergy: f32,
 
     packetSpawnTimer: f32,
+
+    // requestedEnergy: [EnergyType]f32,
+    requiredEnergyFractions: [EnergyType]f32,
 
     // attack
     attackTimer: f32,
@@ -101,7 +103,11 @@ BuildingInstance :: struct {
     energySources: [dynamic]BuildingHandle,
     energyTargets: [dynamic]BuildingHandle,
 
-    requestedEnergyQueue: [dynamic]BuildingHandle
+    requestedEnergyQueue: [dynamic]EnergyRequest,
+}
+
+HasFlag :: proc(building: BuildingInstance, flag: BuildingFlag) -> bool {
+    return flag in Buildings[building.dataIdx].flags
 }
 
 GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -> []BuildingHandle {
@@ -147,44 +153,116 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
 CheckBuildingConnection :: proc(startCoord: iv2) {
     buildingsInNetwork := GetConnectedBuildings(startCoord, context.temp_allocator)
 
-    // for handle in buildingsInNetwork {
-    //     building := dm.GetElementPtr(gameState.spawnedBuildings, handle) or_continue
+    for sourceHandle in buildingsInNetwork {
+        source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+        sourceData := Buildings[source.dataIdx]
 
-    //     clear(&building.energyTargets)
-    //     clear(&building.energySources)
-    // }
-
-    for handleA in buildingsInNetwork {
-        building := dm.GetElementPtr(gameState.spawnedBuildings, handleA) or_continue
-        data := Buildings[building.dataIdx]
-
-        if (.SendsEnergy in data.flags) == false {
+        if .SendsEnergy in sourceData.flags == false {
             continue
         }
 
-        for handleB in buildingsInNetwork {
-            if handleA != handleB {
+        for targetHandle in buildingsInNetwork {
+            if sourceHandle != targetHandle {
+                target := dm.GetElementPtr(gameState.spawnedBuildings, targetHandle) or_continue
+                targetData := Buildings[target.dataIdx]
 
-                otherBuilding := dm.GetElementPtr(gameState.spawnedBuildings, handleB) or_continue
-                otherData := Buildings[otherBuilding.dataIdx]
-
-                if .RequireEnergy in otherData.flags {
-                    path := CalculatePath(building.gridPos, otherBuilding.gridPos, PipePredicate)
+                if .RequireEnergy in targetData.flags {
+                    path := CalculatePath(source.gridPos, target.gridPos, PipePredicate)
 
                     if path != nil {
-                        if slice.contains(building.energyTargets[:], handleB) == false {
-                            append(&building.energyTargets, handleB)
-                        }
-
-                        if slice.contains(otherBuilding.energySources[:], handleA) == false {
-                            append(&otherBuilding.energySources, handleA)
-                        }
-
-                        key := PathKey{ building.handle, otherBuilding.handle }
+                        key := PathKey{ source.handle, target.handle }
                         gameState.pathsBetweenBuildings[key] = path
+
+                        if slice.contains(source.energyTargets[:], targetHandle) == false {
+                            append(&source.energyTargets, targetHandle)
+                        }
+
+                        if slice.contains(target.energySources[:], sourceHandle) == false {
+                            append(&target.energySources, sourceHandle)
+                        }
                     }
                 }
             }
         }
+    }
+
+    maxBuildings := len(gameState.spawnedBuildings.elements)
+    affectedTargets := make([dynamic]^BuildingInstance, 0, maxBuildings, context.temp_allocator)
+    visited := make([dynamic]BuildingHandle, 0, maxBuildings, context.temp_allocator)
+    stack := make([dynamic]^BuildingInstance, 0, maxBuildings, context.temp_allocator)
+
+    // Find all affected targets: the ones in the network, as well as their targets
+    for targetHandle in buildingsInNetwork {
+        target := dm.GetElementPtr(gameState.spawnedBuildings, targetHandle) or_continue
+        if HasFlag(target^, .RequireEnergy) {
+            append(&stack, target)
+        }
+    }
+
+    for len(stack) > 0 {
+        building := pop(&stack)
+        append(&affectedTargets, building)
+
+        for targetHandle in building.energyTargets {
+            target := dm.GetElementPtr(gameState.spawnedBuildings, targetHandle) or_continue
+            if slice.contains(affectedTargets[:], target) ||
+               slice.contains(stack[:], target)
+            {
+                continue
+            }
+
+            append(&stack, target)
+        }
+    }
+
+
+    // travel upwards to find all energy sources
+    for target in affectedTargets {
+        clear(&visited)
+
+        fractions: [EnergyType]f32
+
+        append(&visited, target.handle)
+
+        // fmt.println("For target: ", Buildings[target.dataIdx].name, target.handle)
+        for sourceHandle in target.energySources {
+            source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+            append(&stack, source)
+            if HasFlag(source^, .ProduceEnergy) == false {
+                append(&visited, sourceHandle)
+            }
+        }
+
+        sum: f32
+        for len(stack) > 0 {
+            source := pop(&stack)
+
+            // fmt.println("Visited:", source.handle, Buildings[source.dataIdx].name)
+
+            if HasFlag(source^, .ProduceEnergy) {
+                type := Buildings[source.dataIdx].producedEnergyType
+                fractions[type] += 1
+
+                sum += 1
+            }
+
+            for parentHandle in source.energySources {
+                if slice.contains(visited[:], parentHandle) {
+                    continue
+                }
+
+                parent := dm.GetElementPtr(gameState.spawnedBuildings, parentHandle) or_continue
+                append(&stack, parent)
+                if HasFlag(parent^, .ProduceEnergy) == false {
+                    append(&visited, parentHandle)
+                }
+            }
+        }
+
+        for &f in fractions {
+            f = f / sum * Buildings[target.dataIdx].energyStorage
+        }
+
+        target.requiredEnergyFractions = fractions
     }
 }

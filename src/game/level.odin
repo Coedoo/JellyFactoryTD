@@ -412,12 +412,12 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
     }
 
+    if .SendsEnergy in building.flags {
+        toSpawn.requestedEnergyQueue = make([dynamic]EnergyRequest, 0, 64, gameState.levelAllocator)
+    }
+
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
     buildingTile := GetTileAtCoord(gridPos)
-
-    if .SendsEnergy in building.flags {
-        toSpawn.requestedEnergyQueue = make([dynamic]BuildingHandle, 0, 64, gameState.levelAllocator)
-    }
 
     // TODO: check for outside grid coords
     for y in 0..<building.size.y {

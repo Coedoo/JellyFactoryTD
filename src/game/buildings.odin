@@ -106,6 +106,15 @@ BuildingInstance :: struct {
     requestedEnergyQueue: [dynamic]EnergyRequest,
 }
 
+GetBuilding :: proc(handle: BuildingHandle) -> (^BuildingInstance, Building) {
+    instance, ok := dm.GetElementPtr(gameState.spawnedBuildings, handle)
+    if ok == false {
+        return nil, {}
+    }
+
+    return instance, Buildings[instance.dataIdx]
+}
+
 HasFlag :: proc(building: BuildingInstance, flag: BuildingFlag) -> bool {
     return flag in Buildings[building.dataIdx].flags
 }
@@ -259,8 +268,10 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
             }
         }
 
-        for &f in fractions {
-            f = f / sum * Buildings[target.dataIdx].energyStorage
+        if sum != 0 {
+            for &f in fractions {
+                f = f / sum * Buildings[target.dataIdx].energyStorage
+            }
         }
 
         target.requiredEnergyFractions = fractions

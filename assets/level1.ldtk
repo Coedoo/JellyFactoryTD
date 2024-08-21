@@ -1128,8 +1128,8 @@
 				{ "enumValueId": "WE", "tileIds": [14] },
 				{ "enumValueId": "NE", "tileIds": [6] },
 				{ "enumValueId": "NW", "tileIds": [5] },
-				{ "enumValueId": "SE", "tileIds": [7] },
-				{ "enumValueId": "SW", "tileIds": [4] },
+				{ "enumValueId": "SE", "tileIds": [4] },
+				{ "enumValueId": "SW", "tileIds": [7] },
 				{ "enumValueId": "NWE", "tileIds": [10] },
 				{ "enumValueId": "SWE", "tileIds": [8] },
 				{ "enumValueId": "NWS", "tileIds": [11] },
@@ -1141,18 +1141,18 @@
 			"cachedPixelData": { "opaqueTiles": "0000000000000000", "averageColors": "2000200020002000300030003000300040004000400040005000300030000000" }
 		}
 	], "enums": [{ "identifier": "Directions", "uid": 251, "values": [
-		{ "id": "NS", "tileRect": { "tilesetUid": 250, "x": 16, "y": 48, "w": 16, "h": 16 }, "color": 12470831 },
-		{ "id": "WE", "tileRect": { "tilesetUid": 250, "x": 32, "y": 48, "w": 16, "h": 16 }, "color": 14120515 },
-		{ "id": "NE", "tileRect": { "tilesetUid": 250, "x": 32, "y": 16, "w": 16, "h": 16 }, "color": 7552569 },
-		{ "id": "NW", "tileRect": { "tilesetUid": 250, "x": 16, "y": 16, "w": 16, "h": 16 }, "color": 4073265 },
-		{ "id": "SE", "tileRect": { "tilesetUid": 250, "x": 48, "y": 16, "w": 16, "h": 16 }, "color": 16690740 },
-		{ "id": "SW", "tileRect": { "tilesetUid": 250, "x": 0, "y": 16, "w": 16, "h": 16 }, "color": 16705377 },
-		{ "id": "NWE", "tileRect": { "tilesetUid": 250, "x": 32, "y": 32, "w": 16, "h": 16 }, "color": 15389866 },
-		{ "id": "SWE", "tileRect": { "tilesetUid": 250, "x": 0, "y": 32, "w": 16, "h": 16 }, "color": 14984818 },
-		{ "id": "NWS", "tileRect": { "tilesetUid": 250, "x": 48, "y": 32, "w": 16, "h": 16 }, "color": 6539085 },
-		{ "id": "NES", "tileRect": { "tilesetUid": 250, "x": 16, "y": 32, "w": 16, "h": 16 }, "color": 4098376 },
-		{ "id": "NWSE", "tileRect": { "tilesetUid": 250, "x": 0, "y": 48, "w": 16, "h": 16 }, "color": 1199753 }
-	], "iconTilesetUid": 250, "externalRelPath": null, "externalFileChecksum": null, "tags": [] }], "externalEnums": [], "levelFields": [] },
+		{ "id": "NS", "tileRect": null, "color": 12470831 },
+		{ "id": "WE", "tileRect": null, "color": 14120515 },
+		{ "id": "NE", "tileRect": null, "color": 7552569 },
+		{ "id": "NW", "tileRect": null, "color": 4073265 },
+		{ "id": "SE", "tileRect": null, "color": 16690740 },
+		{ "id": "SW", "tileRect": null, "color": 16705377 },
+		{ "id": "NWE", "tileRect": null, "color": 15389866 },
+		{ "id": "SWE", "tileRect": null, "color": 14984818 },
+		{ "id": "NWS", "tileRect": null, "color": 6539085 },
+		{ "id": "NES", "tileRect": null, "color": 4098376 },
+		{ "id": "NWSE", "tileRect": null, "color": 1199753 }
+	], "iconTilesetUid": null, "externalRelPath": null, "externalFileChecksum": null, "tags": [] }], "externalEnums": [], "levelFields": [] },
 	"levels": [
 		{
 			"identifier": "Level_0",
@@ -1201,6 +1201,7 @@
 						{ "px": [336,144], "src": [32,48], "f": 0, "t": 14, "d": [345], "a": 1 },
 						{ "px": [352,144], "src": [32,48], "f": 0, "t": 14, "d": [346], "a": 1 },
 						{ "px": [368,144], "src": [48,16], "f": 0, "t": 7, "d": [347], "a": 1 },
+						{ "px": [384,144], "src": [48,16], "f": 0, "t": 7, "d": [348], "a": 1 },
 						{ "px": [368,160], "src": [16,48], "f": 0, "t": 13, "d": [383], "a": 1 },
 						{ "px": [368,192], "src": [16,48], "f": 0, "t": 13, "d": [455], "a": 1 },
 						{ "px": [368,208], "src": [16,48], "f": 0, "t": 13, "d": [491], "a": 1 }

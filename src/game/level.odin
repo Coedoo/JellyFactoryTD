@@ -163,12 +163,47 @@ LoadLevels :: proc() -> (levels: []Level) {
                     fmt.println("Adding", entity.identifier, "At:", coord)
                 }
             }
-            else if layer.identifier == "Entities" {
+            else if layer.identifier == "Pipes" {
                 if level.startingState == nil {
-                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
+                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height, context.temp_allocator)
                 }
 
-                
+                tilesetID, ok := layer.tileset_def_uid.?
+                if ok == false {
+                    fmt.println("Pipes layer doesn't have specified tileset ID!")
+                    continue
+                }
+
+                tileset := FindTilesetDefinition(project, tilesetID)
+                tileIDToDir := make(map[int]DirectionSet)
+                for enumTag in tileset.enum_tags {
+                    dir: DirectionSet
+                    switch enumTag.enum_value_id {
+                    case "NS": dir = { .North, .South }
+                    case "WE": dir = { .West, .East }
+                    case "NE": dir = { .North, .East }
+                    case "NW": dir = { .North, .West }
+                    case "SE": dir = { .South, .East }
+                    case "SW": dir = { .South, .West }
+                    case "NWE": dir = { .North, .West, .East }
+                    case "SWE": dir = { .South, .West, .East }
+                    case "NWS": dir = { .North, .West, .South }
+                    case "NES": dir = { .North, .East, .South }
+                    case "NWSE": dir = { .North, .West, .South, .East }
+                    }
+
+                    for id in enumTag.tile_ids {
+                        tileIDToDir[id] = dir
+                    }
+                }
+
+                for tile, i in layer.grid_tiles {
+                    coord := tile.px / layer.grid_size
+                    // reverse the axis because LDTK Y axis goes down
+                    coord.y = int(level.sizeY) - coord.y - 1
+                    idx := coord.y * int(level.sizeX) + coord.x
+                    level.startingState[idx].pipeDir = tileIDToDir[tile.t]
+                }
             }
             else {
                 fmt.eprintln("Unhandled level layer:", layer.identifier)
@@ -228,13 +263,17 @@ OpenLevel :: proc(name: string) {
 
     gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
 
+    // @NOTE: I'm doing this in two passes so TryPlaceBuilding already have
+    // pipes to create paths between buildings
+    for &tile, i in gameState.level.grid {
+        if gameState.level.startingState[i].pipeDir != nil {
+            tile.pipeDir = gameState.level.startingState[i].pipeDir
+        }
+    }
 
     for &tile, i in gameState.level.grid {
         if gameState.level.startingState[i].hasBuilding {
             TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
-        }
-        else {
-            // tile.pipeDir = gameState.level.startingState[i].pipeDir
         }
     }
 

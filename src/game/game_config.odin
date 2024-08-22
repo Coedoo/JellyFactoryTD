@@ -92,8 +92,6 @@ Buildings := [?]Building {
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
-
-        connections = {.East, .North, .West, .South},
     },
     
     {
@@ -116,8 +114,6 @@ Buildings := [?]Building {
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
-
-        connections = {.East, .North, .West, .South},
     },
 
     {
@@ -140,8 +136,6 @@ Buildings := [?]Building {
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
-
-        connections = {.East, .North, .West, .South},
     },
 
     {
@@ -166,8 +160,6 @@ Buildings := [?]Building {
         energyRequired = 8,
         reloadTime = 0.2,
         damage = 50,
-
-        connections = DirHorizontal,
     },
 
     {
@@ -188,8 +180,6 @@ Buildings := [?]Building {
 
         packetSize = 10,
         packetSpawnInterval = 0.2,
-
-        connections = {.East, .North, .West, .South},
     },
 
 
@@ -217,7 +207,39 @@ Buildings := [?]Building {
         reloadTime = 0.2,
         damage = 70,
         attackRadius = 3,
+    },
 
-        connections = DirHorizontal,
+    {
+        name = "Modifier Speed",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .EnergyModifier },
+
+        cost = 100,
+
+        energyModifier = SpeedUpModifier {
+            costPercent = 0.2,
+            multiplier = 3,
+        }
+    },
+
+    {
+        name = "Modifier Color",
+        spriteName = "buildings.png",
+        spriteRect = {0, 0, 32, 32},
+
+        size = {1, 1},
+
+        flags = { .EnergyModifier },
+
+        cost = 100,
+
+        energyModifier = ChangeColorModifier {
+            costPercent = 0.4,
+            targetType = .Cyan
+        }
     },
 }

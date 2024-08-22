@@ -65,8 +65,11 @@ SpawnEnemyByName :: proc(name: string) -> ^EnemyInstance {
 
 UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     enemyStat := Enemies[enemy.statsIdx]
+    UpdateFollower(enemy, enemyStat.speed)
 
-    if UpdateFollower(enemy, enemyStat.speed) {
+    if enemy.finishedPath {
+        enemy.finishedPath = false
+
         enemy.nextPointIdx = 0
         enemy.position = CoordToPos(enemy.path[0])
 

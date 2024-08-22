@@ -368,14 +368,31 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     // Update Energy
     packetIt := dm.MakePoolIterReverse(&gameState.energyPackets)
     for packet in dm.PoolIterate(&packetIt) {
-        if UpdateFollower(packet, packet.speed) {
+        UpdateFollower(packet, packet.speed)
+        if packet.finishedPath {
             building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.pathKey.to)
             if ok {
                 building.currentEnergy[packet.energyType] += packet.energy
-                // building.requestedEnergy[packet.energyType] -= packet.energy
             }
 
             dm.FreeSlot(&gameState.energyPackets, packet.handle)
+        }
+        else if packet.enteredNewSegment {
+            tile := GetTileAtCoord(packet.path[packet.nextPointIdx - 1])
+            if tile.building != {} {
+                inst, data := GetBuilding(tile.building)
+                if .EnergyModifier in data.flags {
+                    switch modifier in data.energyModifier {
+                    case SpeedUpModifier:
+                        packet.energy *= (1 - modifier.costPercent)
+                        packet.speed *= modifier.multiplier
+
+                    case ChangeColorModifier: 
+                        packet.energy *= (1 - modifier.costPercent)
+                        packet.energyType = modifier.targetType
+                    }
+                }
+            }
         }
     }
 

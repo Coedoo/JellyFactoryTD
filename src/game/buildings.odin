@@ -17,6 +17,8 @@ BuildingFlag :: enum {
     RequireEnergy,
     Attack,
 
+    EnergyModifier,
+
     // Visuals
     RotatingTurret,
 }
@@ -55,8 +57,6 @@ Building :: struct {
 
     cost: int,
 
-    connections: DirectionSet,
-
     // Energy
     producedEnergyType: EnergyType,
     energyStorage: f32,
@@ -74,6 +74,9 @@ Building :: struct {
     energyRequired: f32,
     reloadTime: f32,
     attackRadius: f32,
+
+    // energy modifier
+    energyModifier: EnergyModifier,
 }
 
 BuildingInstance :: struct {
@@ -89,7 +92,6 @@ BuildingInstance :: struct {
 
     packetSpawnTimer: f32,
 
-    // requestedEnergy: [EnergyType]f32,
     requiredEnergyFractions: [EnergyType]f32,
 
     // attack
@@ -106,6 +108,21 @@ BuildingInstance :: struct {
     requestedEnergyQueue: [dynamic]EnergyRequest,
 }
 
+EnergyModifier :: union {
+    SpeedUpModifier,
+    ChangeColorModifier,
+}
+
+SpeedUpModifier :: struct {
+    costPercent: f32,
+    multiplier: f32,
+}
+
+ChangeColorModifier :: struct {
+    costPercent: f32,
+    targetType: EnergyType,
+}
+
 GetBuilding :: proc(handle: BuildingHandle) -> (^BuildingInstance, Building) {
     instance, ok := dm.GetElementPtr(gameState.spawnedBuildings, handle)
     if ok == false {
@@ -116,6 +133,11 @@ GetBuilding :: proc(handle: BuildingHandle) -> (^BuildingInstance, Building) {
 }
 
 HasFlag :: proc(building: BuildingInstance, flag: BuildingFlag) -> bool {
+    return flag in Buildings[building.dataIdx].flags
+}
+
+HasFlagHandle :: proc(handle: BuildingHandle, flag: BuildingFlag) -> bool {
+    building := dm.GetElement(gameState.spawnedBuildings, handle)
     return flag in Buildings[building.dataIdx].flags
 }
 

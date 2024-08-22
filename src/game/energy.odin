@@ -11,7 +11,7 @@ EnergyType :: enum {
     None,
     Blue,
     Green,
-    // Cyan,
+    Cyan,
     Red,
 }
 
@@ -19,7 +19,7 @@ EnergyColor := [EnergyType]dm.color {
     .None = dm.MAGENTA,
     .Blue = dm.BLUE,
     .Green = dm.GREEN,
-    // .Cyan = dm.SKYBLUE,
+    .Cyan = dm.SKYBLUE,
     .Red = dm.RED,
 }
 

@@ -557,7 +557,8 @@ PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     return (dir in currentTile.pipeDir && 
             reverse in neighbor.pipeDir) && 
            (neighbor.building == {} ||
-            neighbor.gridPos == goal)
+            neighbor.gridPos == goal ||
+            HasFlagHandle(neighbor.building, .EnergyModifier))
 }
 
 CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredicate) -> []iv2 {

@@ -34,7 +34,6 @@ GameState :: struct {
         enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
         energyPackets: dm.ResourcePool(EnergyPacket, EnergyPacketHandle),
 
-
         money: int,
         hp: int,
 
@@ -93,10 +92,12 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
-    dm.RegisterAsset("turret_test_3.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("turret_test_4.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("Energy.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
+
+    dm.platform.SetWindowSize(1200, 900)
 }
 
 @(export)
@@ -458,9 +459,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         if tile.building != {} {
             RemoveBuilding(tile.building)
         }
-
-        if tile.pipeDir != {} {
-            connectedBuildings := GetConnectedBuildings(tile.gridPos, context.temp_allocator)
+        else if tile.pipeDir != {} {
+            connectedBuildings := GetConnectedBuildings(tile.gridPos, allocator = context.temp_allocator)
 
             for dir in tile.pipeDir {
                 neighborCoord := tile.gridPos + DirToVec[dir]
@@ -784,6 +784,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         buildingData := &Buildings[building.dataIdx]
         tex := dm.GetTextureAsset(buildingData.spriteName)
         sprite := dm.CreateSprite(tex, buildingData.spriteRect)
+        sprite.scale = f32(buildingData.size.x)
 
         pos := building.position
         dm.DrawSprite(sprite, pos)
@@ -801,6 +802,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         if .RotatingTurret in buildingData.flags {
             sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
             sprite.origin = buildingData.turretSpriteOrigin
+            sprite.scale = f32(buildingData.size.x)
+            
             dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
         }
 

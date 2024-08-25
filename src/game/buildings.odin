@@ -141,7 +141,7 @@ HasFlagHandle :: proc(handle: BuildingHandle, flag: BuildingFlag) -> bool {
     return flag in Buildings[building.dataIdx].flags
 }
 
-GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -> []BuildingHandle {
+GetConnectedBuildings :: proc(startCoord: iv2, connectionPoints: ^map[BuildingHandle]iv2 = nil, allocator := context.allocator) -> []BuildingHandle {
     queue := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
     visited := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
 
@@ -174,15 +174,20 @@ GetConnectedBuildings :: proc(startCoord: iv2, allocator := context.allocator) -
                slice.contains(buildingsInNetwork[:], neighbour.building) == false
             {
                 append(&buildingsInNetwork, neighbour.building)
+                if connectionPoints != nil {
+                    connectionPoints[neighbour.building] = neighbour.gridPos
+                }
             }
         }
     }
 
+    fmt.println(connectionPoints)
     return buildingsInNetwork[:]
 }
 
 CheckBuildingConnection :: proc(startCoord: iv2) {
-    buildingsInNetwork := GetConnectedBuildings(startCoord, context.temp_allocator)
+    connectionPoints := make(map[BuildingHandle]iv2, allocator = context.temp_allocator)
+    buildingsInNetwork := GetConnectedBuildings(startCoord, &connectionPoints, allocator = context.temp_allocator)
 
     for sourceHandle in buildingsInNetwork {
         source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
@@ -198,7 +203,7 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
                 targetData := Buildings[target.dataIdx]
 
                 if .RequireEnergy in targetData.flags {
-                    path := CalculatePath(source.gridPos, target.gridPos, PipePredicate)
+                    path := CalculatePath(connectionPoints[sourceHandle], connectionPoints[targetHandle], PipePredicate)
 
                     if path != nil {
                         key := PathKey{ source.handle, target.handle }

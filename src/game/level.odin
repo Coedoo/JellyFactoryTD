@@ -165,7 +165,7 @@ LoadLevels :: proc() -> (levels: []Level) {
             }
             else if layer.identifier == "Pipes" {
                 if level.startingState == nil {
-                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height, context.temp_allocator)
+                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
                 }
 
                 tilesetID, ok := layer.tileset_def_uid.?
@@ -463,6 +463,7 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         for x in 0..<building.size.x {
             idx := CoordToIdx(gridPos + {x, y})
             gameState.level.grid[idx].building = handle
+            gameState.level.grid[idx].pipeDir = {}
         }
     }
 
@@ -537,6 +538,7 @@ RemoveBuilding :: proc(building: BuildingHandle) {
         for x in 0..<buildingData.size.x {
             tile := GetTileAtCoord(inst.gridPos + {x, y})
             tile.building = {}
+            tile.pipeDir = {}
         }
     }
 

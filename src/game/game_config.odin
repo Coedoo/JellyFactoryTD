@@ -140,12 +140,12 @@ Buildings := [?]Building {
 
     {
         name = "Turret 1",
-        spriteName = "turret_test_3.png",
-        spriteRect = {0, 32, 32, 32},
-        turretSpriteRect = {32, 0, 32, 64},
-        turretSpriteOrigin = {0.5, 0.75},
+        spriteName = "turret_test_4.png",
+        spriteRect = {0, 0, 32, 32},
+        turretSpriteRect = {0, 32, 32, 32},
+        turretSpriteOrigin = {0.5, 0.5},
 
-        size = {1, 1},
+        size = {2, 2},
 
         flags = {.Attack, .RequireEnergy, .RotatingTurret},
 
@@ -185,12 +185,12 @@ Buildings := [?]Building {
 
     {
         name = "Cannon 1",
-        spriteName = "turret_test_3.png",
-        spriteRect = {0, 32, 32, 32},
-        turretSpriteRect = {32, 0, 32, 64},
-        turretSpriteOrigin = {0.5, 0.75},
+        spriteName = "turret_test_4.png",
+        spriteRect = {32, 0, 32, 32},
+        turretSpriteRect = {32, 32, 32, 32},
+        turretSpriteOrigin = {0.5, 0.5},
 
-        size = {1, 1},
+        size = {2, 2},
 
         flags = {.Attack, .RequireEnergy, .RotatingTurret},
 

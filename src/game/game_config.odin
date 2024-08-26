@@ -159,7 +159,7 @@ Buildings := [?]Building {
         range = 4,
         energyRequired = 8,
         reloadTime = 0.2,
-        damage = 50,
+        damage = 10,
     },
 
     {
@@ -205,7 +205,7 @@ Buildings := [?]Building {
         range = 4,
         energyRequired = 10,
         reloadTime = 0.2,
-        damage = 70,
+        damage = 20,
         attackRadius = 3,
     },
 

@@ -90,3 +90,20 @@ RemoveEnergyFromBuilding :: proc(building: ^BuildingInstance, toRemove: f32) -> 
 
     return ret
 }
+
+GetEnergyColor :: proc(value: EnergySet) -> (color: dm.color) {
+    sum: f32
+    for energy in value {
+        sum += energy
+    }
+
+    if sum == 0 {
+        return {0, 0, 0, 1}
+    }
+
+    for type in EnergyType {
+        color += (value[type] / sum) * EnergyColor[type]
+    }
+
+    return
+}

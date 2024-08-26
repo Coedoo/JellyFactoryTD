@@ -787,7 +787,9 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite.scale = f32(buildingData.size.x)
 
         pos := building.position
-        dm.DrawSprite(sprite, pos)
+        color := GetEnergyColor(building.currentEnergy)
+
+        dm.DrawSprite(sprite, pos, color = color)
 
         currentEnergy := BuildingEnergy(&building)
         if buildingData.energyStorage != 0 {

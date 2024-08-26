@@ -181,7 +181,6 @@ GetConnectedBuildings :: proc(startCoord: iv2, connectionPoints: ^map[BuildingHa
         }
     }
 
-    fmt.println(connectionPoints)
     return buildingsInNetwork[:]
 }
 

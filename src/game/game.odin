@@ -97,6 +97,8 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 
+    dm.RegisterAsset("Shaders/test.hlsl", dm.ShaderAssetDescriptor{})
+
     dm.platform.SetWindowSize(1200, 900)
 }
 
@@ -779,6 +781,9 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Buildings
+
+    shader := dm.GetAsset("Shaders/test.hlsl")
+    dm.PushShader(cast(dm.ShaderHandle) shader)
     for &building in gameState.spawnedBuildings.elements {
         // @TODO @CACHE
         buildingData := &Buildings[building.dataIdx]
@@ -787,9 +792,9 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         sprite.scale = f32(buildingData.size.x)
 
         pos := building.position
-        color := GetEnergyColor(building.currentEnergy)
+        // color := GetEnergyColor(building.currentEnergy)
 
-        dm.DrawSprite(sprite, pos, color = color)
+        dm.DrawSprite(sprite, pos)
 
         currentEnergy := BuildingEnergy(&building)
         if buildingData.energyStorage != 0 {
@@ -815,6 +820,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             }
         }
     }
+    dm.PopShader()
 
     // Selected building
     if gameState.buildUpMode == .Building {

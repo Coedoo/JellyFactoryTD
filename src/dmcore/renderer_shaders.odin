@@ -9,5 +9,5 @@ DefaultShaderType :: enum {
 
 Shader :: struct {
     handle: ShaderHandle,
-    backend: _Shader,
+    using backend: _Shader,
 }

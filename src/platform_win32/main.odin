@@ -145,7 +145,7 @@ main :: proc() {
         }
 
         // Assets Hot Reload
-        for name, asset in &engineData.assets.assetsMap {
+        for name, &asset in &engineData.assets.assetsMap {
             switch desc in asset.descriptor {
             case dm.FontAssetDescriptor, dm.SoundAssetDescriptor:
                 continue
@@ -168,6 +168,22 @@ main :: proc() {
                 }
 
             case dm.ShaderAssetDescriptor:
+                path := strings.concatenate({dm.ASSETS_ROOT, name}, context.temp_allocator)
+                newTime, err := os.last_write_time_by_name(path)
+                if err == os.ERROR_NONE && newTime > asset.lastWriteTime {
+                    data, ok := os.read_entire_file(path, context.temp_allocator)
+                    if ok {
+                        handle := dm.ShaderHandle(asset.handle)
+                        dm.DestroyShader(engineData.renderCtx, handle, freeHandle = false)
+
+                        shader, ok := dm.GetElementPtr(engineData.renderCtx.shaders, handle)
+                        source := strings.string_from_ptr(raw_data(data), len(data))
+                        dm.InitShaderSource(engineData.renderCtx, shader, source)
+
+                        asset.lastWriteTime = newTime
+                        fmt.println("Reloading shader:", name)
+                    }
+                }
             case dm.RawFileAssetDescriptor: // @TODO: I'm not sure how to handle that, or even if I should?
             }
 

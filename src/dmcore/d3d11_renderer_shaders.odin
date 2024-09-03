@@ -13,12 +13,19 @@ _Shader :: struct {
 }
 
 CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> ShaderHandle {
+    shader := CreateElement(&renderCtx.shaders)
+
+    if InitShaderSource(renderCtx, shader, source) {
+        return shader.handle
+    }
+
+    return {}
+}
+
+InitShaderSource :: proc(renderCtx: ^RenderContext, shader: ^Shader, source: string) -> bool {
     ctx := cast(^RenderContext_d3d) renderCtx
 
-    shader := CreateElement(&ctx.shaders)
-
     error: ^d3d11.IBlob
-
     vsBlob: ^d3d11.IBlob
     defer vsBlob->Release()
 
@@ -29,7 +36,7 @@ CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> Shader
         fmt.println(transmute(cstring) error->GetBufferPointer())
         error->Release()
 
-        return {}
+        return false
     }
 
     ctx.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), 
@@ -45,12 +52,23 @@ CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> Shader
         fmt.println(transmute(cstring) error->GetBufferPointer())
         error->Release()
 
-        return {}
+        return false
     }
 
     ctx.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), 
                                         nil, &shader.backend.pixelShader)
 
-    return shader.handle
+    return true
 }
 
+
+DestroyShader :: proc(renderCtx: ^RenderContext, handle: ShaderHandle, freeHandle := true) {
+    shader, ok := GetElementPtr(renderCtx.shaders, handle)
+
+    shader.vertexShader->Release()
+    shader.pixelShader->Release()
+
+    if freeHandle {
+        FreeSlot(&renderCtx.shaders, handle)
+    }
+}

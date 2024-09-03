@@ -11,6 +11,8 @@ import "core:fmt"
 import "core:c/libc"
 import "core:mem"
 
+import sa "core:container/small_array"
+
 import "core:image"
 
 import "core:math/linalg/glsl"
@@ -253,6 +255,8 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
     ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
     ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
 
+    shadersStack: sa.Small_Array(128, ShaderHandle)
+
     for c in &commandBuffer.commands {
         switch &cmd in c {
         case ClearColorCommand:
@@ -276,8 +280,11 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
                 DrawBatch(ctx, &ctx.defaultBatch)
             }
 
+            shadersLen := sa.len(shadersStack)
+            shader :=  shadersLen > 0 ? sa.get(shadersStack, shadersLen - 1) : cmd.shader
+
             if ctx.defaultBatch.shader.gen != 0 && 
-               ctx.defaultBatch.shader != cmd.shader {
+               ctx.defaultBatch.shader != shader {
                 DrawBatch(ctx, &ctx.defaultBatch)
             }
 
@@ -286,7 +293,7 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
                 DrawBatch(ctx, &ctx.defaultBatch)
             }
 
-            ctx.defaultBatch.shader = cmd.shader
+            ctx.defaultBatch.shader = shader
             ctx.defaultBatch.texture = cmd.texture
 
             entry := RectBatchEntry {
@@ -312,6 +319,10 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
             ctx.deviceContext->Draw(4, 0)
 
         case DrawMeshCommand:
+
+        case PushShaderCommand: sa.push(&shadersStack, cmd.shader)
+        case PopShaderCommand:  sa.pop_back(&shadersStack)
+
 
         }
     }

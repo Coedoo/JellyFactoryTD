@@ -7,9 +7,13 @@ CommandBuffer :: struct {
 Command :: union {
     ClearColorCommand,
     CameraCommand,
+
     DrawRectCommand,
     DrawMeshCommand,
     DrawGridCommand,
+
+    PushShaderCommand,
+    PopShaderCommand,
 }
 
 ClearColorCommand :: struct {
@@ -41,6 +45,12 @@ DrawMeshCommand :: struct {
 }
 
 DrawGridCommand :: struct{}
+
+PushShaderCommand :: struct {
+    shader: ShaderHandle,
+}
+
+PopShaderCommand :: struct {}
 
 ClearColor :: proc(color: color) {
     ClearColorCtx(renderCtx, color)
@@ -240,4 +250,14 @@ DrawMesh :: proc(mesh: ^Mesh, pos: v2, shader: ShaderHandle) {
 
 DrawGrid :: proc() {
     append(&renderCtx.commandBuffer.commands, DrawGridCommand{})
+}
+
+PushShader :: proc(shader: ShaderHandle) {
+    append(&renderCtx.commandBuffer.commands, PushShaderCommand{
+        shader = shader
+    })
+}
+
+PopShader :: proc() {
+    append(&renderCtx.commandBuffer.commands, PopShaderCommand{})
 }

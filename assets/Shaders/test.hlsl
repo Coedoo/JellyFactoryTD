@@ -22,6 +22,7 @@ struct sprite {
 struct pixel {
     float4 pos: SV_POSITION;
     float2 uv: TEX;
+    float4 texQuad: TEX2;
 
     float4 color: COLOR;
 };
@@ -34,6 +35,10 @@ Texture2D tex : register(t1);
 SamplerState texSampler : register(s0);
 
 ////////////
+
+float invLerp(float from, float to, float value) {
+  return (value - from) / (to - from);
+}
 
 pixel vs_main(uint spriteId: SV_INSTANCEID, uint vertexId : SV_VERTEXID) {
     sprite sp = spriteBuffer[spriteId];
@@ -53,10 +58,12 @@ pixel vs_main(uint spriteId: SV_INSTANCEID, uint vertexId : SV_VERTEXID) {
 
     p.pos = mul(VPMat, float4(tp, 0, 1));
     p.pos.xyz /= p.pos.w;
-    // p.uv  = float2(tex[i.x], tex[i.y]) * oneOverAtlasSize;
+    p.uv  = float2(tex[i.x], tex[i.y]) * oneOverAtlasSize;
     p.uv  = float2(tex[i.x], tex[i.y]);
 
     p.color = sp.color;
+
+    p.texQuad = tex;
 
     return p;
 }
@@ -68,8 +75,21 @@ float4 ps_main(pixel p) : SV_TARGET
 
     if (texColor.a == 0) discard;
 
-    // float4 c = float4(color.rgb * p.color.rgb, 1);
-    // return c;
+    float2 normUV;
+    normUV.x = invLerp(p.texQuad[0], p.texQuad[2], p.uv.x);
+    normUV.y = invLerp(p.texQuad[1], p.texQuad[3], p.uv.y);
 
-    return p.color * texColor;
+    float4 color = texColor;
+    if((color == float4(1, 1, 1, 1)).r) {
+        color *= p.color;
+    }
+
+    normUV.y = 1 - normUV.y;
+    normUV = (normUV - 0.5);
+    float c = atan2(normUV.y, normUV.x) / 3.1415;
+    c = c * 0.5 + 0.5;
+
+    color = float4(c, 0, 1 , 1);
+
+    return color;
 }

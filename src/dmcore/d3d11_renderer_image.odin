@@ -20,8 +20,6 @@ TextureBackend :: struct {
 
 _InitTexture :: proc(ctx: ^RenderContext, tex: ^Texture, rawData: []u8, width, height, channels: int, filter: TextureFilter)
 {
-    ctx := cast(^RenderContext_d3d) ctx
-
     format: dxgi.FORMAT
     switch channels { 
     case 1: format = .R8_UNORM

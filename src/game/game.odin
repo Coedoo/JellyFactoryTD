@@ -97,7 +97,6 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 
-    dm.RegisterAsset("Shaders/test.hlsl", dm.ShaderAssetDescriptor{})
 
     dm.platform.SetWindowSize(1200, 900)
 }
@@ -782,8 +781,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
     // Buildings
 
-    shader := dm.GetAsset("Shaders/test.hlsl")
-    dm.PushShader(cast(dm.ShaderHandle) shader)
+    // shader := dm.GetAsset("Shaders/test.hlsl")
+    // dm.PushShader(cast(dm.ShaderHandle) shader)
     for &building in gameState.spawnedBuildings.elements {
         // @TODO @CACHE
         buildingData := &Buildings[building.dataIdx]
@@ -794,17 +793,18 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         pos := building.position
         // color := GetEnergyColor(building.currentEnergy)
 
+        // dm.SetShaderData(2, [4]f32{1, 0, 1, 1})
         dm.DrawSprite(sprite, pos)
 
-        currentEnergy := BuildingEnergy(&building)
-        if buildingData.energyStorage != 0 {
-            // @TODO this breaks batching
-            dm.DrawWorldRect(
-                dm.renderCtx.whiteTexture, 
-                dm.ToV2(building.gridPos) + {f32(buildingData.size.x), f32(buildingData.size.y) / 2},
-                {0.1, currentEnergy / buildingData.energyStorage}
-            )
-        }
+        // currentEnergy := BuildingEnergy(&building)
+        // if buildingData.energyStorage != 0 {
+        //     // @TODO this breaks batching
+        //     dm.DrawWorldRect(
+        //         dm.renderCtx.whiteTexture, 
+        //         dm.ToV2(building.gridPos) + {f32(buildingData.size.x), f32(buildingData.size.y) / 2},
+        //         {0.1, currentEnergy / buildingData.energyStorage}
+        //     )
+        // }
 
         if .RotatingTurret in buildingData.flags {
             sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
@@ -820,7 +820,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             }
         }
     }
-    dm.PopShader()
+    // dm.PopShader()
 
     // Selected building
     if gameState.buildUpMode == .Building {

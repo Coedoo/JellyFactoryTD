@@ -23,8 +23,6 @@ CompileShaderSource :: proc(renderCtx: ^RenderContext, source: string) -> Shader
 }
 
 InitShaderSource :: proc(renderCtx: ^RenderContext, shader: ^Shader, source: string) -> bool {
-    ctx := cast(^RenderContext_d3d) renderCtx
-
     error: ^d3d11.IBlob
     vsBlob: ^d3d11.IBlob
     defer vsBlob->Release()
@@ -39,7 +37,7 @@ InitShaderSource :: proc(renderCtx: ^RenderContext, shader: ^Shader, source: str
         return false
     }
 
-    ctx.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), 
+    renderCtx.device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), 
                                          nil, &shader.backend.vertexShader)
 
     psBlob: ^d3d11.IBlob
@@ -55,7 +53,7 @@ InitShaderSource :: proc(renderCtx: ^RenderContext, shader: ^Shader, source: str
         return false
     }
 
-    ctx.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), 
+    renderCtx.device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), 
                                         nil, &shader.backend.pixelShader)
 
     return true

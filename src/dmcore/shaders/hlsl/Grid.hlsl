@@ -1,6 +1,6 @@
 cbuffer cameraConst : register(b0) {
     float4x4 VPMat;
-    float4x4 invVPMap;
+    float4x4 invVPMat;
 }
 
 ////////////
@@ -21,7 +21,7 @@ VsOut vs_main(uint spriteId: SV_INSTANCEID, uint vertexId : SV_VERTEXID) {
     vsOut.pos = float4(gridPoints[i.x], gridPoints[i.y], 0, 1);
     // vsOut.clipPos = float2(gridPoints[i.x], gridPoints[i.y]);
 
-    vsOut.worldPos = mul(invVPMap, float4(gridPoints[i.x], gridPoints[i.y], 0, 1));
+    vsOut.worldPos = mul(invVPMat, float4(gridPoints[i.x], gridPoints[i.y], 0, 1));
     vsOut.worldPos.xyz /= vsOut.worldPos.w;
 
     return vsOut;

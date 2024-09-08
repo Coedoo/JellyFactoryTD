@@ -21,8 +21,6 @@ _RectBatch :: struct {
 }
 
 InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) {
-    ctx := cast(^RenderContext_d3d) renderCtx
-
     rectBufferDesc := d3d11.BUFFER_DESC {
         ByteWidth = u32(count) * size_of(RectBatchEntry),
         Usage     = .DYNAMIC,
@@ -32,7 +30,7 @@ InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) 
         StructureByteStride = size_of(RectBatchEntry),
     }
 
-    ctx.device->CreateBuffer(&rectBufferDesc, nil, &batch.backend.d3dBuffer)
+    renderCtx.device->CreateBuffer(&rectBufferDesc, nil, &batch.backend.d3dBuffer)
 
     rectSRVDesc := d3d11.SHADER_RESOURCE_VIEW_DESC {
         Format = .UNKNOWN,
@@ -41,7 +39,7 @@ InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) 
 
     rectSRVDesc.Buffer.NumElements = u32(count)
 
-    ctx.device->CreateShaderResourceView(batch.backend.d3dBuffer, &rectSRVDesc, &batch.backend.SRV)
+    renderCtx.device->CreateShaderResourceView(batch.backend.d3dBuffer, &rectSRVDesc, &batch.backend.SRV)
 
     constBuffDesc := d3d11.BUFFER_DESC {
         ByteWidth = size_of(BatchConstants),
@@ -50,7 +48,7 @@ InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) 
         CPUAccessFlags = { .WRITE },
     }
 
-    ctx.device->CreateBuffer(&constBuffDesc, nil, &batch.backend.constBuffer)
+    renderCtx.device->CreateBuffer(&constBuffDesc, nil, &batch.backend.constBuffer)
 
     batch.buffer = make([]RectBatchEntry, count)
     batch.maxCount = count
@@ -60,8 +58,6 @@ DrawBatch :: proc(ctx: ^RenderContext, batch: ^RectBatch) {
     if batch.count == 0 {
         return
     }
-
-    ctx := cast(^RenderContext_d3d) ctx
 
     screenSize := [2]f32 {
          2 / f32(ctx.frameSize.x),

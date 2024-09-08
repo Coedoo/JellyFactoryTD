@@ -5,7 +5,7 @@ import d3d11 "vendor:directx/d3d11"
 import dxgi "vendor:directx/dxgi"
 import d3d "vendor:directx/d3d_compiler"
 
-import sdl "vendor:sdl2"
+// import sdl "vendor:sdl2"
 
 import "core:fmt"
 import "core:c/libc"
@@ -26,9 +26,7 @@ GridShaderSource := #load("shaders/hlsl/Grid.hlsl", string)
 /// RENDER CONTEXT
 //////////////////////
 
-RenderContext_d3d :: struct {
-    using base: RenderContext,
-
+RenderContextBackend :: struct {
     device: ^d3d11.IDevice,
     deviceContext: ^d3d11.IDeviceContext,
     swapchain: ^dxgi.ISwapChain1,
@@ -47,17 +45,7 @@ RenderContext_d3d :: struct {
     inputLayout: ^d3d11.IInputLayout,
 }
 
-CreateRenderContext :: proc(window: ^sdl.Window) -> ^RenderContext {
-
-    window_system_info: sdl.SysWMinfo
-
-    // @TODO:
-    // Probably don't want using sdl here
-    sdl.GetVersion(&window_system_info.version)
-    sdl.GetWindowWMInfo(window, &window_system_info)
-    assert(window_system_info.subsystem == .WINDOWS)
-
-    nativeWnd := dxgi.HWND(window_system_info.info.win.window)
+CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
 
     featureLevels := [?]d3d11.FEATURE_LEVEL{._11_0}
 
@@ -67,7 +55,7 @@ CreateRenderContext :: proc(window: ^sdl.Window) -> ^RenderContext {
 
     d3d11.CreateDevice(nil, .HARDWARE, nil, {.BGRA_SUPPORT}, &featureLevels[0], len(featureLevels),
                        d3d11.SDK_VERSION, &device, nil, &deviceContext)
-    
+
     // device: ^d3d11.IDevice
     // baseDevice->QueryInterface(d3d11.IDevice_UUID, (^rawptr)(&device))
 
@@ -148,7 +136,7 @@ CreateRenderContext :: proc(window: ^sdl.Window) -> ^RenderContext {
     ////
 
     // @TODO: allocation
-    ctx := new(RenderContext_d3d)
+    ctx := new(RenderContext)
 
     ctx.device = device
     ctx.deviceContext = deviceContext
@@ -161,25 +149,6 @@ CreateRenderContext :: proc(window: ^sdl.Window) -> ^RenderContext {
 
     ctx.blendState = blendState
 
-    //@TODO: How many textures do I need? Maybe make it dynamic?
-    InitResourcePool(&ctx.textures, 128)
-    InitResourcePool(&ctx.shaders, 64)
-
-    texData := []u8{255, 255, 255, 255}
-    ctx.whiteTexture = CreateTexture(ctx, texData, 1, 1, 4, .Point)
-
-    errorTex := &ctx.textures.elements[0]
-    texData = []u8{255, 255, 0, 255}
-    _InitTexture(ctx, errorTex, texData, 1, 1, 4, .Point)
-
-    // ctx.defaultBatch = CreateRectBatch(&ctx, 8);
-
-    // ctx.DrawBatch = DrawBatch
-
-    InitRectBatch(ctx, &ctx.defaultBatch, 1024)
-    ctx.debugBatch = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexShaderSource)
-    ctx.debugBatchScreen = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexScreenShaderSource)
-
     constBuffDesc := d3d11.BUFFER_DESC {
         ByteWidth = size_of(mat4),
         Usage = .DYNAMIC,
@@ -189,40 +158,14 @@ CreateRenderContext :: proc(window: ^sdl.Window) -> ^RenderContext {
 
     ctx.device->CreateBuffer(&constBuffDesc, nil, &ctx.cameraConstBuff)
 
-    ctx.defaultShaders[.ScreenSpaceRect] = CompileShaderSource(ctx, ScreenSpaceRectShaderSource)
-    ctx.defaultShaders[.Sprite] = CompileShaderSource(ctx, SpriteShaderSource)
-    ctx.defaultShaders[.SDFFont] = CompileShaderSource(ctx, SDFFontSource)
-    ctx.defaultShaders[.Grid] = CompileShaderSource(ctx, GridShaderSource)
-
-    ctx.camera = CreateCamera(5, 4./3.)
-
     return ctx
 }
 
-// BeginRenderFrame :: proc(ctx: ^RenderContext) {
-//     ctx := cast(^RenderContext_d3d) ctx
-
-//     viewport := d3d11.VIEWPORT {
-//         0, 0,
-//         windowWidth, windowHeight,
-//         0, 1,
-//     }
-
-//     // @TODO: move clearing render target to another function?
-//     ctx.deviceContext->ClearRenderTargetView(ctx.framebufferView, &[4]f32{0.25, 0.5, 1.0, 1.0})
-
-//     ctx.deviceContext->RSSetViewports(1, &viewport)
-//     ctx.deviceContext->RSSetState(ctx.rasterizerState)
-
-//     ctx.deviceContext->OMSetRenderTargets(1, &ctx.framebufferView, nil)
-//     ctx.deviceContext->OMSetBlendState(ctx.blendState, nil, ~u32(0))
-// }
-
-EndFrame :: proc(ctx: ^RenderContext_d3d) {
+EndFrame :: proc(ctx: ^RenderContext) {
     ctx.swapchain->Present(1, nil)
 }
 
-FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
+FlushCommands :: proc(using ctx: ^RenderContext) {
 
     viewport := d3d11.VIEWPORT {
         0, 0,
@@ -241,16 +184,11 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
     view := GetViewMatrix(ctx.camera)
     proj := GetProjectionMatrixZTO(ctx.camera)
 
-    CameraConst :: struct {
-        vpMat: mat4,
-        invVPMap: mat4,
-    }
-
     mapped: d3d11.MAPPED_SUBRESOURCE
     res := ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
-    c := cast(^CameraConst) mapped.pData
-    c.vpMat = proj * view
-    c.invVPMap = glsl.inverse(proj * view)
+    c := cast(^PerFrameData) mapped.pData
+    c.VPMat = proj * view
+    c.invVPMat = glsl.inverse(proj * view)
 
     ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
     ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
@@ -268,9 +206,9 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
 
             mapped: d3d11.MAPPED_SUBRESOURCE
             res := ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
-            c := cast(^CameraConst) mapped.pData
-            c.vpMat = proj * view
-            c.invVPMap = glsl.inverse(proj * view)
+            c := cast(^PerFrameData) mapped.pData
+            c.VPMat = proj * view
+            c.invVPMat = glsl.inverse(proj * view)
 
             ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
             ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
@@ -333,17 +271,15 @@ FlushCommands :: proc(using ctx: ^RenderContext_d3d) {
 }
 
 ResizeFrambuffer :: proc(renderCtx: ^RenderContext, width, height: int) {
-    ctx := cast(^RenderContext_d3d) renderCtx
+    renderCtx.deviceContext->OMSetRenderTargets(0, nil, nil)
+    renderCtx.framebufferView->Release()
 
-    ctx.deviceContext->OMSetRenderTargets(0, nil, nil)
-    ctx.framebufferView->Release()
-
-    ctx.swapchain->ResizeBuffers(0, 0, 0, .UNKNOWN, nil)
+    renderCtx.swapchain->ResizeBuffers(0, 0, 0, .UNKNOWN, nil)
 
     framebuffer: ^d3d11.ITexture2D
-    ctx.swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&framebuffer))
+    renderCtx.swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&framebuffer))
 
-    ctx.device->CreateRenderTargetView(framebuffer, nil, &ctx.framebufferView)
+    renderCtx.device->CreateRenderTargetView(framebuffer, nil, &renderCtx.framebufferView)
 
     framebuffer->Release()
 }
@@ -353,68 +289,8 @@ ResizeFrambuffer :: proc(renderCtx: ^RenderContext, width, height: int) {
 // Primitive Buffer
 ///////////////
 
-PrimitiveVertexShaderSource := `
-cbuffer constants: register(b0) {
-    float4x4 VPMat;
-}
 
-struct vs_in {
-    float3 position: POSITION;
-    float4 color: COLOR;
-};
-
-struct vs_out {
-    float4 position: SV_POSITION;
-    float4 color: COLOR;
-};
-
-vs_out vs_main(vs_in input) {
-    vs_out output;
-
-    output.position = mul(VPMat, float4(input.position, 1));
-    output.color = input.color;
-
-    return output;
-}
-
-float4 ps_main(vs_out input) : SV_TARGET {
-    return input.color;
-}
-`
-
-PrimitiveVertexScreenShaderSource := `
-cbuffer constants : register(b1) {
-    float2 rn_screenSize;
-    float2 oneOverAtlasSize;
-}
-
-struct vs_in {
-    float3 inPos: POSITION;
-    float4 color: COLOR;
-};
-
-struct vs_out {
-    float4 position: SV_POSITION;
-    float4 color: COLOR;
-};
-
-vs_out vs_main(vs_in input) {
-    vs_out output;
-
-    float2 v = input.inPos.xy * rn_screenSize;
-    output.position = float4(v - float2(1, -1), 0, 1);
-    output.color = input.color;
-
-    return output;
-}
-
-float4 ps_main(vs_out input) : SV_TARGET {
-    return input.color;
-}
-`
-
-CreatePrimitiveBatch :: proc(ctx: ^RenderContext_d3d, maxCount: int, shaderSource: string) -> (ret: PrimitiveBatch) {
-
+CreatePrimitiveBatch :: proc(ctx: ^RenderContext, maxCount: int, shaderSource: string) -> (ret: PrimitiveBatch) {
     // ctx.debugBatch.buffer = make([]PrimitiveVertex, maxCount)
     ret.buffer = make([dynamic]PrimitiveVertex, 0, maxCount)
     ret.gpuBufferSize = maxCount;
@@ -462,7 +338,7 @@ CreatePrimitiveBatch :: proc(ctx: ^RenderContext_d3d, maxCount: int, shaderSourc
     return
 }
 
-DrawPrimitiveBatch :: proc(batch: ^PrimitiveBatch, ctx: ^RenderContext_d3d) {
+DrawPrimitiveBatch :: proc(ctx: ^RenderContext, batch: ^PrimitiveBatch) {
     count := len(batch.buffer)
 
     if count == 0 {

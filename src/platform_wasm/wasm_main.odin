@@ -26,6 +26,10 @@ assetsLoadingState: struct {
     loadingIndex: int,
 }
 
+SetWindowSize :: proc(width, height: int) {
+
+}
+
 FileLoadedCallback :: proc(data: []u8) {
     assert(data != nil)
 
@@ -88,22 +92,20 @@ LoadNextAsset :: proc() {
 }
 
 main :: proc() {
-    // InitContext()
-
-    // context = wasmContext
-
     gl.SetCurrentContextById("game_viewport")
 
     InitInput()
 
     //////////////
 
-    platform.renderCtx = new(dm.RenderContext)
+    platform.renderCtx = dm.CreateRenderContextBackend()
     dm.InitRenderContext(platform.renderCtx)
     platform.mui = dm.muiInit(platform.renderCtx)
 
     dm.InitAudio(&platform.audio)
     dm.TimeInit(&platform)
+
+    platform.SetWindowSize = SetWindowSize
 
     ////////////
 
@@ -115,7 +117,6 @@ main :: proc() {
         assetsLoadingState.nowLoading = platform.assets.toLoad[0]
     }
 
-    fmt.println("AAAAAAAAA")
     LoadNextAsset()
 }
 

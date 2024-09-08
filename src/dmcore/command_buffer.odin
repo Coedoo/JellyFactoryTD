@@ -1,5 +1,8 @@
 package dmcore
 
+import "core:fmt"
+import "core:mem"
+
 CommandBuffer :: struct {
     commands: [dynamic]Command
 }
@@ -14,6 +17,8 @@ Command :: union {
 
     PushShaderCommand,
     PopShaderCommand,
+
+    // SetShaderDataCommand,
 }
 
 ClearColorCommand :: struct {
@@ -51,6 +56,12 @@ PushShaderCommand :: struct {
 }
 
 PopShaderCommand :: struct {}
+
+SetShaderDataCommand :: struct {
+    slot: int,
+    data: rawptr,
+    dataSize: int,
+}
 
 ClearColor :: proc(color: color) {
     ClearColorCtx(renderCtx, color)
@@ -260,4 +271,19 @@ PushShader :: proc(shader: ShaderHandle) {
 
 PopShader :: proc() {
     append(&renderCtx.commandBuffer.commands, PopShaderCommand{})
+}
+
+SetShaderData :: proc(slot: int, data: any) {
+    info := type_info_of(data.id)
+
+    copiedDataPtr, err := mem.alloc(info.size, info.align, renderCtx.uniformAllocator)
+    mem.copy(copiedDataPtr, data.data, info.size)
+
+    // fmt.println(any{copiedDataPtr, data.id})
+
+    // append(&renderCtx.commandBuffer.commands, SetShaderDataCommand{
+    //     slot,
+    //     copiedDataPtr,
+    //     info.size,
+    // })
 }

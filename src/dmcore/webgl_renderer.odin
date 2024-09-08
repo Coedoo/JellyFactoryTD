@@ -1,79 +1,63 @@
-//+build js
+// +build js
 package dmcore
 
 import gl "vendor:wasm/WebGL"
+import sa "core:container/small_array"
+
+import "core:math/linalg/glsl"
 
 import "core:fmt"
 
 ScreenSpaceRectShaderSource := #load("shaders/glsl/ScreenSpaceRect.glsl", string)
 SpriteShaderSource := #load("shaders/glsl/Sprite.glsl", string)
 SDFFontSource := #load("shaders/glsl/SDFFont.glsl", string)
+GridShaderSource := #load("shaders/glsl/Grid.glsl", string)
+
 
 PerFrameDataBindingPoint :: 0
-perFrameDataBuffer: gl.Buffer
 
-PerFrameData :: struct {
-    MVP: mat4
+RenderContextBackend :: struct {
+    perFrameDataBuffer: gl.Buffer
 }
 
-////
+CreateRenderContextBackend :: proc() -> ^RenderContext {
+    ctx := new(RenderContext)
 
-InitRenderContext :: proc(ctx: ^RenderContext) {
-    assert(ctx != nil)
-
-    InitResourcePool(&ctx.textures, 128)
-    InitResourcePool(&ctx.shaders, 16)
-
-    ctx.defaultShaders[.ScreenSpaceRect] = CompileShaderSource(ctx, ScreenSpaceRectShaderSource)
-    ctx.defaultShaders[.Sprite] = CompileShaderSource(ctx, SpriteShaderSource)
-    ctx.defaultShaders[.SDFFont] = CompileShaderSource(ctx, SDFFontSource)
-
-    perFrameDataBuffer = gl.CreateBuffer()
-    gl.BindBuffer(gl.UNIFORM_BUFFER, perFrameDataBuffer)
+    ctx.perFrameDataBuffer = gl.CreateBuffer()
+    gl.BindBuffer(gl.UNIFORM_BUFFER, ctx.perFrameDataBuffer)
     gl.BufferData(gl.UNIFORM_BUFFER, size_of(PerFrameData), nil, gl.DYNAMIC_DRAW)
     gl.BindBufferRange(gl.UNIFORM_BUFFER, PerFrameDataBindingPoint,
-                       perFrameDataBuffer, 0, size_of(PerFrameData))
-    gl.BindBufferBase(gl.UNIFORM_BUFFER, 0, perFrameDataBuffer)
+                       ctx.perFrameDataBuffer, 0, size_of(PerFrameData))
+    gl.BindBufferBase(gl.UNIFORM_BUFFER, 0, ctx.perFrameDataBuffer)
     gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 
-    //////
-
-
-    texData := []u8{255, 255, 255, 255}
-    ctx.whiteTexture = CreateTexture(ctx, texData, 1, 1, 4, .Point)
-
-    InitRectBatch(ctx, &ctx.defaultBatch, 2048)
-    CreatePrimitiveBatch(ctx, 4086)
-
-    ctx.frameSize = {800, 600}
-
-    /////
 
     gl.Enable(gl.BLEND)
     gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-    ctx.camera = CreateCamera(5, 4./3.)
+    return ctx
 }
 
 ////////
 MVP: mat4
 
-FlushCommands :: proc(using ctx: ^RenderContext) {
-    frameData: PerFrameData
-
+FlushCommands :: proc(ctx: ^RenderContext) {
     gl.Viewport(0, 0, ctx.frameSize.x, ctx.frameSize.y)
 
     // Default camera
     view := GetViewMatrix(ctx.camera)
     proj := GetProjectionMatrixNTO(ctx.camera)
-    frameData.MVP = proj * view
+    frameData: PerFrameData
+    frameData.VPMat = proj * view
+    frameData.invVPMat = glsl.inverse(frameData.VPMat)
 
-    gl.BindBuffer(gl.UNIFORM_BUFFER, perFrameDataBuffer)
+    gl.BindBuffer(gl.UNIFORM_BUFFER, ctx.perFrameDataBuffer)
     gl.BufferSubData(gl.UNIFORM_BUFFER, 0, size_of(PerFrameData), &frameData)
     gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 
+    shadersStack: sa.Small_Array(128, ShaderHandle)
 
-    for c in &commandBuffer.commands {
+    for c in &ctx.commandBuffer.commands {
         switch cmd in c {
         case ClearColorCommand:
             c := cmd.clearColor
@@ -84,9 +68,10 @@ FlushCommands :: proc(using ctx: ^RenderContext) {
             view := GetViewMatrix(cmd.camera)
             proj := GetProjectionMatrixNTO(cmd.camera)
 
-            frameData.MVP = proj * view
+            frameData.VPMat = proj * view
+            frameData.invVPMat = glsl.inverse(frameData.VPMat)
 
-            gl.BindBuffer(gl.UNIFORM_BUFFER, perFrameDataBuffer)
+            gl.BindBuffer(gl.UNIFORM_BUFFER, ctx.perFrameDataBuffer)
             gl.BufferSubData(gl.UNIFORM_BUFFER, 0, size_of(PerFrameData), &frameData)
             gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 
@@ -116,18 +101,20 @@ FlushCommands :: proc(using ctx: ^RenderContext) {
             }
 
             AddBatchEntry(ctx, &ctx.defaultBatch, entry)
-            case DrawMeshCommand:
+
+        case DrawGridCommand:
+
+        case DrawMeshCommand:
+
+
+        case PushShaderCommand: sa.push(&shadersStack, cmd.shader)
+        case PopShaderCommand:  sa.pop_back(&shadersStack)
+
         }
 
     }
 
     DrawBatch(ctx, &ctx.defaultBatch)
 
-    clear(&commandBuffer.commands)
-}
-
-CreatePrimitiveBatch :: proc(ctx: ^RenderContext, maxCount: int) {
-    // ctx.debugBatch.buffer = make([]PrimitiveVertex, maxCount)
-
-    // TODO: finish
+    clear(&ctx.commandBuffer.commands)
 }

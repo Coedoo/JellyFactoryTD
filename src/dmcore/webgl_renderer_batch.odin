@@ -101,3 +101,11 @@ DrawBatch :: proc(ctx: ^RenderContext, batch: ^RectBatch) {
 
     batch.count = 0
 }
+
+
+CreatePrimitiveBatch :: proc(ctx: ^RenderContext, maxCount: int, shaderSource: string) -> (ret: PrimitiveBatch) {
+    return {}
+}
+
+DrawPrimitiveBatch :: proc(batch: ^PrimitiveBatch, ctx: ^RenderContext) {
+}

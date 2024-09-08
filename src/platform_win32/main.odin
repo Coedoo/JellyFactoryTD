@@ -45,9 +45,6 @@ SetWindowSize :: proc(width, height: int) {
     dm.ResizeFrambuffer(engineData.renderCtx, width, height)
 }
 
-defaultWindowWidth  :: 800
-defaultWindowHeight :: 600
-
 main :: proc() {
     sdl.Init({.VIDEO, .AUDIO})
     defer sdl.Quit()
@@ -55,16 +52,25 @@ main :: proc() {
     sdl.SetHintWithPriority(sdl.HINT_RENDER_DRIVER, "direct3d11", .OVERRIDE)
 
     window = sdl.CreateWindow("DanMofu", sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, 
-                               defaultWindowWidth, defaultWindowHeight,
+                               dm.defaultWindowWidth, dm.defaultWindowHeight,
                                {.ALLOW_HIGHDPI, .HIDDEN})
 
     defer sdl.DestroyWindow(window);
 
     engineData.SetWindowSize = SetWindowSize
 
-    engineData.renderCtx = dm.CreateRenderContext(window)
-    engineData.renderCtx.frameSize = {defaultWindowWidth, defaultWindowHeight}
+    // Init Renderer
+    window_system_info: sdl.SysWMinfo
 
+    sdl.GetVersion(&window_system_info.version)
+    sdl.GetWindowWMInfo(window, &window_system_info)
+
+    nativeWnd := dxgi.HWND(window_system_info.info.win.window)
+
+    engineData.renderCtx = dm.CreateRenderContextBackend(nativeWnd)
+    dm.InitRenderContext(engineData.renderCtx)
+
+    // Other Init
     engineData.mui = dm.muiInit(engineData.renderCtx)
 
     dm.InitAudio(&engineData.audio)
@@ -307,14 +313,14 @@ main :: proc() {
             gameCode.gameRender(engineData.gameState)
         }
 
-        dm.FlushCommands(cast(^dm.RenderContext_d3d) engineData.renderCtx)
+        dm.FlushCommands(engineData.renderCtx)
 
-        dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatch, cast(^dm.RenderContext_d3d) engineData.renderCtx)
-        dm.DrawPrimitiveBatch(&engineData.renderCtx.debugBatchScreen, cast(^dm.RenderContext_d3d) engineData.renderCtx)
+        dm.DrawPrimitiveBatch(engineData.renderCtx, &engineData.renderCtx.debugBatch)
+        dm.DrawPrimitiveBatch(engineData.renderCtx, &engineData.renderCtx.debugBatchScreen)
 
         dm.muiEnd(engineData.mui)
         dm.muiRender(engineData.mui, engineData.renderCtx)
 
-        dm.EndFrame(cast(^dm.RenderContext_d3d) engineData.renderCtx)
+        dm.EndFrame(engineData.renderCtx)
     }
 }

@@ -23,6 +23,9 @@ Tile :: struct {
     pipeDir: DirectionSet,
 
     type: TileType,
+
+    isCorner: bool,
+    visibleWaypoints: []iv2,
 }
 
 TileStartingValues :: struct {
@@ -238,8 +241,6 @@ OpenLevel :: proc(name: string) {
     //@TODO: it would be better to start test level in this case
     assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
 
-    gameState.path = CalculatePath(gameState.level.startCoord, gameState.level.endCoord, WalkablePredicate)
-
     waves: LevelWaves
     for w in Waves {
         if w.levelName == name {
@@ -271,11 +272,99 @@ OpenLevel :: proc(name: string) {
         }
     }
 
+    cornerPatterns := [4][9]int{
+        {1, 1, 0, 1, 0, 0, 0, 0, 0},
+        {0, 1, 1, 0, 0, 1, 0, 0, 0},
+        {0, 0, 0, 1, 0, 0, 1, 1, 0},
+        {0, 0, 0, 0, 0, 1, 0, 1, 1},
+    }
+
+    cornerDirections := [4]iv2 {
+        { -1, -1},
+        {  1, -1},
+        { -1,  1},
+        {  1,  1},
+    }
+
+    cornerTiles := make([dynamic]^Tile, allocator = context.temp_allocator)
+    append(&cornerTiles, GetTileAtCoord(gameState.level.startCoord))
+
     for &tile, i in gameState.level.grid {
         if gameState.level.startingState[i].hasBuilding {
             TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
         }
+
+        // Find corners
+
+        foundPatterns := [4]bool{true, true, true, true}
+        for pattern, patternIdx in cornerPatterns {
+            if foundPatterns[patternIdx] == false {
+                continue
+            }
+
+            for patternElement, index in pattern {
+                offsetX := index % 3 - 1
+                offsetY := index / 3 - 1
+
+                if offsetX == 0 && offsetY == 0 {
+                    continue
+                }
+
+                neighbor := tile.gridPos + {i32(offsetX), i32(offsetY)}
+                neighborTile := GetTileAtCoord(neighbor)
+                if neighborTile != nil {
+                    found := true
+                    if patternElement == 1 {
+                        found = neighborTile.type == .WalkArea && tile.type == .BuildArea
+                    }
+                    // found ||= patternElement == 0 && tile.type == .BuildArea
+
+                    if found == false {
+                        foundPatterns[patternIdx] = false
+                    }
+                }
+            }
+        }
+
+        for found, i in foundPatterns {
+            if found {
+                // tile.isCorner = true
+                // break
+                offset := cornerDirections[i]
+                cornerTile := GetTileAtCoord(tile.gridPos + offset)
+                if cornerTile != nil {
+                    cornerTile.isCorner = true
+                    append(&cornerTiles, cornerTile)
+                    break
+                }
+            }
+        }
     }
+
+    append(&cornerTiles, GetTileAtCoord(gameState.level.endCoord))
+
+
+    visibleTiles := make([dynamic]iv2, allocator = context.temp_allocator)
+    for tile in cornerTiles {
+        clear(&visibleTiles)
+        for otherTile in cornerTiles {
+            if tile == otherTile {
+                continue
+            }
+
+            if IsEmptyLineBetweenCoords(tile.gridPos, otherTile.gridPos) {
+                append(&visibleTiles, otherTile.gridPos)
+            }
+        }
+
+        tile.visibleWaypoints = make([]iv2, len(visibleTiles))
+        copy(tile.visibleWaypoints, visibleTiles[:])
+    }
+
+    gameState.path = CalculatePathWithCornerTiles(gameState.level.startCoord, gameState.level.endCoord)
+    // // gameState.simplifiedPath = SimplifyPath(gameState.path)
+    // gameState.simplifiedPath = gameState.path
+
 
     // @TODO: this will probably need other place
     // Also I don't think I have to completely destroy particles
@@ -360,7 +449,7 @@ GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 
             n := coord + {x, y}
             if (n.x != coord.x &&
                 n.y != coord.y) ||
-               n == coord
+                n == coord
             {
                 continue
             }
@@ -376,7 +465,7 @@ GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 
 }
 
 GetNeighbourTiles :: proc(coord: iv2, allocator := context.allocator) -> []^Tile {
-    ret := make([dynamic]^Tile, 0, 8, allocator = allocator)
+    ret := make([dynamic]^Tile, 0, 4, allocator = allocator)
 
     for x := i32(-1); x <= i32(1); x += 1 {
         for y := i32(-1); y <= i32(1); y += 1 {
@@ -563,7 +652,7 @@ PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
             HasFlagHandle(neighbor.building, .EnergyModifier))
 }
 
-CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredicate) -> []iv2 {
+CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredicate, allocator := context.allocator) -> []iv2 {
     openCoords: pq.Priority_Queue(iv2)
 
     // @TODO: I can probably make gScore and fScore as 2d array so 
@@ -595,7 +684,7 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
     for pq.len(openCoords) > 0 {
         current := pq.peek(openCoords)
         if current == goal {
-            ret := make([dynamic]iv2)
+            ret := make([dynamic]iv2, allocator)
             append(&ret, current)
 
             for (current in cameFrom) {
@@ -618,7 +707,80 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
             }
 
             // @NOTE: I can make it depend on the edge on the tilemap
+            // weight := glsl.distance(dm.ToV2(current), dm.ToV2(neighborCoord))
+            newScore := gScore[current] + 1
+            oldScore := gScore[neighborCoord] or_else max(f32)
+            if newScore < oldScore {
+                cameFrom[neighborCoord] = current
+                gScore[neighborCoord] = newScore
+                fScore[neighborCoord] = newScore + Heuristic(neighborCoord, goal)
+                if slice.contains(openCoords.queue[:], neighborCoord) == false {
+                    pq.push(&openCoords, neighborCoord)
+                }
+            }
+        }
+    }
+
+    return nil
+}
+
+CalculatePathWithCornerTiles :: proc(start, goal: iv2, allocator := context.allocator) -> []iv2 {
+    openCoords: pq.Priority_Queue(iv2)
+
+    // @TODO: I can probably make gScore and fScore as 2d array so 
+    // there is no need for maps
+    cameFrom := make(map[iv2]iv2, allocator = context.temp_allocator)
+    gScore   := make(map[iv2]f32, allocator = context.temp_allocator)
+    fScore   := make(map[iv2]f32, allocator = context.temp_allocator)
+
+    Heuristic :: proc(a, b: iv2) -> f32 {
+        return glsl.distance(dm.ToV2(a), dm.ToV2(b))
+    }
+
+    Less :: proc(a, b: iv2) -> bool {
+        scoreMap := cast(^map[iv2]f32) context.user_ptr
+        aScore := scoreMap[a] or_else max(f32)
+        bScore := scoreMap[b] or_else max(f32)
+
+        return aScore < bScore
+    }
+
+    context.user_ptr = &fScore
+    pq.init(&openCoords, Less, pq.default_swap_proc(iv2))
+
+    pq.push(&openCoords, start)
+
+    gScore[start] = 0
+    fScore[start] = Heuristic(start, goal)
+
+    for pq.len(openCoords) > 0 {
+        current := pq.peek(openCoords)
+        if current == goal {
+            ret := make([dynamic]iv2, allocator)
+            append(&ret, current)
+
+            for (current in cameFrom) {
+                current = cameFrom[current]
+                inject_at(&ret, 0, current)
+            }
+
+            return ret[:]
+        }
+
+        currentTile := GetTileAtCoord(current)
+
+        pq.pop(&openCoords)
+        // neighboursCoords := GetNeighbourCoords(current, allocator = context.temp_allocator)
+        for neighborCoord in currentTile.visibleWaypoints {
+            neighbourTile := GetTileAtCoord(neighborCoord)
+
+            // if traversalPredicate(currentTile^, neighbourTile^, goal) == false {
+            //     continue
+            // }
+
+            // @NOTE: I can make it depend on the edge on the tilemap
             weight := glsl.distance(dm.ToV2(current), dm.ToV2(neighborCoord))
+            // weight *= weight
             newScore := gScore[current] + weight
             oldScore := gScore[neighborCoord] or_else max(f32)
             if newScore < oldScore {
@@ -634,3 +796,117 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
 
     return nil
 }
+
+IsEmptyLineBetweenCoords :: proc(coordA, coordB: iv2, checkedTiles: ^[dynamic]iv2 = nil) -> bool {
+    // Use line drawing algorithm to chceck if there
+    // is a straight line between coords that 
+    // doesn't contain any non-wolkable tiles
+
+    // http://playtechs.blogspot.com/2007/03/raytracing-on-grid.html
+    // @NOTE: the article mentions that the algorithm might move in different
+    // path, when start and end points are swapped. I'm not sure if that's 
+    // an actual issue
+
+    x0 := coordA.x
+    y0 := coordA.y
+    x1 := coordB.x
+    y1 := coordB.y
+
+    dx := abs(x1 - x0)
+    dy := abs(y1 - y0)
+
+    n :=  dx + dy + 1
+
+    sx: i32 = x0 < x1 ? 1 : -1
+    sy: i32 = y0 < y1 ? 1 : -1
+
+    error := dx - dy
+    dx *= 2
+    dy *= 2
+
+    clear(checkedTiles)
+    for ; n > 0; n -= 1 {
+        tile := GetTileAtCoord({x0, y0})
+        if(checkedTiles != nil) {
+            append(checkedTiles, tile.gridPos)
+        }
+
+        if tile.gridPos != coordA &&
+           tile.gridPos != coordB &&
+           tile.type != .WalkArea
+        {
+            return false
+        }
+
+        if error > 0 {
+            x0 = x0 + sx
+            error = error - dy
+        }
+        else {
+            y0 = y0 + sy
+            error = error + dx
+        }
+    }
+
+    return true
+}
+
+// SimplifyPath :: proc(path: []iv2, allocator := context.allocator) -> []iv2 {
+//     newPath := make([dynamic]iv2, 0, len(path), allocator = context.temp_allocator)
+//     waypoints := make([dynamic]iv2, 0, len(path), allocator = context.temp_allocator)
+
+//     append(&waypoints, path[0])
+//     for i in 1..<len(path) {
+//         coord := path[i]
+//         tile := GetTileAtCoord(coord)
+
+//         if tile.isCorner {
+//             append(&waypoints, coord)
+//         }
+
+//         // for x in -1..=1 {
+//         //     for y in -1..=1 {
+//         //         // if x == 0 || y == 0 {
+//         //         //     continue
+//         //         // }
+
+//         //         neighbor := GetTileAtCoord(coord + {i32(x), i32(y)})
+//         //         if neighbor != nil && neighbor.isCorner {
+//         //             append(&waypoints, coord)
+//         //             break
+//         //         }
+//         //     }
+//         // }
+//     }
+//     append(&waypoints, path[len(path) - 1])
+
+//     wIdx := 0
+//     for {
+//         append(&newPath, waypoints[wIdx])
+        
+//         if wIdx >= len(waypoints) - 1 {
+//             break
+//         }
+
+//         nextWaypointIdx := 0
+//         for nextIdx in (wIdx + 1) ..< len(waypoints) {
+//             if IsEmptyLineBetweenCoords(waypoints[wIdx], waypoints[nextIdx]) {
+//                 nextWaypointIdx = nextIdx
+//             }
+//         }
+
+//         if nextWaypointIdx == 0 {
+//             break
+//         }
+
+//         wIdx = nextWaypointIdx
+//     }
+//     append(&newPath, path[len(path) - 1])
+
+//     // newPath = waypoints
+
+//     ret := make([]iv2, len(newPath), allocator = allocator)
+//     copy(ret, newPath[:])
+
+//     return ret
+// }

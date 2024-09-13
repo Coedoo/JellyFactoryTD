@@ -40,6 +40,7 @@ GameState :: struct {
         playerPosition: v2,
 
         path: []iv2,
+        simplifiedPath: []iv2,
 
         selectedTile: iv2,
 
@@ -599,6 +600,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
     // temp UI
     if dm.muiBeginWindow(dm.mui, "GAME MENU", {10, 10, 110, 450}) {
+        dm.muiLabel(dm.mui, gameState.selectedTile)
         dm.muiLabel(dm.mui, "Money:", gameState.money)
         dm.muiLabel(dm.mui, "HP:", gameState.hp)
 
@@ -761,6 +763,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawSprite(tile.sprite, tile.worldPos)
         if DEBUG_TILE_OVERLAY {
             dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
+        }
+    }
+
+    for tile, idx in gameState.level.grid {
+        if tile.isCorner {
+            dm.DrawBlankSprite(tile.worldPos, {1, 1}, {1, 0, 0, 0.8})
         }
     }
 
@@ -957,7 +965,36 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         a := gameState.path[i]
         b := gameState.path[i + 1]
 
-        dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.GREEN)
+        posA := CoordToPos(a)
+        posB := CoordToPos(b)
+        dm.DrawLine(dm.renderCtx, posA, posB, false, dm.BLUE)
+        dm.DrawCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+    }
+
+    for i := 0; i < len(gameState.simplifiedPath) - 1; i += 1 {
+        a := gameState.simplifiedPath[i]
+        b := gameState.simplifiedPath[i + 1]
+
+        posA := CoordToPos(a)
+        posB := CoordToPos(b)
+        dm.DrawLine(dm.renderCtx, posA, posB, false, dm.GREEN)
+        dm.DrawCircle(dm.renderCtx, posA, 0.15, false, dm.GREEN)
+    }
+
+    // mouseGrid := MousePosGrid()
+    // tiles: [dynamic]iv2
+    // hit := IsEmptyLineBetweenCoords(gameState.selectedTile, mouseGrid, &tiles)
+    // dm.DrawLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(mouseGrid), false)
+    // for t in tiles {
+    //     pos := CoordToPos(t)
+    //     dm.DrawBlankSprite(pos, {1, 1}, {0, 1, 0, 0.4} if hit else {1, 0, 0, 0.4})
+    // }
+
+    selectedTile := GetTileAtCoord(gameState.selectedTile)
+    if selectedTile != nil {
+        for waypoint in selectedTile.visibleWaypoints {
+            dm.DrawLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
+        }
     }
 
     for k, path in gameState.pathsBetweenBuildings {

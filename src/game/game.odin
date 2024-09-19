@@ -39,9 +39,6 @@ GameState :: struct {
 
         playerPosition: v2,
 
-        path: []iv2,
-        simplifiedPath: []iv2,
-
         selectedTile: iv2,
 
         buildUpMode: BuildUpMode,
@@ -57,8 +54,18 @@ GameState :: struct {
         pathsBetweenBuildings: map[PathKey][]iv2,
 
         // VFX
-        turretFireParticle: dm.ParticleSystem
+        turretFireParticle: dm.ParticleSystem,
+
+        // Path
+        pathArena: mem.Arena,
+        pathAllocator: mem.Allocator,
+
+        cornerTiles: []iv2,
+        path: []iv2,
     },
+
+    particlesTimers: [EnergyType]f32,
+    tileEnergyParticles: [EnergyType]dm.ParticleSystem,
 
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
@@ -119,6 +126,27 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
+
+    for &system, i in gameState.tileEnergyParticles {
+        system = dm.DefaultParticleSystem
+
+        system.texture = dm.GetTextureAsset("Energy.png")
+        system.startColor = EnergyColor[EnergyType(i)]
+
+        system.emitRate = 0
+
+        system.startSize = 0.4
+
+        system.color = dm.ColorOverLifetime{
+            min = {1, 1, 1, 1},
+            max = {1, 1, 1, 0.1},
+            easeFun = .Cubic_Out,
+        }
+
+        system.startSpeed = 0.5
+
+        dm.InitParticleSystem(&system)
+    }
 }
 
 @(export)
@@ -177,7 +205,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             storageLeft := buildingData.energyStorage - currentEnergy
             produced = min(produced, storageLeft)
 
-            building.currentEnergy[buildingData.producedEnergyType] += produced
+            building.currentEnergy[building.producedEnergyType] += produced
         }
 
         if .RequireEnergy in buildingData.flags {
@@ -591,7 +619,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             if IsInDistance(gameState.playerPosition, pos) {
                 if CanBePlaced(building, pos) {
                     if RemoveMoney(building.cost) {
-                        PlaceBuilding(idx, pos)
+                        // PlaceBuilding(idx, pos)
+                        TryPlaceBuilding(idx, pos)
                     }
                 }
             }
@@ -651,6 +680,10 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 OpenLevel(l.name)
             }
         }
+
+        dm.muiLabel(dm.mui, "MEMORY")
+        dm.muiLabel(dm.mui, "\tLevel arena HWM:", gameState.levelArena.peak_used / mem.Kilobyte, "kb")
+        dm.muiLabel(dm.mui, "\tLevel arena used:", gameState.levelArena.offset / mem.Kilobyte, "kb")
 
 
         dm.muiEndWindow(dm.mui)
@@ -758,14 +791,44 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     gameState = cast(^GameState) state
     dm.ClearColor({0.1, 0.1, 0.3, 1})
 
+
+    for &t in gameState.particlesTimers {
+        t -= f32(dm.time.deltaTime)
+    }
+
     // Level
     for tile, idx in gameState.level.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
         if DEBUG_TILE_OVERLAY {
             dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
         }
+
+        #partial switch tile.type {
+            case .BlueEnergy:
+            if gameState.particlesTimers[.Blue] < 0 {
+                dm.SpawnParticles(&gameState.tileEnergyParticles[.Blue], 1, CoordToPos(tile.gridPos))
+            }
+            case .RedEnergy:
+            if gameState.particlesTimers[.Red] < 0 {
+                dm.SpawnParticles(&gameState.tileEnergyParticles[.Red], 1, CoordToPos(tile.gridPos))
+            }
+            case .GreenEnergy:
+            if gameState.particlesTimers[.Green] < 0 {
+                dm.SpawnParticles(&gameState.tileEnergyParticles[.Green], 1, CoordToPos(tile.gridPos))
+            }
+            case .CyanEnergy:
+            if gameState.particlesTimers[.Cyan] < 0 {
+                dm.SpawnParticles(&gameState.tileEnergyParticles[.Cyan], 1, CoordToPos(tile.gridPos))
+            }
+        }
     }
 
+    for &t in gameState.particlesTimers {
+        t -= f32(dm.time.deltaTime)
+        if t < 0 {
+            t = 0.3 + rand.float32_range(-0.1, 0.1)
+        }
+    }
     for tile, idx in gameState.level.grid {
         if tile.isCorner {
             dm.DrawBlankSprite(tile.worldPos, {1, 1}, {1, 0, 0, 0.8})
@@ -971,16 +1034,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
     }
 
-    for i := 0; i < len(gameState.simplifiedPath) - 1; i += 1 {
-        a := gameState.simplifiedPath[i]
-        b := gameState.simplifiedPath[i + 1]
-
-        posA := CoordToPos(a)
-        posB := CoordToPos(b)
-        dm.DrawLine(dm.renderCtx, posA, posB, false, dm.GREEN)
-        dm.DrawCircle(dm.renderCtx, posA, 0.15, false, dm.GREEN)
-    }
-
     // mouseGrid := MousePosGrid()
     // tiles: [dynamic]iv2
     // hit := IsEmptyLineBetweenCoords(gameState.selectedTile, mouseGrid, &tiles)
@@ -1007,6 +1060,9 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)
+    for &system in gameState.tileEnergyParticles {
+        dm.UpdateAndDrawParticleSystem(&system)
+    }
 
     dm.DrawText(dm.renderCtx, "WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", dm.LoadDefaultFont(dm.renderCtx), {0, f32(dm.renderCtx.frameSize.y - 30)}, 20)
 }

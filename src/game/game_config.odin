@@ -5,6 +5,7 @@ import "core:mem"
 import dm "../dmcore"
 
 LEVEL_MEMORY :: mem.Kilobyte * 512
+PATH_MEMORY :: mem.Kilobyte * 128
 
 PLAYER_SPEED :: 10
 BUILDING_DISTANCE :: 5
@@ -81,55 +82,11 @@ Buildings := [?]Building {
 
         flags = { .ProduceEnergy, .SendsEnergy },
 
-        restrictedTiles = { .Walls },
+        restrictedTiles = EnergyTileTypes,
 
         cost = 100,
 
-        producedEnergyType = .Blue, 
-        energyStorage = 100,
-        energyProduction = 25,
-        balanceType = .Full,
-
-        packetSize = 10,
-        packetSpawnInterval = 0.2,
-    },
-    
-    {
-        name = "Factory 2",
-        spriteName = "buildings.png",
-        spriteRect = {0, 0, 32, 32},
-
-        size = {1, 1},
-
-        flags = { .ProduceEnergy, .SendsEnergy },
-
-        restrictedTiles = { .Walls },
-
-        cost = 100,
-
-        producedEnergyType = .Green,
-        energyStorage = 100,
-        energyProduction = 25,
-        balanceType = .Full,
-
-        packetSize = 10,
-        packetSpawnInterval = 0.2,
-    },
-
-    {
-        name = "Factory 3",
-        spriteName = "buildings.png",
-        spriteRect = {0, 0, 32, 32},
-
-        size = {1, 1},
-
-        flags = { .ProduceEnergy, .SendsEnergy },
-
-        restrictedTiles = { .Walls },
-
-        cost = 100,
-
-        producedEnergyType = .Red,
+        // producedEnergyType = .Blue, 
         energyStorage = 100,
         energyProduction = 25,
         balanceType = .Full,
@@ -241,5 +198,17 @@ Buildings := [?]Building {
             costPercent = 0.4,
             targetType = .Cyan
         }
+    },
+
+    {
+        name = "Wall",
+        spriteName = "kenney_tilemap.png",
+        spriteRect = {4 * 16 + 3, 3 * 16 + 2, 16, 16},
+
+        size = {1, 1},
+
+        flags = {},
+
+        cost = 50,
     },
 }

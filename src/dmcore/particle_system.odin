@@ -68,6 +68,9 @@ ParticleSystem :: struct {
     startSize: FloatStartProp,
     size: FloatLifetimeProp,
 
+    startSpeed: FloatStartProp,
+    speed: FloatOverLifetime,
+
     gravity: v2,
 
     position: v2,
@@ -132,6 +135,13 @@ SpawnParticles :: proc(system: ^ParticleSystem, count: int,
             velocity = RandAtUnitCircle(),
             position = atPosition.? or_else system.position,
             rotationSpeed = (rand.float32() * 2 - 1),
+        }
+
+        switch s in system.startSpeed {
+            case f32: 
+                particle.velocity *= s
+            case RandomFloat:
+                particle.velocity *= EvaluateRandomProp(s)
         }
 
         switch s in system.lifetime {

@@ -26,6 +26,8 @@ Tile :: struct {
 
     isCorner: bool,
     visibleWaypoints: []iv2,
+
+    activeInConnectionTest: bool,
 }
 
 TileStartingValues :: struct {
@@ -48,19 +50,29 @@ Level  :: struct {
 // @TODO: can I import it as well?
 TileType :: enum {
     None,
-    Walls = 1,
+    // Walls = 1,
     BuildArea = 2,
     WalkArea = 3,
     Edge = 4,
+    BlueEnergy = 5,
+    RedEnergy = 6,
+    GreenEnergy = 7,
+    CyanEnergy = 8,
 }
 
-TileTypeColor := [TileType]dm.color {
+TileTypeColor := #sparse [TileType]dm.color {
     .None = {0, 0, 0, 1},
-    .Walls = {0.73, 0.21, 0.4, 0.5},
-    .BuildArea = ({0, 153, 219, 128} / 255.0),
-    .WalkArea = ({234, 212, 170, 128} / 255.0),
-    .Edge = {0.2, 0.2, 0.2, 0.5},
+    // .Walls = {0.73, 0.21, 0.4, 0.5},
+    .BuildArea   = ({0, 153, 219, 128} / 255.0),
+    .WalkArea    = ({234, 212, 170, 128} / 255.0),
+    .Edge        = {0.2, 0.2, 0.2, 0.5},
+    .BlueEnergy  = {0, 0, 1, 0.5},
+    .RedEnergy   = {1, 0, 0, 0.5},
+    .GreenEnergy = {0, 1, 0, 0.5},
+    .CyanEnergy  = {0, 1, 1, 0.5},
 }
+
+EnergyTileTypes :: []TileType{.BlueEnergy, .RedEnergy, .GreenEnergy, .CyanEnergy}
 
 /////
 
@@ -223,12 +235,17 @@ OpenLevel :: proc(name: string) {
 
     mem.zero_item(&gameState.levelState)
     free_all(gameState.levelAllocator)
+    gameState.levelArena.peak_used = 0
 
     context.allocator = gameState.levelAllocator
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
     dm.InitResourcePool(&gameState.enemies, 128)
     dm.InitResourcePool(&gameState.energyPackets, 1028)
+
+    pathMem := make([]byte, PATH_MEMORY)
+    mem.arena_init(&gameState.pathArena, pathMem)
+    gameState.pathAllocator = mem.arena_allocator(&gameState.pathArena)
 
     gameState.level = nil
     for &l in gameState.levels {
@@ -270,8 +287,45 @@ OpenLevel :: proc(name: string) {
         if gameState.level.startingState[i].pipeDir != nil {
             tile.pipeDir = gameState.level.startingState[i].pipeDir
         }
+        tile.isCorner = false
     }
 
+    for &tile, i in gameState.level.grid {
+        if gameState.level.startingState[i].hasBuilding {
+            TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos)
+        }
+    }
+
+    RefreshVisibilityGraph()
+    gameState.path = CalculatePathWithCornerTiles(
+        gameState.level.startCoord, 
+        gameState.level.endCoord,
+        allocator = gameState.pathAllocator
+    )
+
+    // gameState.path = CalculatePathWithCornerTiles(
+    //     gameState.level.startCoord, 
+    //     gameState.level.endCoord,
+    //     allocator = gameState.pathAllocator
+    // )
+
+    // @TODO: this will probably need other place
+    // Also I don't think I have to completely destroy particles
+    // but that's TBD
+    gameState.turretFireParticle = dm.DefaultParticleSystem
+    gameState.turretFireParticle.maxParticles = 100
+    gameState.turretFireParticle.texture = dm.renderCtx.whiteTexture
+    gameState.turretFireParticle.lifetime = dm.RandomFloat{0.1, 0.2}
+    gameState.turretFireParticle.startColor = dm.color{0, 1, 1, 1}
+    gameState.turretFireParticle.startSize = dm.RandomFloat{0.1, 0.3}
+
+    dm.InitParticleSystem(&gameState.turretFireParticle)
+}
+
+RefreshVisibilityGraph :: proc() {
+
+    // Find corners
+    @static
     cornerPatterns := [4][9]int{
         {1, 1, 0, 1, 0, 0, 0, 0, 0},
         {0, 1, 1, 0, 0, 1, 0, 0, 0},
@@ -279,6 +333,7 @@ OpenLevel :: proc(name: string) {
         {0, 0, 0, 0, 0, 1, 0, 1, 1},
     }
 
+    @static
     cornerDirections := [4]iv2 {
         { -1, -1},
         {  1, -1},
@@ -286,15 +341,15 @@ OpenLevel :: proc(name: string) {
         {  1,  1},
     }
 
+    // @TODO: optimisation
+    for &tile, i in gameState.level.grid {
+        tile.isCorner = false
+    }
+
     cornerTiles := make([dynamic]^Tile, allocator = context.temp_allocator)
     append(&cornerTiles, GetTileAtCoord(gameState.level.startCoord))
-
     for &tile, i in gameState.level.grid {
-        if gameState.level.startingState[i].hasBuilding {
-            TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos, nil)
-        }
-
-        // Find corners
+        // tile.isCorner = false
 
         foundPatterns := [4]bool{true, true, true, true}
         for pattern, patternIdx in cornerPatterns {
@@ -315,7 +370,10 @@ OpenLevel :: proc(name: string) {
                 if neighborTile != nil {
                     found := true
                     if patternElement == 1 {
-                        found = neighborTile.type == .WalkArea && tile.type == .BuildArea
+                        found = neighborTile.type == .WalkArea && 
+                                neighborTile.building == {} &&
+                                (tile.type == .BuildArea ||
+                                 tile.building != {})
                     }
                     // found ||= patternElement == 0 && tile.type == .BuildArea
 
@@ -335,15 +393,17 @@ OpenLevel :: proc(name: string) {
                 if cornerTile != nil {
                     cornerTile.isCorner = true
                     append(&cornerTiles, cornerTile)
-                    break
+                    // break
                 }
             }
         }
     }
-
     append(&cornerTiles, GetTileAtCoord(gameState.level.endCoord))
 
+    CreateVisiblityGraph(cornerTiles[:])
+}
 
+CreateVisiblityGraph :: proc(cornerTiles: []^Tile) {
     visibleTiles := make([dynamic]iv2, allocator = context.temp_allocator)
     for tile in cornerTiles {
         clear(&visibleTiles)
@@ -357,26 +417,9 @@ OpenLevel :: proc(name: string) {
             }
         }
 
-        tile.visibleWaypoints = make([]iv2, len(visibleTiles))
+        tile.visibleWaypoints = make([]iv2, len(visibleTiles), gameState.pathAllocator)
         copy(tile.visibleWaypoints, visibleTiles[:])
     }
-
-    gameState.path = CalculatePathWithCornerTiles(gameState.level.startCoord, gameState.level.endCoord)
-    // // gameState.simplifiedPath = SimplifyPath(gameState.path)
-    // gameState.simplifiedPath = gameState.path
-
-
-    // @TODO: this will probably need other place
-    // Also I don't think I have to completely destroy particles
-    // but that's TBD
-    gameState.turretFireParticle = dm.DefaultParticleSystem
-    gameState.turretFireParticle.maxParticles = 100
-    gameState.turretFireParticle.texture = dm.renderCtx.whiteTexture
-    gameState.turretFireParticle.lifetime = dm.RandomFloat{0.1, 0.2}
-    gameState.turretFireParticle.startColor = dm.color{0, 1, 1, 1}
-    gameState.turretFireParticle.startSize = dm.RandomFloat{0.1, 0.3}
-
-    dm.InitParticleSystem(&gameState.turretFireParticle)
 }
 
 CloseCurrentLevel :: proc() {
@@ -522,9 +565,36 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
     return true
 }
 
-TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2, rotation: Direction) -> bool {
+TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
     building := Buildings[buildingIdx]
     if CanBePlaced(building, gridPos) == false {
+        return false
+    }
+
+    for y in 0..<building.size.y {
+        for x in 0..<building.size.x {
+            tile := GetTileAtCoord(gridPos + {x, y})
+            tile.activeInConnectionTest = true
+        }
+    }
+
+    testPath := CalculatePath (
+        gameState.level.startCoord,
+        gameState.level.endCoord,
+        TestConnectionPredicate,
+        context.temp_allocator
+    )
+
+    for y in 0..<building.size.y {
+        for x in 0..<building.size.x {
+            tile := GetTileAtCoord(gridPos + {x, y})
+            tile.activeInConnectionTest = false
+        }
+    }
+
+    fmt.println(testPath)
+
+    if testPath == nil {
         return false
     }
 
@@ -540,12 +610,23 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
     }
 
+    buildingTile := GetTileAtCoord(gridPos)
+
     if .SendsEnergy in building.flags {
         toSpawn.requestedEnergyQueue = make([dynamic]EnergyRequest, 0, 64, gameState.levelAllocator)
     }
 
+    // @TODO: handle different building sizes
+    if .ProduceEnergy in building.flags {
+        #partial switch buildingTile.type {
+            case .BlueEnergy:  toSpawn.producedEnergyType = .Blue
+            case .RedEnergy:   toSpawn.producedEnergyType = .Red
+            case .GreenEnergy: toSpawn.producedEnergyType = .Green
+            case .CyanEnergy:  toSpawn.producedEnergyType = .Cyan
+        }
+    }
+
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
-    buildingTile := GetTileAtCoord(gridPos)
 
     // TODO: check for outside grid coords
     for y in 0..<building.size.y {
@@ -591,6 +672,13 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     }
 
     CheckBuildingConnection(gridPos)
+    RefreshVisibilityGraph()
+
+    gameState.path = CalculatePathWithCornerTiles(
+        gameState.level.startCoord,
+        gameState.level.endCoord,
+        allocator = gameState.pathAllocator
+    )
 }
 
 
@@ -636,8 +724,17 @@ RemoveBuilding :: proc(building: BuildingHandle) {
 
 TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool
 
+TestConnectionPredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
+    return neighbor.gridPos == goal || 
+        (
+            neighbor.type == .WalkArea && 
+            neighbor.building == {} &&
+            neighbor.activeInConnectionTest == false
+        )
+}
+
 WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
-    return neighbor.gridPos == goal || neighbor.type == .WalkArea
+    return neighbor.gridPos == goal || (neighbor.type == .WalkArea && neighbor.building == {})
 }
 
 PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
@@ -833,7 +930,8 @@ IsEmptyLineBetweenCoords :: proc(coordA, coordB: iv2, checkedTiles: ^[dynamic]iv
 
         if tile.gridPos != coordA &&
            tile.gridPos != coordB &&
-           tile.type != .WalkArea
+          (tile.type != .WalkArea ||
+            tile.building != {})
         {
             return false
         }

@@ -58,7 +58,6 @@ Building :: struct {
     cost: int,
 
     // Energy
-    producedEnergyType: EnergyType,
     energyStorage: f32,
     energyProduction: f32,
 
@@ -88,6 +87,7 @@ BuildingInstance :: struct {
     position: v2,
 
     // energy
+    producedEnergyType: EnergyType,
     currentEnergy: EnergySet,
 
     packetSpawnTimer: f32,
@@ -275,7 +275,8 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
             // fmt.println("Visited:", source.handle, Buildings[source.dataIdx].name)
 
             if HasFlag(source^, .ProduceEnergy) {
-                type := Buildings[source.dataIdx].producedEnergyType
+                // type := Buildings[source.dataIdx].producedEnergyType
+                type := source.producedEnergyType
                 fractions[type] += 1
 
                 sum += 1

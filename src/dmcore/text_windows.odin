@@ -1,4 +1,4 @@
-//+build windows
+#+build windows
 package dmcore
 
 import stbtt "vendor:stb/truetype"

@@ -1,4 +1,4 @@
-//+build windows
+#+build windows
 package dmcore
 
 import d3d11 "vendor:directx/d3d11"

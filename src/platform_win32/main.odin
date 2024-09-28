@@ -72,12 +72,15 @@ main :: proc() {
 
     // Other Init
     engineData.mui = dm.muiInit(engineData.renderCtx)
+    dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
 
     dm.InitAudio(&engineData.audio)
 
     dm.TimeInit(&engineData)
 
     context.random_generator = rand.default_random_generator()
+
+    dm.UpdateStatePointer(&engineData)
 
     gameCode: GameCode
     if LoadGameCode(&gameCode, "Game.dll") == false {
@@ -147,6 +150,7 @@ main :: proc() {
             // gameCode.gameLoad(&engineData)
             if res {
                 gameCode.setStatePointers(&engineData)
+                gameCode.gameHotReloaded(engineData.gameState)
             }
         }
 
@@ -210,6 +214,7 @@ main :: proc() {
         engineData.input.runesCount = 0
         engineData.input.scrollX = 0;
         engineData.input.scroll = 0;
+        engineData.input.mouseDelta = {}
 
         for e: sdl.Event; sdl.PollEvent(&e); {
             #partial switch e.type {
@@ -237,7 +242,7 @@ main :: proc() {
                 engineData.input.mouseDelta.x = e.motion.xrel
                 engineData.input.mouseDelta.y = e.motion.yrel
 
-                // fmt.println("mousePos: ", engineData.input.mousePos)
+                // fmt.println("mouseDelta: ", engineData.input.mouseDelta)
 
             case .MOUSEWHEEL:
                 engineData.input.scroll  = int(e.wheel.y)
@@ -265,6 +270,10 @@ main :: proc() {
 
         dm.muiProcessInput(engineData.mui, &engineData.input)
         dm.muiBegin(engineData.mui)
+
+        dm.UIBegin(&engineData.uiCtx,
+                   int(engineData.renderCtx.frameSize.x),
+                   int(engineData.renderCtx.frameSize.y))
 
         when ODIN_DEBUG {
             if dm.GetKeyStateCtx(&engineData.input, .U) == .JustPressed {
@@ -312,6 +321,9 @@ main :: proc() {
 
             gameCode.gameRender(engineData.gameState)
         }
+
+        dm.UIEnd()
+        dm.DrawUI(engineData.renderCtx)
 
         dm.FlushCommands(engineData.renderCtx)
 

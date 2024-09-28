@@ -14,6 +14,7 @@ GameCode :: struct {
     setStatePointers: dm.UpdateStatePointerFunc,
 
     preGameLoad: dm.PreGameLoad,
+    gameHotReloaded: dm.GameHotReloaded,
     gameLoad:   dm.GameLoad,
     gameUpdate: dm.GameUpdate,
     gameUpdateDebug: dm.GameUpdateDebug,
@@ -54,6 +55,7 @@ LoadGameCode :: proc(gameCode: ^GameCode, libName: string) -> bool {
         UnloadGameCode(gameCode)
     }
 
+    fmt.println(dllName)
     lib, ok := dynlib.load_library(dllName)
     if ok == false {
         fmt.println("Cannot open game code!")
@@ -68,6 +70,7 @@ LoadGameCode :: proc(gameCode: ^GameCode, libName: string) -> bool {
     gameCode.lastWriteTime = writeTime;
 
     gameCode.preGameLoad = LoadProc(lib, "PreGameLoad", dm.PreGameLoad)
+    gameCode.gameHotReloaded = LoadProc(lib, "GameHotReloaded", dm.GameHotReloaded)
     gameCode.gameLoad    = LoadProc(lib, "GameLoad",    dm.GameLoad)
     gameCode.gameUpdate  = LoadProc(lib, "GameUpdate",  dm.GameUpdate)
     gameCode.gameRender  = LoadProc(lib, "GameRender",  dm.GameRender)

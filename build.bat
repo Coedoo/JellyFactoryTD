@@ -1,15 +1,17 @@
 @echo off
 
 set game_path=src\game
+set game_running=false
+set exe_name=DanMofu.exe
 
 if not exist build mkdir build
 pushd build
 
+FOR /F %%x IN ('tasklist /NH /FI "IMAGENAME eq %exe_name%"') DO IF %%x == %exe_name% set GAME_RUNNING=true
+
 robocopy ..\lib . /s > nul
 
 for %%a in (%*) do set "%%a=1"
-
-set exeName=DanMofu
 
 set flags=""
 
@@ -22,14 +24,14 @@ if "%release%" == "1" (
 
 if not "%only_game%"=="1" (
     echo "Building Platform"
-    del %exeName%.exe
-    odin build ..\src\platform_win32 %flags% -out:%exeName%.exe 
+    del %exe_name%
+    odin build ..\src\platform_win32 %flags% -out:%exe_name%
 )
 
 odin build ..\src\game -build-mode=dll -out="Game.dll" %flags%
 
-if "%run%" == "1" if %errorlevel% == 0 (
-    %exeName%.exe
+if "%run%" == "1" if %errorlevel% == 0 if %game_running% == false (
+    %exe_name%
 )
 
 popd

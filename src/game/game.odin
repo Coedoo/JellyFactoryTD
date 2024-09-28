@@ -110,6 +110,13 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
 }
 
 @(export)
+GameHotReloaded : dm.GameHotReloaded : proc(gameState: rawptr) {
+    gameState := cast(^GameState) gameState
+
+    gameState.levelAllocator = mem.arena_allocator(&gameState.levelArena)
+}
+
+@(export)
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
@@ -139,7 +146,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
         system.color = dm.ColorOverLifetime{
             min = {1, 1, 1, 1},
-            max = {1, 1, 1, 0.1},
+            max = {1, 1, 1, 0},
             easeFun = .Cubic_Out,
         }
 
@@ -771,6 +778,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             dm.muiEndWindow(dm.mui)
         }
     }
+
+    TestUI()
 }
 
 @(export)

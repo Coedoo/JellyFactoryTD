@@ -8,6 +8,7 @@ renderCtx: ^RenderContext
 audio: ^Audio
 mui: ^Mui
 assets: ^Assets
+uiCtx: ^UIContext
 
 platform: ^Platform
 
@@ -21,6 +22,7 @@ UpdateStatePointer : UpdateStatePointerFunc : proc(platformPtr: ^Platform) {
     audio     = &platformPtr.audio
     mui       = platformPtr.mui
     assets    = &platformPtr.assets
+    uiCtx     = &platformPtr.uiCtx
 
     fmt.println("Setting state pointers")
 

@@ -41,6 +41,13 @@ ToV3FromV2 :: proc(v: v2) -> v3 {
     return {v.x, v.y, 0}
 }
 
+IsPointInsideRect :: proc(point: v2, rect: Rect) -> bool {
+    return point.x > rect.x &&
+           point.x < rect.x + rect.width &&
+           point.y > rect.y &&
+           point.y < rect.y + rect.height
+}
+
 //////////
 // Collisions
 /////////

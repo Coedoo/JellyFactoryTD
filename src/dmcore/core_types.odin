@@ -148,6 +148,7 @@ Platform :: struct {
     renderCtx: ^RenderContext,
     assets:    Assets,
     audio:     Audio,
+    uiCtx:     UIContext,
 
     gameState: rawptr,
 
@@ -167,6 +168,7 @@ AllocateGameData :: proc(platform: ^Platform, $type: typeid) -> ^type {
 ///////
 
 PreGameLoad :: proc(assets: ^Assets)
+GameHotReloaded :: proc(gameState: rawptr)
 GameLoad    :: proc(platform: ^Platform)
 GameUpdate  :: proc(gameState: rawptr)
 GameRender  :: proc(gameState: rawptr)

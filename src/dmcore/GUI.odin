@@ -30,13 +30,19 @@ UIContext :: struct {
     parentStack: [dynamic]^UINode,
 
     // Layout
-    layoutStacks: [dynamic]Layout,
+    popLayoutAfterUse: bool,
+    layoutStack: [dynamic]Layout,
+    
     defaultLayout: Layout,
     panelLayout: Layout,
     textLayout: Layout,
     buttonLayout: Layout,
 
+    nextNodePos: Maybe(v2),
+    nextNodeOrigin: Maybe(v2),
+
     // Styles
+    popStyleAfterUse: bool,
     stylesStack: [dynamic]Style,
 
     defaultStyle: Style,
@@ -54,6 +60,9 @@ NodeFlag :: enum {
     DrawText,
 
     Clickable,
+
+    FloatingX,
+    FloatingY,
 }
 NodeFlags :: distinct bit_set[NodeFlag]
 
@@ -78,11 +87,10 @@ UINode :: struct {
 
     id: Id,
 
-    isFloating: bool,
-
     text: string,
     textSize: v2,
 
+    origin: v2,
     targetPos: v2,
     targetSize: v2,
 
@@ -214,19 +222,7 @@ InitUI :: proc(uiCtx: ^UIContext, renderCtx: ^RenderContext) {
     uiCtx.buttonLayout.preferredSize = {.X = {.Text, 0, 1}, .Y = {.Text, 0, 1}}
 }
 
-PushParent :: proc {
-    PushParentText,
-    PushParentNode,
-}
-
-PushParentText :: proc(text: string) -> ^UINode {
-    node := AddNode(text, {})
-    PushParentNode(node)
-
-    return node
-}
-
-PushParentNode :: proc(parent: ^UINode) {
+PushParent :: proc(parent: ^UINode) {
     append(&uiCtx.parentStack, parent)
     append(&uiCtx.hashStack, parent.id)
 }
@@ -331,17 +327,18 @@ DoLayoutChildren :: proc(node: ^UINode) {
                 node.targetSize[axis] += f32(node.childrenCount - 1) * f32(node.spacing)
             }
 
-            // if axis == .X {
-            //     node.targetSize.x += PADDING_LEFT + PADDING_RIGHT
-            // }
-            // else {
-            //     node.targetSize.y += PADDING_TOP + PADDING_BOT
-            // }
+            if axis == .X {
+                node.targetSize.x += f32(node.padding.left + node.padding.right)
+            }
+            else {
+                node.targetSize.y += f32(node.padding.top + node.padding.bot)
+            }
         }
     }
 }
 
 ResolveLayoutContraints :: proc(node: ^UINode) {
+
     maxSize := node.targetSize
     childrenSize: v2
     childrenMinSize: v2
@@ -355,14 +352,19 @@ ResolveLayoutContraints :: proc(node: ^UINode) {
     
     violation := childrenSize - maxSize
 
+    // @TODO: what to do when childrenMinSize == 0?
     for i in 0..=1 {
         axis := LayoutAxis(i)
         if violation[i] > 0 {
             if axis == node.childrenAxis {
                 for child := node.firstChild; child != nil; child = child.nextSibling {
                     toRemove := child.targetSize[i] * (1 - child.preferredSize[axis].strictness)
-                    scaledRemove :=  violation[i] * (toRemove / childrenMinSize[i])
 
+                    if toRemove == 0 {
+                        continue
+                    }
+
+                    scaledRemove :=  violation[i] * (toRemove / childrenMinSize[i])
                     child.targetSize[i] -= scaledRemove
                 }
             }
@@ -383,33 +385,54 @@ ResolveLayoutContraints :: proc(node: ^UINode) {
 }
 
 DoFinalLayout :: proc(node: ^UINode) {
+    nodePos := node.targetPos - node.targetSize * node.origin
     if node.childrenAxis == .X {
-        childPos: f32 = node.targetPos.x
+        childPos: f32 = nodePos.x + f32(node.padding.left)
         for next := node.firstChild; next != nil; next = next.nextSibling {
-            if next.isFloating == false {
+            if .FloatingX not_in next.flags {
                 next.targetPos.x = childPos
-                next.targetPos.y = node.targetPos.y
+            }
+
+            if .FloatingY not_in next.flags {
+                switch node.childrenAligment.y {
+                case .Top:
+                    next.targetPos.y = nodePos.y
+                    next.targetPos.y += f32(node.padding.top)
+                case .Middle:
+                    sizeWithoutPadding := node.targetSize.y - f32(node.padding.top + node.padding.bot)
+                    next.targetPos.y = nodePos.y + (sizeWithoutPadding - next.targetSize.y) / 2
+                    next.targetPos.y += f32(node.padding.bot)
+                case .Bottom:
+                    next.targetPos.y = nodePos.y + (node.targetSize.y - next.targetSize.y)
+                    next.targetPos.y -= f32(node.padding.bot)
+                }
             }
 
             childPos += next.targetSize.x + f32(node.spacing)
         }
     }
     else {
-        childPos: f32 = node.targetPos.y
+        childPos: f32 = nodePos.y + f32(node.padding.top)
 
         for next := node.firstChild; next != nil; next = next.nextSibling {
-            if next.isFloating == false {
+
+            if .FloatingY not_in next.flags {
+                next.targetPos.y = childPos
+            }
+
+            if .FloatingX not_in next.flags {
                 switch node.childrenAligment.x {
                 case .Left:
-                    next.targetPos.x = node.targetPos.x
-                case .Middle: 
-                    next.targetPos.x = node.targetPos.x + (node.targetSize.x - next.targetSize.x) / 2
+                    next.targetPos.x = nodePos.x
+                    next.targetPos.x += f32(node.padding.left)
+                case .Middle:
+                    sizeWithoutPadding := node.targetSize.x - f32(node.padding.left + node.padding.right)
+                    next.targetPos.x = nodePos.x + (sizeWithoutPadding - next.targetSize.x) / 2
+                    next.targetPos.x += f32(node.padding.left)
                 case .Right:
-                    next.targetPos.x = node.targetPos.x + (node.targetSize.x - next.targetSize.x)
+                    next.targetPos.x = nodePos.x + (node.targetSize.x - next.targetSize.x)
+                    next.targetPos.x -= f32(node.padding.right)
                 }
-
-
-                next.targetPos.y = childPos
             }
 
             childPos += next.targetSize.y + f32(node.spacing)
@@ -452,18 +475,38 @@ DoLayout :: proc() {
     DoFinalLayout(&uiCtx.nodes[0])
 }
 
-@(deferred_in=EndLayout)
+NextNodeStyle :: proc(style: Style) {
+    append(&uiCtx.stylesStack, style)
+    uiCtx.popStyleAfterUse = true
+}
+
+NextNodeLayout :: proc(layout: Layout) {
+    append(&uiCtx.layoutStack, layout)
+    uiCtx.popLayoutAfterUse = true
+}
+
+PushStyle :: proc(style: Style) {
+    append(&uiCtx.stylesStack, style)
+}
+
+PopStyle :: proc() {
+    pop(&uiCtx.stylesStack)
+}
+
+@(deferred_none=EndLayout)
 BeginLayout :: proc(
     axis:= LayoutAxis.X,
+    aligmentX := AligmentX.Middle,
+    aligmentY := AligmentY.Middle,
+    loc := #caller_location
 ) -> bool
 {
-    // text := fmt.tprint("Horizontal::", loc.procedure, loc.line, sep="")
-    node := AddNode("text", {})
-    node.layout = uiCtx.defaultLayout
+    node := AddNode("", {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
 
     node.preferredSize[.X] = {.Children, 0, 1}
     node.preferredSize[.Y] = {.Children, 0, 1}
 
+    node.childrenAligment = { aligmentY, aligmentX }
     node.childrenAxis = axis
 
     PushParent(node)
@@ -471,13 +514,13 @@ BeginLayout :: proc(
     return true
 }
 
-EndLayout :: proc(axis := LayoutAxis.X,) {
+EndLayout :: proc() {
     PopParent()
 }
 
 UIBegin :: proc(uiCtx: ^UIContext, screenWidth, screenHeight: int) {
     #reverse for &node, i in uiCtx.nodes {
-        if node.touchedThisFrame == false {
+        if node.touchedThisFrame == false || node.id == 0 {
             unordered_remove(&uiCtx.nodes, i)
         }
 
@@ -486,9 +529,8 @@ UIBegin :: proc(uiCtx: ^UIContext, screenWidth, screenHeight: int) {
 
     free_all(uiCtx.transientAllocator)
 
-    root := AddNode("root", {})
-    root.isFloating = true
-    root.targetSize = {f32(screenWidth), f32(screenHeight)}
+    root := AddNode("root", {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
+    root.preferredSize = {.X = {.Fixed, f32(screenWidth), 1}, .Y = {.Fixed, f32(screenHeight), 1}}
 
     PushParent(root)
 }
@@ -504,13 +546,22 @@ UIEnd :: proc() {
     DoLayout()
 }
 
+NextNodePosition :: proc(pos: v2, origin := v2{0.5, 0.5}) {
+    uiCtx.nextNodePos = pos
+    uiCtx.nextNodeOrigin = origin
+}
+
 GetNode :: proc(text: string) -> ^UINode {
-    id := GetId(text)
+    id: Id
     res: ^UINode
-    for &node in uiCtx.nodes {
-        if node.id == id {
-            res = &node
-            break
+
+    if text != "" {
+        id = GetId(text)
+        for &node in uiCtx.nodes {
+            if node.id == id {
+                res = &node
+                break
+            }
         }
     }
 
@@ -529,12 +580,50 @@ GetNode :: proc(text: string) -> ^UINode {
     return res
 }
 
-AddNode :: proc(text: string, flags: NodeFlags) -> ^UINode {
+AddNode :: proc(text: string, flags: NodeFlags, 
+    style := uiCtx.defaultStyle,
+    layout := uiCtx.defaultLayout) -> ^UINode
+{
     node := GetNode(text)
     mem.zero_item(&node.PerFrameData)
 
+    if len(uiCtx.stylesStack) > 0 {
+        node.style = uiCtx.stylesStack[len(uiCtx.stylesStack) - 1]
+        if uiCtx.popStyleAfterUse {
+            pop(&uiCtx.stylesStack)
+            uiCtx.popStyleAfterUse = false
+        }
+    }
+    else {
+        node.style = style
+    }
+
+    if len(uiCtx.layoutStack) > 0 {
+        node.layout = uiCtx.layoutStack[len(uiCtx.layoutStack) - 1]
+        if uiCtx.popLayoutAfterUse {
+            pop(&uiCtx.layoutStack)
+            uiCtx.popLayoutAfterUse = false
+        }
+    }
+    else {
+        node.layout = layout
+    }
+
     node.flags = flags
     node.touchedThisFrame = true
+
+    if pos, ok := uiCtx.nextNodePos.?; ok {
+        node.flags += { .FloatingX, .FloatingY }
+        node.targetPos = pos
+
+        uiCtx.nextNodePos = nil
+    }
+
+    if origin, ok := uiCtx.nextNodeOrigin.?; ok {
+        node.origin = origin
+
+        uiCtx.nextNodeOrigin = nil
+    }
 
     if len(uiCtx.parentStack) != 0 {
         parent := uiCtx.parentStack[len(uiCtx.parentStack) - 1]
@@ -559,7 +648,11 @@ AddNode :: proc(text: string, flags: NodeFlags) -> ^UINode {
 
 GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
     if .Clickable in node.flags {
-        targetRect := Rect{node.targetPos.x, node.targetPos.y, node.targetSize.x, node.targetSize.y}
+        targetRect := Rect{
+            node.targetPos.x - node.targetSize.x * node.origin.x,
+            node.targetPos.y - node.targetSize.y * node.origin.y,
+            node.targetSize.x,
+            node.targetSize.y}
         isMouseOver := IsPointInsideRect(ToV2(input.mousePos), targetRect)
 
         if uiCtx.activeId == node.id {
@@ -602,6 +695,19 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
     return
 }
 
+@(deferred_none=EndPanel)
+Panel :: proc(text: string) -> bool {
+    node := AddNode(text, {.DrawBackground}, uiCtx.panelStyle, uiCtx.panelLayout)
+
+    PushParent(node)
+
+    return true
+}
+
+EndPanel :: proc() {
+    PopParent()
+}
+
 /////////
 // Windows
 /////////
@@ -611,10 +717,12 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
         return false 
     }
 
-    background := AddNode(text, { .DrawBackground })
-    background.layout = uiCtx.defaultLayout
+    background := AddNode(
+        text, 
+        { .DrawBackground, .FloatingX, .FloatingY }, 
+        uiCtx.defaultStyle, uiCtx.defaultLayout
+    )
     background.bgColor = MAGENTA
-    background.isFloating = true
 
     background.childrenAxis = .Y
     background.preferredSize[.X] = {.Children, 0, 1}
@@ -623,7 +731,7 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
     // SetLayout(background, .Container)
     PushParent(background)
 
-    header := AddNode("Header", {.Clickable})
+    header := AddNode("Header", {.Clickable}, uiCtx.defaultStyle, uiCtx.defaultLayout)
     header.preferredSize[.X] = {.ParentPercent, 1, 1}
     header.preferredSize[.Y] = {.Children, 0, 1}
     header.childrenAxis = .X
@@ -638,8 +746,7 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
     PushParent(header)
 
     // UILabel(text)
-    label := AddNode(text, { .DrawText })
-    label.style = uiCtx.textStyle
+    label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.defaultLayout)
     label.preferredSize[.X] = {.Text, 1, 1}
     label.preferredSize[.Y] = {.Text, 1, 1}
 
@@ -666,25 +773,83 @@ UIEndWindow :: proc() {
 /////////
 
 UIButton :: proc(text: string) -> bool {
-    node := AddNode(text, { .DrawBackground, .Clickable, .DrawText })
-    node.style = uiCtx.buttonStyle
-    node.layout = uiCtx.buttonLayout
+    node := AddNode(text, 
+        { .DrawBackground, .Clickable, .DrawText },
+        style = uiCtx.buttonStyle,
+        layout = uiCtx.buttonLayout)
 
     interaction := GetNodeInteraction(node)
     return bool(interaction.cursorUp)
 }
 
 UILabel :: proc(text: string) {
-    node := AddNode(text, { .DrawText })
-    node.style = uiCtx.textStyle
-    node.layout = uiCtx.textLayout
+    node := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
+}
+
+UISpacer :: proc(size: int) {
+    layout: Layout
+    layout.preferredSize = {
+        .X = {.Fixed, f32(size), 1},
+        .Y = {.Fixed, f32(size), 1}
+    }
+    node := AddNode("", {}, {}, layout)
+}
+
+UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
+    if BeginLayout(axis = .X) {
+        label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
+        label.preferredSize[.X] = {.Fixed, 200, 0}
+
+        slideArea := AddNode(fmt.tprintf("slide", text), { .DrawBackground })
+        slideArea.bgColor = {1, 1, 1, 1}
+        slideArea.preferredSize[.X] = {.Fixed, 250, 0}
+        slideArea.preferredSize[.Y] = {.Fixed, 5, 1}
+
+        PushParent(slideArea)
+
+        handle := AddNode(fmt.tprintf("handle", text), {.DrawBackground, .Clickable, .FloatingX})
+        handle.origin = {0.5, 0.5}
+        interaction := GetNodeInteraction(handle)
+
+        left := slideArea.targetPos.x
+        right := slideArea.targetPos.x + slideArea.targetSize.x
+
+        if value != nil {
+            normalizedValue := (value^ - min) / (max - min)
+            handle.targetPos.x = glsl.lerp(left, right, normalizedValue)
+        }
+        else {
+            handle.targetPos.x = left
+        }
+
+        if interaction.cursorPressed {
+            res = true
+
+            handle.targetPos = ToV2(input.mousePos)
+
+            handle.targetPos.x = clamp(handle.targetPos.x, left, right)
+
+            if value != nil {
+                normalized := ((handle.targetPos.x - left) / (right - left))
+                value^ = glsl.lerp(min, max, normalized)
+            }
+        }
+
+        handle.bgColor = {0, 0, 0, 1}
+        handle.preferredSize[.X] = {.Fixed, 16, 1}
+        handle.preferredSize[.Y] = {.Fixed, 30, 1}
+
+        PopParent()
+    }
+
+    return
 }
 
 ///////////////////////////////
 
 DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
-    nodeCenter := node.targetPos + node.targetSize / 2
-    DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
+    // nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
+    // DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor
@@ -700,7 +865,7 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
                 renderCtx, 
                 node.targetPos,
                 node.targetSize,
-                v2{0, 0},
+                node.origin,
                 color
             )
     }
@@ -726,4 +891,27 @@ DrawUI :: proc(renderCtx: ^RenderContext) {
     if len(uiCtx.nodes) > 0 {
         DrawNode(renderCtx, &uiCtx.nodes[0])
     }
+}
+
+CreateUIDebugString :: proc() -> string {
+    b: strings.Builder
+    strings.builder_init(&b, allocator = context.temp_allocator)
+
+    PrintNode :: proc(node: UINode, builder: ^strings.Builder, indent: ^int) {
+        for i in 0..<indent^ {
+            fmt.sbprint(builder, "    ")
+        }
+        fmt.sbprintln(builder, "-", node.text, node.id)
+
+        indent^ += 1
+        for child := node.firstChild; child != nil; child = child.nextSibling {
+            PrintNode(child^, builder, indent)
+        }
+        indent^ -= 1
+    }
+
+    indent := 0
+    PrintNode(uiCtx.nodes[0], &b, &indent)
+
+    return strings.to_string(b)
 }

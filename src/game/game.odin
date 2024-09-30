@@ -779,7 +779,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
-    TestUI()
+    // TestUI()
+    GameMenu() 
 }
 
 @(export)

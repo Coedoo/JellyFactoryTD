@@ -24,20 +24,112 @@ BuildingsWindow :: proc() {
     }
 }
 
+MenuState :: enum {
+    Main,
+    Levels,
+    Options,
+    Credits,
+}
+menuState: MenuState
+
+GameMenu :: proc() {
+    panelStyle := dm.uiCtx.panelStyle
+    panelStyle.padding = {200, 200, 300, 40}
+
+    // dm.NextNodeStyle(panelStyle)
+
+    dm.NextNodePosition(dm.ToV2(dm.renderCtx.frameSize / 2))
+    if dm.Panel("Menu") {
+        style := dm.uiCtx.textStyle
+        style.fontSize = 60
+
+        dm.NextNodeStyle(style)
+        dm.UILabel("Jelly vs Geometry")
+
+        dm.UISpacer(50)
+
+        style = dm.uiCtx.buttonStyle
+        style.fontSize = 30
+        dm.PushStyle(style)
+
+        switch menuState {
+        case .Main: 
+            if dm.UIButton("Select Level") {
+                menuState = .Levels
+            }
+
+            if dm.UIButton("Options") {
+                menuState = .Options
+            }
+
+            if dm.UIButton("Credits") {
+                menuState = .Credits
+            }
+        case .Levels: {
+            for &level in gameState.levels {
+                if dm.UIButton(level.name) {
+                    OpenLevel(level.name)
+                }
+            }
+
+            dm.UISpacer(50) 
+            if dm.UIButton("Back") {
+                menuState = .Main
+            }
+        }
+        case .Options: {
+            @static music: f32
+
+            if dm.UISlider("Main Audio", &music, 0, 10) {
+                fmt.println(music)
+            }
+            dm.UISlider("Sounds", nil, 0, 10)
+            dm.UISlider("Music", nil, 0, 10)
+
+            dm.UISpacer(50) 
+            if dm.UIButton("Back") {
+                menuState = .Main
+            }
+        }
+
+        case .Credits: {
+            dm.UILabel("Yo Mama")
+            dm.UISpacer(50) 
+            if dm.UIButton("Back") {
+                menuState = .Main
+            }
+        }
+        }
+
+
+        dm.PopStyle()
+    }
+
+    dm.muiBeginWindow(dm.mui, "UI debug str", {600, 50, 200, 150}, {})
+    dm.muiText(dm.mui, dm.CreateUIDebugString())
+    dm.muiEndWindow(dm.mui)
+
+
+    // dm.muiBeginWindow(dm.mui, "UI debug", {800, 50, 100, 150}, {})
+    // dm.muiLabel(dm.mui, "Nodes:", len(dm.uiCtx.nodes))
+    // dm.muiLabel(dm.mui, "Hot Id:", dm.uiCtx.hotId)
+    // dm.muiLabel(dm.mui, "activeId:", dm.uiCtx.activeId)
+    // dm.muiEndWindow(dm.mui)
+}
+
 TestUI :: proc() {
     @static windowOpen := true
 
-    // muiBeginWindow(mui, "UI debug", {600, 50, 100, 150}, {})
-    // muiLabel(mui, "Nodes:", len(gameState.uiCtx.nodes))
-    // muiLabel(mui, "Hot Id:", gameState.uiCtx.hotId)
-    // muiLabel(mui, "activeId:", gameState.uiCtx.activeId)
-    // if windowOpen == false {
-    //     if muiButton(mui, "Open Again") {
-    //         windowOpen = true
-    //     }
-    // }
-    // muiEndWindow(mui)
-
+    dm.muiBeginWindow(dm.mui, "UI debug", {600, 50, 100, 150}, {})
+    dm.muiLabel(dm.mui, "Nodes:", len(dm.uiCtx.nodes))
+    dm.muiLabel(dm.mui, "Hot Id:", dm.uiCtx.hotId)
+    dm.muiLabel(dm.mui, "activeId:", dm.uiCtx.activeId)
+    if windowOpen == false {
+        if dm.muiButton(dm.mui, "Open Again") {
+            windowOpen = true
+        }
+    }
+    dm.muiEndWindow(dm.mui)
 
     if dm.UIBeginWindow("Window", &windowOpen) {
         @static toggle: bool = true

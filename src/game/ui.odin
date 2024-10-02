@@ -46,6 +46,11 @@ GameMenu :: proc() {
         dm.NextNodeStyle(style)
         dm.UILabel("Jelly vs Geometry")
 
+        @static t1: bool
+        @static t2: bool
+        dm.UICheckbox("slkf", &t1)
+        dm.UICheckbox("slkff", &t2)
+
         dm.UISpacer(50)
 
         style = dm.uiCtx.buttonStyle
@@ -81,7 +86,6 @@ GameMenu :: proc() {
             @static music: f32
 
             if dm.UISlider("Main Audio", &music, 0, 10) {
-                fmt.println(music)
             }
             dm.UISlider("Sounds", nil, 0, 10)
             dm.UISlider("Music", nil, 0, 10)

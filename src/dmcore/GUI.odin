@@ -58,6 +58,7 @@ UIContext :: struct {
 NodeFlag :: enum {
     DrawBackground,
     DrawText,
+    BackgroundTexture,
 
     Clickable,
 
@@ -89,6 +90,9 @@ UINode :: struct {
 
     text: string,
     textSize: v2,
+
+    texture: TexHandle,
+    textureSource: UIRect,
 
     origin: v2,
     targetPos: v2,
@@ -185,7 +189,7 @@ InitUI :: proc(uiCtx: ^UIContext, renderCtx: ^RenderContext) {
         fontSize = 18,
 
         textColor = {1, 1, 1, 1},
-        bgColor = {0.3, 0.3, 0.3, 1},
+        bgColor = {1, 1, 1, 1},
 
         hotColor = {0.4, 0.4, 0.4, 1},
         activeColor = {0.6, 0.6, 0.6, 1},
@@ -555,8 +559,25 @@ GetNode :: proc(text: string) -> ^UINode {
     id: Id
     res: ^UINode
 
+    idStr: string
+    textStr: string
+
+    idIdx := strings.index(text, "##")
+    if idIdx != -1 {
+        ok: bool
+        idStr, ok = strings.substring(text, idIdx + 2, len(text))
+        assert(ok)
+
+        textStr, ok = strings.substring(text, 0, idIdx)
+        assert(ok)
+    }
+    else {
+        idStr = text
+        textStr = text
+    }
+
     if text != "" {
-        id = GetId(text)
+        id = GetId(idStr)
         for &node in uiCtx.nodes {
             if node.id == id {
                 res = &node
@@ -575,7 +596,7 @@ GetNode :: proc(text: string) -> ^UINode {
         res = &uiCtx.nodes[len(uiCtx.nodes) - 1]
     }
 
-    res.text = strings.clone(text, uiCtx.transientAllocator)
+    res.text = textStr
 
     return res
 }
@@ -786,6 +807,23 @@ UILabel :: proc(text: string) {
     node := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
 }
 
+UIImage :: proc(image: TexHandle, maybeSize: Maybe(iv2) = nil) {
+    node := AddNode(fmt.tprint("Tex", image), {.BackgroundTexture})
+
+    node.texture = image
+
+    size: v2
+    if pSize, ok := maybeSize.?; ok {
+        size = ToV2(pSize)
+    }
+    else {
+        size = ToV2(GetTextureSize(image))
+    }
+
+    node.preferredSize[.X] = {.Fixed, size.x, 1}
+    node.preferredSize[.Y] = {.Fixed, size.y, 1}
+}
+
 UISpacer :: proc(size: int) {
     layout: Layout
     layout.preferredSize = {
@@ -800,14 +838,14 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
         label.preferredSize[.X] = {.Fixed, 200, 0}
 
-        slideArea := AddNode(fmt.tprintf("slide", text), { .DrawBackground })
+        slideArea := AddNode(fmt.tprint("slide", text), { .DrawBackground })
         slideArea.bgColor = {1, 1, 1, 1}
         slideArea.preferredSize[.X] = {.Fixed, 250, 0}
         slideArea.preferredSize[.Y] = {.Fixed, 5, 1}
 
         PushParent(slideArea)
 
-        handle := AddNode(fmt.tprintf("handle", text), {.DrawBackground, .Clickable, .FloatingX})
+        handle := AddNode(fmt.tprint("handle", text), {.DrawBackground, .Clickable, .FloatingX})
         handle.origin = {0.5, 0.5}
         interaction := GetNodeInteraction(handle)
 
@@ -823,10 +861,9 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
         }
 
         if interaction.cursorPressed {
-            res = true
+            res = input.mouseDelta != {}
 
             handle.targetPos = ToV2(input.mousePos)
-
             handle.targetPos.x = clamp(handle.targetPos.x, left, right)
 
             if value != nil {
@@ -845,11 +882,32 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
     return
 }
 
+UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
+    if BeginLayout(axis = .X) {
+        check := AddNode(fmt.tprint("X##", text), {.DrawBackground, .Clickable})
+        if value^ do check.flags += {.DrawText}
+        check.preferredSize[.X] = {.Fixed, 40, 1}
+        check.preferredSize[.Y] = {.Fixed, 40, 1}
+        check.textColor = {0, 0, 0, 1}
+
+        interaction := GetNodeInteraction(check)
+        if interaction.cursorUp {
+            value^ = !value^
+            res = true
+        }
+
+        label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
+        label.preferredSize[.X] = {.Fixed, 200, 0}
+    }
+
+    return
+}
+
 ///////////////////////////////
 
 DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
-    // nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    // DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
+    nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
+    DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor
@@ -868,6 +926,25 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
                 node.origin,
                 color
             )
+    }
+
+    if .BackgroundTexture in node.flags {
+        color := node.bgColor
+
+        if node.id == uiCtx.activeId {
+            color = node.hotColor
+        }
+        else if node.id == uiCtx.hotId {
+            color = node.activeColor
+        }
+
+        DrawRect(
+            node.texture,
+            node.targetPos,
+            node.targetSize,
+            node.origin,
+            color
+        )
     }
 
     if .DrawText in node.flags {

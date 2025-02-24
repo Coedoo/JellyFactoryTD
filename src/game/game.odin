@@ -67,6 +67,8 @@ GameState :: struct {
     particlesTimers: [EnergyType]f32,
     tileEnergyParticles: [EnergyType]dm.ParticleSystem,
 
+    playerMoveParticles: dm.ParticleSystem,
+
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
 }
@@ -102,6 +104,7 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("turret_test_4.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("Energy.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("StarParticle.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
 
@@ -124,8 +127,9 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     mem.arena_init(&gameState.levelArena, levelMem)
     gameState.levelAllocator = mem.arena_allocator(&gameState.levelArena)
 
-    gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("ship.png"))
+    gameState.playerSprite = dm.CreateSprite(dm.GetTextureAsset("ship.png"), dm.RectInt{0, 0, 64, 64})
     gameState.playerSprite.scale = 2
+    gameState.playerSprite.frames = 3
 
     gameState.levels = LoadLevels()
     OpenLevel(START_LEVEL)
@@ -154,6 +158,13 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
         dm.InitParticleSystem(&system)
     }
+
+    gameState.playerMoveParticles = dm.DefaultParticleSystem
+    gameState.playerMoveParticles.texture = dm.GetTextureAsset("StarParticle.png")
+    gameState.playerMoveParticles.emitRate = 20
+    gameState.playerMoveParticles.startSize = dm.RandomFloat{0.2, 0.5}
+    gameState.playerMoveParticles.lifetime = dm.RandomFloat{0.6, 1}
+    gameState.playerMoveParticles.color = dm.ColorOverLifetime{{1, 1, 1, 1}, {1, 1, 1, 0}, .Exponential_Out}
 }
 
 @(export)
@@ -163,14 +174,34 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     cursorOverUI := dm.muiIsCursorOverUI(dm.mui, dm.input.mousePos)
 
     // Move Player
+    moveX := dm.GetAxis(.A, .D)
+    moveY := dm.GetAxis(.S, .W)
+
     moveVec := v2{
-        dm.GetAxis(.A, .D),
-        dm.GetAxis(.S, .W)
+        moveX,
+        moveY
     }
 
     if moveVec != {0, 0} {
         moveVec = glsl.normalize(moveVec)
         gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
+
+        if moveY == 1 {
+            gameState.playerSprite.texturePos.y = 64
+        }
+        else if moveY == -1 {
+            gameState.playerSprite.texturePos.y = 0
+        }
+        else if moveX != 0 {
+            gameState.playerSprite.texturePos.y = 128
+            gameState.playerSprite.flipX = moveX == -1 ? true : false
+        }
+
+        gameState.playerMoveParticles.position = gameState.playerPosition
+        gameState.playerMoveParticles.emitRate = 30
+    }
+    else {
+        gameState.playerMoveParticles.emitRate = 0
     }
 
     // Camera Control
@@ -780,7 +811,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // TestUI()
-    GameMenu() 
+    // GameMenu() 
 }
 
 @(export)
@@ -1031,6 +1062,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
 
     // Player
+    dm.UpdateAndDrawParticleSystem(&gameState.playerMoveParticles)
+    dm.AnimateSprite(&gameState.playerSprite, f32(dm.time.gameTime), 0.1)
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // path

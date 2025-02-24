@@ -592,7 +592,7 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
         }
     }
 
-    fmt.println(testPath)
+    // fmt.println(testPath)
 
     if testPath == nil {
         return false

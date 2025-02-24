@@ -1,8 +1,6 @@
 package platform_wasm
 
-// @TODO:
-// Fix problems with mouse delta
-import "vendor:wasm/js"
+import "core:sys/wasm/js"
 import dm "../dmcore"
 
 import "core:fmt"

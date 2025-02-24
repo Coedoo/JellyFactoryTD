@@ -884,13 +884,22 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 
 UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
     if BeginLayout(axis = .X) {
-        check := AddNode(fmt.tprint("X##", text), {.DrawBackground, .Clickable})
-        if value^ do check.flags += {.DrawText}
-        check.preferredSize[.X] = {.Fixed, 40, 1}
-        check.preferredSize[.Y] = {.Fixed, 40, 1}
-        check.textColor = {0, 0, 0, 1}
+        checkbox := AddNode(fmt.tprint("X##", text), {.DrawBackground, .Clickable})
+        checkbox.preferredSize[.X] = {.Fixed, 25, 1}
+        checkbox.preferredSize[.Y] = {.Fixed, 25, 1}
+        checkbox.textColor = {0, 0, 0, 1}
 
-        interaction := GetNodeInteraction(check)
+        PushParent(checkbox)
+        check := AddNode(fmt.tprint("check##", text), {})
+        check.bgColor = {0, 0, 0, 1}
+        check.preferredSize[.X] = {.ParentPercent, 1, 1}
+        check.preferredSize[.Y] = {.ParentPercent, 1, 1}
+
+        if value^ do check.flags += {.DrawBackground}
+        
+        PopParent()
+
+        interaction := GetNodeInteraction(checkbox)
         if interaction.cursorUp {
             value^ = !value^
             res = true

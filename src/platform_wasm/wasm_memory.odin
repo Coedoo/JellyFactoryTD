@@ -3,7 +3,7 @@ package platform_wasm
 import "core:mem"
 import "base:runtime"
 import dm "../dmcore"
-import "vendor:wasm/js"
+import "core:sys/wasm/js"
 import "core:fmt"
 
 // wasmContext: runtime.Context

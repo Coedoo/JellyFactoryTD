@@ -9,13 +9,13 @@ import "core:strings"
 import dm "../dmcore"
 import gl "vendor:wasm/WebGL"
 
-import "vendor:wasm/js"
+import "core:sys/wasm/js"
 
 import coreTime "core:time"
 
 import game "../game"
 
-platform: dm.Platform
+engineData: dm.Platform
 
 assetsLoadingState: struct {
     maxCount: int,
@@ -33,16 +33,16 @@ SetWindowSize :: proc(width, height: int) {
 FileLoadedCallback :: proc(data: []u8) {
     assert(data != nil)
 
-    asset := platform.assets.toLoad[assetsLoadingState.loadingIndex]
+    asset := engineData.assets.toLoad[assetsLoadingState.loadingIndex]
 
     switch desc in asset.descriptor {
     case dm.TextureAssetDescriptor:
-        asset.handle = cast(dm.Handle) dm.LoadTextureFromMemoryCtx(platform.renderCtx, data, desc.filter)
+        asset.handle = cast(dm.Handle) dm.LoadTextureFromMemoryCtx(engineData.renderCtx, data, desc.filter)
         // delete(data)
 
     case dm.ShaderAssetDescriptor:
         str := strings.string_from_ptr(raw_data(data), len(data))
-        asset.handle = cast(dm.Handle) dm.CompileShaderSource(platform.renderCtx, str)
+        asset.handle = cast(dm.Handle) dm.CompileShaderSource(engineData.renderCtx, str)
         // delete(data)
 
     case dm.FontAssetDescriptor:
@@ -52,7 +52,7 @@ FileLoadedCallback :: proc(data: []u8) {
         asset.fileData = data
 
     case dm.SoundAssetDescriptor:
-        asset.handle = cast(dm.Handle) dm.LoadSoundFromMemoryCtx(&platform.audio, data)
+        asset.handle = cast(dm.Handle) dm.LoadSoundFromMemoryCtx(&engineData.audio, data)
         // delete(data)
     }
 
@@ -61,7 +61,7 @@ FileLoadedCallback :: proc(data: []u8) {
     assetsLoadingState.loadingIndex += 1
 
     if assetsLoadingState.loadingIndex < assetsLoadingState.maxCount {
-        assetsLoadingState.nowLoading = platform.assets.toLoad[assetsLoadingState.loadingIndex]
+        assetsLoadingState.nowLoading = engineData.assets.toLoad[assetsLoadingState.loadingIndex]
     }
     else {
         assetsLoadingState.nowLoading = nil
@@ -98,23 +98,24 @@ main :: proc() {
 
     //////////////
 
-    platform.renderCtx = dm.CreateRenderContextBackend()
-    dm.InitRenderContext(platform.renderCtx)
-    platform.mui = dm.muiInit(platform.renderCtx)
+    engineData.renderCtx = dm.CreateRenderContextBackend()
+    dm.InitRenderContext(engineData.renderCtx)
+    engineData.mui = dm.muiInit(engineData.renderCtx)
+    dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
 
-    dm.InitAudio(&platform.audio)
-    dm.TimeInit(&platform)
+    dm.InitAudio(&engineData.audio)
+    dm.TimeInit(&engineData)
 
-    platform.SetWindowSize = SetWindowSize
+    engineData.SetWindowSize = SetWindowSize
 
     ////////////
 
-    dm.UpdateStatePointer(&platform)
-    game.PreGameLoad(&platform.assets)
+    dm.UpdateStatePointer(&engineData)
+    game.PreGameLoad(&engineData.assets)
 
-    assetsLoadingState.maxCount = len(platform.assets.assetsMap)
+    assetsLoadingState.maxCount = len(engineData.assets.assetsMap)
     if(assetsLoadingState.maxCount > 0) {
-        assetsLoadingState.nowLoading = platform.assets.toLoad[0]
+        assetsLoadingState.nowLoading = engineData.assets.toLoad[0]
     }
 
     LoadNextAsset()
@@ -123,15 +124,14 @@ main :: proc() {
 @(export, link_name="step")
 step :: proc (delta: f32) -> bool {
     free_all(context.temp_allocator)
-
     ////////
 
     @static gameLoaded: bool
     if assetsLoadingState.finishedLoading == false {
         // if assetsLoadingState.nowLoading != nil {
-        //     dm.DrawTextCentered(platform.renderCtx, fmt.tprint("Loading:", assetsLoadingState.nowLoading.fileName),
-        //         dm.LoadDefaultFont(platform.renderCtx), dm.ToV2(platform.renderCtx.frameSize) / 2)
-        //     dm.FlushCommands(platform.renderCtx)
+        //     dm.DrawTextCentered(engineData.renderCtx, fmt.tprint("Loading:", assetsLoadingState.nowLoading.fileName),
+        //         dm.LoadDefaultFont(engineData.renderCtx), dm.ToV2(engineData.renderCtx.frameSize) / 2)
+        //     dm.FlushCommands(engineData.renderCtx)
         // }
         return true
     }
@@ -140,24 +140,22 @@ step :: proc (delta: f32) -> bool {
 
         fmt.println("LOADING GAME")
         
-        game.GameLoad(&platform)
+        game.GameLoad(&engineData)
     }
 
-    using platform
+    dm.TimeUpdate(&engineData)
 
-    dm.TimeUpdate(&platform)
-
-    for key, state in input.curr {
-        input.prev[key] = state
+    for key, state in engineData.input.curr {
+        engineData.input.prev[key] = state
     }
 
-    for mouseBtn, i in input.mouseCurr {
-        input.mousePrev[i] = input.mouseCurr[i]
+    for mouseBtn, i in engineData.input.mouseCurr {
+        engineData.input.mousePrev[i] = engineData.input.mouseCurr[i]
     }
 
-    input.runesCount = 0
-    input.scrollX = 0;
-    input.scroll = 0;
+    engineData.input.runesCount = 0
+    engineData.input.scrollX = 0;
+    engineData.input.scroll = 0;
 
     for i in 0..<eventBufferOffset {
         e := &eventsBuffer[i]
@@ -167,31 +165,31 @@ step :: proc (delta: f32) -> bool {
                 idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
                 btn := JsToDMMouseButton[idx]
 
-                platform.input.mouseCurr[btn] = .Down
+                engineData.input.mouseCurr[btn] = .Down
 
             case .Mouse_Up:
                 idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
                 btn := JsToDMMouseButton[idx]
 
-                platform.input.mouseCurr[btn] = .Up
+                engineData.input.mouseCurr[btn] = .Up
 
             case .Mouse_Move: 
-                platform.input.mousePos.x = i32(e.mouse.client.x)
-                platform.input.mousePos.y = i32(e.mouse.client.y)
+                engineData.input.mousePos.x = i32(e.mouse.client.x)
+                engineData.input.mousePos.y = i32(e.mouse.client.y)
 
-                platform.input.mouseDelta.x = i32(e.mouse.movement.x)
-                platform.input.mouseDelta.y = i32(e.mouse.movement.y)
+                engineData.input.mouseDelta.x = i32(e.mouse.movement.x)
+                engineData.input.mouseDelta.y = i32(e.mouse.movement.y)
 
             case .Key_Up:
                 // fmt.println()
                 c := string(e.key._code_buf[:e.key._code_len])
                 key := JsKeyToKey[c]
-                input.curr[key] = .Up
+                engineData.input.curr[key] = .Up
 
             case .Key_Down:
                 c := string(e.key._code_buf[:e.key._code_len])
                 key := JsKeyToKey[c]
-                input.curr[key] = .Down
+                engineData.input.curr[key] = .Down
         }
 
     }
@@ -200,54 +198,62 @@ step :: proc (delta: f32) -> bool {
     /////////
 
 
-    dm.muiProcessInput(mui, &input)
-    dm.muiBegin(mui)
+    dm.muiProcessInput(engineData.mui, &engineData.input)
+    dm.muiBegin(engineData.mui)
+
+    dm.UpdateStatePointer(&engineData)
+    // dm.UIBegin(dm.uiCtx,
+    //            int(engineData.renderCtx.frameSize.x),
+    //            int(engineData.renderCtx.frameSize.y))
 
     when ODIN_DEBUG {
-        if dm.GetKeyStateCtx(&input, .U) == .JustPressed {
-            debugState = !debugState
-            pauseGame = debugState
+        if dm.GetKeyStateCtx(&engineData.input, .U) == .JustPressed {
+            engineData.debugState = !engineData.debugState
+            engineData.pauseGame = engineData.debugState
 
-            if debugState {
-                dm.muiShowWindow(mui, "Debug")
+            if engineData.debugState {
+                dm.muiShowWindow(engineData.mui, "Debug")
             }
         }
 
-        if debugState && dm.muiBeginWindow(mui, "Debug", {0, 0, 100, 240}, nil) {
+        if engineData.debugState && dm.muiBeginWindow(engineData.mui, "Debug", {0, 0, 100, 240}, nil) {
             // dm.muiLabel(mui, "Time:", time.time)
-            dm.muiLabel(mui, "GameTime:", time.gameTime)
+            dm.muiLabel(engineData.mui, "GameTime:", engineData.time.gameTime)
 
-            dm.muiLabel(mui, "Frame:", time.frame)
+            dm.muiLabel(engineData.mui, "Frame:", engineData.time.frame)
 
-            if dm.muiButton(mui, "Play" if pauseGame else "Pause") {
-                pauseGame = !pauseGame
+            if dm.muiButton(engineData.mui, "Play" if engineData.pauseGame else "Pause") {
+                engineData.pauseGame = !engineData.pauseGame
             }
 
-            if dm.muiButton(mui, ">") {
-                moveOneFrame = true
+            if dm.muiButton(engineData.mui, ">") {
+                engineData.moveOneFrame = true
             }
 
-            dm.muiEndWindow(mui)
+            dm.muiEndWindow(engineData.mui)
         }
     }
 
 
-    if pauseGame == false || moveOneFrame {
-        game.GameUpdate(gameState)
+    if engineData.pauseGame == false || engineData.moveOneFrame {
+        game.GameUpdate(engineData.gameState)
     }
 
     when ODIN_DEBUG {
-        game.GameUpdateDebug(gameState, debugState)
+        game.GameUpdateDebug(engineData.gameState, engineData.debugState)
     }
 
-    game.GameRender(gameState)
+    game.GameRender(engineData.gameState)
 
-    dm.FlushCommands(renderCtx)
+    // dm.UIEnd()
+    dm.DrawUI(engineData.renderCtx)
+
+    dm.FlushCommands(engineData.renderCtx)
     // DrawPrimitiveBatch(cast(^renderer.RenderContext_d3d) renderCtx)
     // renderCtx.debugBatch.index = 0
 
-    dm.muiEnd(mui)
-    dm.muiRender(mui, renderCtx)
+    dm.muiEnd(engineData.mui)
+    dm.muiRender(engineData.mui, engineData.renderCtx)
 
     return true
 }

@@ -76,8 +76,15 @@ FlushCommands :: proc(ctx: ^RenderContext) {
             gl.BindBuffer(gl.UNIFORM_BUFFER, 0)
 
         case DrawRectCommand:
+            if ctx.defaultBatch.count >= ctx.defaultBatch.maxCount {
+                DrawBatch(ctx, &ctx.defaultBatch)
+            }
+
+            shadersLen := sa.len(shadersStack)
+            shader :=  shadersLen > 0 ? sa.get(shadersStack, shadersLen - 1) : cmd.shader
+
             if ctx.defaultBatch.shader.gen != 0 && 
-               ctx.defaultBatch.shader != cmd.shader {
+               ctx.defaultBatch.shader != shader {
                 DrawBatch(ctx, &ctx.defaultBatch)
             }
 

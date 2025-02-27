@@ -19,7 +19,8 @@ if "%release%" == "1" (
     echo RELEASE
     set flags=%flags% -o:speed -subsystem:windows 
 ) else (
-    set flags=%flags% -debug -o:none -use-separate-modules -lld -show-timings
+    rem set flags=%flags% -debug -o:none -use-separate-modules -lld -show-timings
+    set flags=%flags% -debug -o:none
 )
 
 if not "%only_game%"=="1" (

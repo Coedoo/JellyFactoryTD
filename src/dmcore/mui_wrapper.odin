@@ -117,7 +117,8 @@ muiSliderInt :: proc(using mui: ^Mui, value: ^int, low, high: int, step: int = 0
 }
 
 muiButton :: proc(mui:^Mui, label: string, icon: mu.Icon = .NONE, opt: mu.Options = {.ALIGN_CENTER}) -> bool {
-    return mu.button(&mui.muiCtx, label, icon, opt) == {.SUBMIT}
+
+    return .SUBMIT in  mu.button(&mui.muiCtx, label, icon, opt)
 }
 
 muiToggle :: proc(using mui: ^Mui, label: string, state: ^bool) -> bool {

@@ -15,7 +15,7 @@ START_HP :: 200
 
 
 
-START_LEVEL :: "Level_2"
+START_LEVEL :: "Level_0"
 
 // DEBUG
 DEBUG_TILE_OVERLAY := false

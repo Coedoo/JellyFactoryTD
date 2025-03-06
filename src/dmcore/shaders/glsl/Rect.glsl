@@ -47,7 +47,7 @@ void main() {
     );
 
     vec4 tex = texUVS[screenSpace];
-    uv = vec2(tex[i.x], tex[i.y]);
+    uv = vec2(tex[i.x], tex[i.y]) * OneOverAtlasSize;
 
     color = aColor;
 }
@@ -64,8 +64,7 @@ uniform sampler2D tex;
 uniform vec2 OneOverAtlasSize;
 
 void main() {
-    vec2 fUV = floor(uv) + smoothstep(0.0, 1.0, fract(uv) / fwidth(uv)) - 0.5;
-    vec4 texColor = texture(tex, fUV * OneOverAtlasSize);
+    vec4 texColor = texture(tex, uv);
 
     // @TODO: check if it causes performance hit
     if(color.a == 0.) discard;

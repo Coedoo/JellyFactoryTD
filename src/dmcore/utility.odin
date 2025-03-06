@@ -3,6 +3,8 @@ package dmcore
 import "core:math"
 import "core:math/linalg/glsl"
 
+import "core:math/rand"
+
 
 DirectionFromRotation :: proc(rotation: f32) -> v2 {
     return {
@@ -95,7 +97,7 @@ RaycastAABB2D :: proc(ray: Ray2D, aabb: Bounds2D, distance := max(f32)) -> (bool
     tMin = max(tMin, min(ty1, ty2))
     tMax = min(tMax, max(ty1, ty2))
 
-    return tMax >= tMin && tMax > 0 && tMin > 0 && tMin < distance, tMin
+    return tMax >= tMin && tMax > 0 && tMin > 0 && tMin < distance, (tMin < 0 ? tMax : tMin)
 }
 
 //////
@@ -116,4 +118,14 @@ MoveTowards :: proc(current, target: v2, maxDist: f32) -> (v2, f32)
     point := current + delta / magnitude * maxDist
 
     return point, 0
+}
+
+/////
+
+RandomDirection :: proc() -> v2 {
+    angle := rand.float32() * math.PI * 2
+    return {
+        math.cos(angle),
+        math.sin(angle)
+    }
 }

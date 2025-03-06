@@ -71,6 +71,9 @@ ParticleSystem :: struct {
     startSpeed: FloatStartProp,
     speed: FloatOverLifetime,
 
+    startRotation: FloatStartProp,
+    startRotationSpeed: FloatStartProp,
+
     gravity: v2,
 
     position: v2,
@@ -125,16 +128,17 @@ InitParticleSystem :: proc(system: ^ParticleSystem) {
 
 SpawnParticles :: proc(system: ^ParticleSystem, count: int, 
     atPosition: Maybe(v2) = nil, 
-    tint := color{1, 1, 1, 1})
+    tint := color{1, 1, 1, 1},
+    additionalSpeed : Maybe(v2) = nil,)
 {
     maxToAdd := system.maxParticles - len(system.particles)
-    count := min(count, maxToAdd)
+    maxCount := min(count, maxToAdd)
 
-    for i in 0..<count {
+    for i in 0..<maxCount {
         particle := Particle {
             velocity = RandAtUnitCircle(),
             position = atPosition.? or_else system.position,
-            rotationSpeed = (rand.float32() * 2 - 1),
+            // rotationSpeed = (rand.float32() * 2 - 1),
         }
 
         switch s in system.startSpeed {
@@ -142,6 +146,22 @@ SpawnParticles :: proc(system: ^ParticleSystem, count: int,
                 particle.velocity *= s
             case RandomFloat:
                 particle.velocity *= EvaluateRandomProp(s)
+        }
+
+        particle.velocity += additionalSpeed.? or_else 0
+
+        switch r in system.startRotation {
+            case f32:
+                particle.rotation = r
+            case RandomFloat:
+                particle.rotation = EvaluateRandomProp(r)
+        }
+
+        switch r in system.startRotationSpeed {
+            case f32:
+                particle.rotationSpeed = r
+            case RandomFloat:
+                particle.rotationSpeed = EvaluateRandomProp(r)
         }
 
         switch s in system.lifetime {
@@ -222,12 +242,12 @@ UpdateParticleSystem :: proc(system: ^ParticleSystem, deltaTime: f32) {
 
 DrawParticleSystem :: proc(ctx: ^RenderContext, system: ^ParticleSystem) {
     #reverse for particle in system.particles {
-        DrawWorldRect(system.texture, 
-                      particle.position, 
-                      particle.size, 
-                      rotation = particle.rotation,
-                      color = particle.color
-                    )
+        DrawRect(system.texture,
+                  particle.position,
+                  particle.size,
+                  rotation = particle.rotation,
+                  color = particle.color
+                )
     }
 }
 

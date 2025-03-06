@@ -17,7 +17,8 @@ import "core:image"
 
 import "core:math/linalg/glsl"
 
-ScreenSpaceRectShaderSource := #load("shaders/hlsl/ScreenSpaceRect.hlsl", string)
+BlitShaderSource := #load("shaders/hlsl/Blit.hlsl", string)
+RectShaderSource := #load("shaders/hlsl/Rect.hlsl", string)
 SpriteShaderSource := #load("shaders/hlsl/Sprite.hlsl", string)
 SDFFontSource := #load("shaders/hlsl/SDFFont.hlsl", string)
 GridShaderSource := #load("shaders/hlsl/Grid.hlsl", string)
@@ -33,8 +34,11 @@ RenderContextBackend :: struct {
 
     rasterizerState: ^d3d11.IRasterizerState,
 
-    framebuffer: ^d3d11.ITexture2D,
-    framebufferView: ^d3d11.IRenderTargetView,
+    ppTextureSampler: ^d3d11.ISamplerState,
+
+    screenRenderTarget: ^d3d11.IRenderTargetView,
+
+    ppGlobalUniformBuffer: ^d3d11.IBuffer,
 
     blendState: ^d3d11.IBlendState,
 
@@ -46,24 +50,16 @@ RenderContextBackend :: struct {
 }
 
 CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
+    // @TODO: allocation
+    ctx := new(RenderContext)
 
     featureLevels := [?]d3d11.FEATURE_LEVEL{._11_0}
 
-    device: ^d3d11.IDevice
-    deviceContext: ^d3d11.IDeviceContext
-    swapchain: ^dxgi.ISwapChain1
-
     d3d11.CreateDevice(nil, .HARDWARE, nil, {.BGRA_SUPPORT}, &featureLevels[0], len(featureLevels),
-                       d3d11.SDK_VERSION, &device, nil, &deviceContext)
-
-    // device: ^d3d11.IDevice
-    // baseDevice->QueryInterface(d3d11.IDevice_UUID, (^rawptr)(&device))
-
-    // deviceContext: ^d3d11.IDeviceContext
-    // baseDeviceContext->QueryInterface(d3d11.IDeviceContext_UUID, (^rawptr)(&deviceContext))
+                       d3d11.SDK_VERSION, &ctx.device, nil, &ctx.deviceContext)
 
     dxgiDevice: ^dxgi.IDevice
-    device->QueryInterface(dxgi.IDevice_UUID, (^rawptr)(&dxgiDevice))
+    ctx.device->QueryInterface(dxgi.IDevice_UUID, (^rawptr)(&dxgiDevice))
 
     dxgiAdapter: ^dxgi.IAdapter
     dxgiDevice->GetAdapter(&dxgiAdapter)
@@ -94,7 +90,7 @@ CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
         Flags       = nil,
     }
 
-    dxgiFactory->CreateSwapChainForHwnd(device, nativeWnd, &swapchainDesc, nil, nil, &swapchain)
+    dxgiFactory->CreateSwapChainForHwnd(ctx.device, nativeWnd, &swapchainDesc, nil, nil, &ctx.swapchain)
 
     rasterizerDesc := d3d11.RASTERIZER_DESC{
         FillMode = .SOLID,
@@ -105,19 +101,31 @@ CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
         // AntialiasedLineEnable = true,
     }
 
-    rasterizerState: ^d3d11.IRasterizerState
-    device->CreateRasterizerState(&rasterizerDesc, &rasterizerState)
+    ctx.device->CreateRasterizerState(&rasterizerDesc, &ctx.rasterizerState)
 
     ////
-    framebuffer: ^d3d11.ITexture2D
-    swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&framebuffer))
 
-    framebufferView: ^d3d11.IRenderTargetView
-    device->CreateRenderTargetView(framebuffer, nil, &framebufferView)
+    // ResizeFramebuffer(ctx, defaultWindowWidth, defaultWindowHeight)
+    // screenFramebuffer: ^d3d11.ITexture2D
+    // ctx.swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&screenFramebuffer))
 
-    framebuffer->Release()
+    // framebufferView: ^d3d11.IRenderTargetView
+    // ctx.device->CreateRenderTargetView(screenFramebuffer, nil, &ctx.screenRenderTarget)
+
+    // screenFramebuffer->Release()
+
+    samplerDesc := d3d11.SAMPLER_DESC {
+        Filter         = .MIN_MAG_MIP_POINT,
+        AddressU       = .CLAMP,
+        AddressV       = .CLAMP,
+        AddressW       = .CLAMP,
+        ComparisonFunc = .NEVER,
+    }
+
+    ctx.device->CreateSamplerState(&samplerDesc, &ctx.ppTextureSampler)
 
     /////
+
     blendDesc: d3d11.BLEND_DESC
     blendDesc.RenderTarget[0] = {
         BlendEnable = true,
@@ -130,27 +138,12 @@ CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
         RenderTargetWriteMask = 0b1111,
     }
 
-    blendState: ^d3d11.IBlendState
-    device->CreateBlendState(&blendDesc, &blendState)
+    ctx.device->CreateBlendState(&blendDesc, &ctx.blendState)
 
     ////
 
-    // @TODO: allocation
-    ctx := new(RenderContext)
-
-    ctx.device = device
-    ctx.deviceContext = deviceContext
-    ctx.swapchain = swapchain
-
-    ctx.rasterizerState = rasterizerState
-
-    ctx.framebuffer = framebuffer
-    ctx.framebufferView = framebufferView
-
-    ctx.blendState = blendState
-
     constBuffDesc := d3d11.BUFFER_DESC {
-        ByteWidth = size_of(mat4),
+        ByteWidth = size_of(PerFrameData),
         Usage = .DYNAMIC,
         BindFlags = { .CONSTANT_BUFFER },
         CPUAccessFlags = { .WRITE },
@@ -158,57 +151,61 @@ CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
 
     ctx.device->CreateBuffer(&constBuffDesc, nil, &ctx.cameraConstBuff)
 
+    ////
+
+    ppBuffDesc := d3d11.BUFFER_DESC {
+        ByteWidth = size_of(PostProcessGlobalData),
+        Usage = .DYNAMIC,
+        BindFlags = { .CONSTANT_BUFFER },
+        CPUAccessFlags = { .WRITE },
+    }
+
+    res := ctx.device->CreateBuffer(&ppBuffDesc, nil, &ctx.ppGlobalUniformBuffer)
+
     return ctx
 }
 
-EndFrame :: proc(ctx: ^RenderContext) {
-    ctx.swapchain->Present(1, nil)
-}
-
-FlushCommands :: proc(using ctx: ^RenderContext) {
+StartFrame :: proc(ctx: ^RenderContext) {
+    SetCamera(ctx.camera)
 
     viewport := d3d11.VIEWPORT {
         0, 0,
-        f32(frameSize.x), f32(frameSize.y),
+        f32(ctx.frameSize.x), f32(ctx.frameSize.y),
         0, 1,
     }
 
     // @TODO: make this settable
     ctx.deviceContext->RSSetViewports(1, &viewport)
     ctx.deviceContext->RSSetState(ctx.rasterizerState)
+}
 
-    ctx.deviceContext->OMSetRenderTargets(1, &ctx.framebufferView, nil)
+EndFrame :: proc(ctx: ^RenderContext) {
+    ctx.swapchain->Present(1, nil)
+}
+
+FlushCommands :: proc(ctx: ^RenderContext) {
+    renderTarget := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
+    ctx.deviceContext->OMSetRenderTargets(1, &renderTarget.renderTargetView, nil)
     ctx.deviceContext->OMSetBlendState(ctx.blendState, nil, ~u32(0))
-
-    // Default Camera
-    view := GetViewMatrix(ctx.camera)
-    proj := GetProjectionMatrixZTO(ctx.camera)
-
-    mapped: d3d11.MAPPED_SUBRESOURCE
-    res := ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
-    c := cast(^PerFrameData) mapped.pData
-    c.VPMat = proj * view
-    c.invVPMat = glsl.inverse(proj * view)
-
-    ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
-    ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
 
     shadersStack: sa.Small_Array(128, ShaderHandle)
 
-    for c in &commandBuffer.commands {
+    for c in &ctx.commandBuffer.commands {
         switch &cmd in c {
         case ClearColorCommand:
-            deviceContext->ClearRenderTargetView(framebufferView, transmute(^[4]f32) &cmd.clearColor)
+            rt := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
+            ctx.deviceContext->ClearRenderTargetView(renderTarget.renderTargetView, transmute(^[4]f32) &cmd.clearColor)
 
         case CameraCommand:
             view := GetViewMatrix(cmd.camera)
             proj := GetProjectionMatrixZTO(cmd.camera)
 
             mapped: d3d11.MAPPED_SUBRESOURCE
-            res := ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
+            ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
             c := cast(^PerFrameData) mapped.pData
             c.VPMat = proj * view
             c.invVPMat = glsl.inverse(proj * view)
+            c.screenSpace = 0
 
             ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
             ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
@@ -248,11 +245,15 @@ FlushCommands :: proc(using ctx: ^RenderContext) {
             AddBatchEntry(ctx, &ctx.defaultBatch, entry)
 
         case DrawGridCommand:
+            DrawBatch(ctx, &ctx.defaultBatch)
+
             shaderHandle := ctx.defaultShaders[.Grid]
             shader := GetElement(ctx.shaders, shaderHandle)
 
             ctx.deviceContext->VSSetShader(shader.backend.vertexShader, nil, 0)
             ctx.deviceContext->PSSetShader(shader.backend.pixelShader, nil, 0)
+
+            ctx.deviceContext->IASetPrimitiveTopology(.TRIANGLESTRIP)
 
             ctx.deviceContext->Draw(4, 0)
 
@@ -261,29 +262,100 @@ FlushCommands :: proc(using ctx: ^RenderContext) {
         case PushShaderCommand: sa.push(&shadersStack, cmd.shader)
         case PopShaderCommand:  sa.pop_back(&shadersStack)
 
+        case BeginScreenSpaceCommand:
+            DrawBatch(ctx, &ctx.defaultBatch)
 
+            scale := [3]f32{ 2.0 / f32(ctx.frameSize.x), -2.0 / f32(ctx.frameSize.y), 0}
+            mat := glsl.mat4Translate({-1, 1, 0}) * glsl.mat4Scale(scale)
+
+            mapped: d3d11.MAPPED_SUBRESOURCE
+            ctx.deviceContext->Map(ctx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
+            c := cast(^PerFrameData) mapped.pData
+            c.VPMat = mat
+            c.invVPMat = glsl.inverse(mat)
+            c.screenSpace = 1
+
+            ctx.deviceContext->Unmap(ctx.cameraConstBuff, 0)
+            ctx.deviceContext->VSSetConstantBuffers(0, 1, &ctx.cameraConstBuff)
+
+        case EndScreenSpaceCommand:
+            DrawBatch(ctx, &ctx.defaultBatch)
+
+        case BindFBAsTextureCommand:
+            fb := GetElement(ctx.framebuffers, cmd.framebuffer)
+            ctx.deviceContext->PSSetShaderResources(cast(u32) cmd.slot, 1, &fb.textureView)
+
+        case BindRenderTargetCommand:
+            panic("unfinished")
+
+        case UpdateBufferContentCommand:
+            buff, ok := GetElementPtr(ctx.buffers, cmd.buffer)
+            if ok {
+                BackendUpdateBufferData(buff)
+            }
+
+        case BindBufferCommand:
+            buff, ok := GetElementPtr(ctx.buffers, cmd.buffer)
+            ctx.deviceContext -> PSSetConstantBuffers(cast(u32) cmd.slot, 1, &buff.d3dBuffer)
+
+        case BeginPPCommand:
+            DrawBatch(ctx, &ctx.defaultBatch)
+
+            // upload global uniform data
+            ppMapped: d3d11.MAPPED_SUBRESOURCE
+            res := ctx.deviceContext->Map(ctx.ppGlobalUniformBuffer, 0, .WRITE_DISCARD, nil, &ppMapped)
+
+            data := cast(^PostProcessGlobalData) ppMapped.pData
+            data.resolution = ctx.frameSize
+            data.time = cast(f32) time.gameTime
+            ctx.deviceContext->Unmap(ctx.ppGlobalUniformBuffer, 0)
+
+            ctx.deviceContext->PSSetConstantBuffers(0, 1, &ctx.ppGlobalUniformBuffer)
+
+        case DrawPPCommand:
+            shader := GetElement(ctx.shaders, cmd.shader)
+            if shader.vertexShader == nil || shader.pixelShader == nil {
+                continue
+            }
+
+            srcFB := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
+            destFB := GetElement(ctx.framebuffers, ctx.ppFramebufferDest)
+
+            ctx.deviceContext->OMSetRenderTargets(1, &destFB.renderTargetView, nil)
+
+            ctx.deviceContext->VSSetShader(shader.vertexShader, nil, 0)
+            ctx.deviceContext->PSSetShader(shader.pixelShader, nil, 0)
+            ctx.deviceContext->PSSetShaderResources(0, 1, &srcFB.textureView)
+            ctx.deviceContext->PSSetSamplers(0, 1, &ctx.ppTextureSampler)
+
+            ctx.deviceContext->IASetPrimitiveTopology(.TRIANGLESTRIP)
+            ctx.deviceContext->Draw(4, 0)
+
+            // Swap buffers for next pass, if there is one
+            ctx.ppFramebufferSrc, ctx.ppFramebufferDest = ctx.ppFramebufferDest, ctx.ppFramebufferSrc
+
+        case FinishPPCommand:
+            srcFB := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
+            ctx.deviceContext->OMSetRenderTargets(1, &srcFB.renderTargetView, nil)
         }
     }
 
     DrawBatch(ctx, &ctx.defaultBatch)
+    clear(&ctx.commandBuffer.commands)
 
-    clear(&commandBuffer.commands)
+    // // Final Blit
+    ctx.deviceContext->OMSetRenderTargets(1, &ctx.screenRenderTarget, nil)
+
+    shader := GetElement(ctx.shaders, ctx.defaultShaders[.Blit])
+
+    ctx.deviceContext->VSSetShader(shader.vertexShader, nil, 0)
+    ctx.deviceContext->PSSetShader(shader.pixelShader, nil, 0);
+    ppSrc := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
+    ctx.deviceContext->PSSetShaderResources(0, 1, &ppSrc.textureView)
+    ctx.deviceContext->PSSetSamplers(0, 1, &ctx.ppTextureSampler)
+
+    ctx.deviceContext->Draw(4, 0)
 }
-
-ResizeFrambuffer :: proc(renderCtx: ^RenderContext, width, height: int) {
-    renderCtx.deviceContext->OMSetRenderTargets(0, nil, nil)
-    renderCtx.framebufferView->Release()
-
-    renderCtx.swapchain->ResizeBuffers(0, 0, 0, .UNKNOWN, nil)
-
-    framebuffer: ^d3d11.ITexture2D
-    renderCtx.swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&framebuffer))
-
-    renderCtx.device->CreateRenderTargetView(framebuffer, nil, &renderCtx.framebufferView)
-
-    framebuffer->Release()
-}
-
 
 ////////////////////
 // Primitive Buffer
@@ -304,7 +376,7 @@ CreatePrimitiveBatch :: proc(ctx: ^RenderContext, maxCount: int, shaderSource: s
     }
 
     res := ctx.device->CreateBuffer(&desc, nil, &ctx.gpuVertBuffer)
-    ret.shader = CompileShaderSource(ctx, shaderSource);
+    ret.shader = CompileShaderSource(ctx, "Primitive Batch", shaderSource);
 
     // @HACK: I need to somehow have shader byte code in order to create input layout
     // But my current implementation doesn't store shader bytecode so I need to compile it 

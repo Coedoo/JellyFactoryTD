@@ -1,13 +1,14 @@
 package dmcore
 
 import "core:mem"
+import "core:encoding/base64"
 
 TexHandle :: distinct Handle
 ShaderHandle :: distinct Handle
 BatchHandle :: distinct Handle
 
-defaultWindowWidth  :: 800
-defaultWindowHeight :: 600
+defaultWindowWidth  :: 1200
+defaultWindowHeight :: 900
 
 UNIFORM_MEM :: 1 * mem.Megabyte
 
@@ -22,15 +23,23 @@ RenderContext :: struct {
 
     commandBuffer: CommandBuffer,
 
-    textures: ResourcePool(Texture, TexHandle),
-    shaders: ResourcePool(Shader, ShaderHandle),
+    textures:     ResourcePool(Texture, TexHandle),
+    shaders:      ResourcePool(Shader, ShaderHandle),
+    buffers:      ResourcePool(GPUBuffer, GPUBufferHandle),
+    fonts:        ResourcePool(Font, FontHandle),
+    framebuffers: ResourcePool(Framebuffer, FramebufferHandle),
 
     defaultShaders: [DefaultShaderType]ShaderHandle,
 
     uniformArena: mem.Arena,
     uniformAllocator: mem.Allocator,
 
+    ppFramebufferSrc:  FramebufferHandle,
+    ppFramebufferDest: FramebufferHandle,
+
     camera: Camera,
+
+    inScreenSpace: bool,
 
     using backend: RenderContextBackend,
 }
@@ -43,13 +52,43 @@ Mesh :: struct {
 PerFrameData :: struct {
     VPMat: mat4,
     invVPMat: mat4,
+    screenSpace: i32,
 }
 
 InitRenderContext :: proc(ctx: ^RenderContext) -> ^RenderContext {
     //@TODO: How many textures do I need? Maybe make it dynamic?
     InitResourcePool(&ctx.textures, 128)
     InitResourcePool(&ctx.shaders, 64)
+    InitResourcePool(&ctx.buffers, 64)
+    InitResourcePool(&ctx.fonts, 4)
+    InitResourcePool(&ctx.framebuffers, 16)
 
+    // Batches
+    InitRectBatch(ctx, &ctx.defaultBatch, 1024)
+    ctx.debugBatch = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexShaderSource)
+    ctx.debugBatchScreen = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexScreenShaderSource)
+
+    // Shaders
+    ctx.defaultShaders[.Blit] = CompileShaderSource(ctx, "Blit", BlitShaderSource)
+    ctx.defaultShaders[.Sprite] = CompileShaderSource(ctx, "Sprite", SpriteShaderSource)
+    ctx.defaultShaders[.Rect] = CompileShaderSource(ctx, "Rect", RectShaderSource)
+    ctx.defaultShaders[.SDFFont] = CompileShaderSource(ctx, "SDFFont", SDFFontSource)
+    ctx.defaultShaders[.Grid] = CompileShaderSource(ctx, "Grid", GridShaderSource)
+
+    // Camera and window
+    ctx.frameSize = { defaultWindowWidth, defaultWindowHeight }
+    ctx.camera = CreateCamera(5, f32(defaultWindowWidth)/f32(defaultWindowHeight))
+
+    // memory
+    uniformMem := make([]byte, UNIFORM_MEM)
+    mem.arena_init(&ctx.uniformArena, uniformMem)
+    ctx.uniformAllocator = mem.arena_allocator(&ctx.uniformArena)
+
+    // framebuffers
+    ctx.ppFramebufferSrc  = CreateFramebuffer(ctx)
+    ctx.ppFramebufferDest = CreateFramebuffer(ctx)
+
+    // Default assets
     texData := []u8{255, 255, 255, 255}
     ctx.whiteTexture = CreateTexture(ctx, texData, 1, 1, 4, .Point)
 
@@ -57,22 +96,11 @@ InitRenderContext :: proc(ctx: ^RenderContext) -> ^RenderContext {
     texData = []u8{255, 255, 0, 255}
     _InitTexture(ctx, errorTex, texData, 1, 1, 4, .Point)
 
-    InitRectBatch(ctx, &ctx.defaultBatch, 1024)
-    ctx.debugBatch = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexShaderSource)
-    ctx.debugBatchScreen = CreatePrimitiveBatch(ctx, 4086, PrimitiveVertexScreenShaderSource)
+    atlasData := base64.decode(DEFAULT_FONT_ATLAS, allocator = context.temp_allocator)
+    fontType:TextureFilter = DefaultFont.type == .SDF ? .Bilinear : .Point
+    DefaultFont.atlas = CreateTexture(ctx, atlasData, DEFAULT_FONT_ATLAS_SIZE, DEFAULT_FONT_ATLAS_SIZE, 4, fontType)
 
-    ctx.defaultShaders[.ScreenSpaceRect] = CompileShaderSource(ctx, ScreenSpaceRectShaderSource)
-    ctx.defaultShaders[.Sprite] = CompileShaderSource(ctx, SpriteShaderSource)
-    ctx.defaultShaders[.SDFFont] = CompileShaderSource(ctx, SDFFontSource)
-    ctx.defaultShaders[.Grid] = CompileShaderSource(ctx, GridShaderSource)
-
-    ctx.frameSize = { defaultWindowWidth, defaultWindowHeight }
-    ctx.camera = CreateCamera(5, f32(defaultWindowWidth)/f32(defaultWindowHeight))
-
-    uniformMem := make([]byte, UNIFORM_MEM)
-    mem.arena_init(&ctx.uniformArena, uniformMem)
-    ctx.uniformAllocator = mem.arena_allocator(&ctx.uniformArena)
-
+    ctx.fonts.elements[0] = DefaultFont
 
     return ctx
 }

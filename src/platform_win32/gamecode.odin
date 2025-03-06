@@ -6,19 +6,9 @@ import "core:fmt"
 
 import dm "../dmcore"
 
-GameCode :: struct {
+GameCodeBackend :: struct {
     lib: dynlib.Library,
-
     lastWriteTime: os.File_Time,
-
-    setStatePointers: dm.UpdateStatePointerFunc,
-
-    preGameLoad: dm.PreGameLoad,
-    gameHotReloaded: dm.GameHotReloaded,
-    gameLoad:   dm.GameLoad,
-    gameUpdate: dm.GameUpdate,
-    gameUpdateDebug: dm.GameUpdateDebug,
-    gameRender: dm.GameRender,
 }
 
 LoadProc :: proc(lib: dynlib.Library, name: string, $type: typeid) -> type {
@@ -31,7 +21,7 @@ LoadProc :: proc(lib: dynlib.Library, name: string, $type: typeid) -> type {
     return cast(type) ptr
 }
 
-LoadGameCode :: proc(gameCode: ^GameCode, libName: string) -> bool {
+LoadGameCode :: proc(gameCode: ^dm.GameCode, libName: string) -> bool {
     @static session: int
     tempLibName :: "Temp%v.dll"
 
@@ -75,12 +65,13 @@ LoadGameCode :: proc(gameCode: ^GameCode, libName: string) -> bool {
     gameCode.gameUpdate  = LoadProc(lib, "GameUpdate",  dm.GameUpdate)
     gameCode.gameRender  = LoadProc(lib, "GameRender",  dm.GameRender)
     gameCode.gameUpdateDebug = LoadProc(lib, "GameUpdateDebug", dm.GameUpdateDebug)
-    gameCode.setStatePointers = LoadProc(lib, "UpdateStatePointer", dm.UpdateStatePointerFunc)
+    gameCode.setStatePointers = LoadProc(lib, "UpdateStatePointers", dm.UpdateStatePointerFunc)
+    gameCode.updateAndRender = LoadProc(lib, "CoreUpdateAndRender", proc(platform: ^dm.Platform))
 
     return true
 }
 
-UnloadGameCode :: proc(gameCode: ^GameCode) {
+UnloadGameCode :: proc(gameCode: ^dm.GameCode) {
     fmt.println("Unloading Game Code...")
     didUnload := dynlib.unload_library(gameCode.lib)
 
@@ -91,7 +82,7 @@ UnloadGameCode :: proc(gameCode: ^GameCode) {
     gameCode^ = {} 
 }
 
-ReloadGameCode :: proc(gameCode: ^GameCode, libName: string) -> bool {
+ReloadGameCode :: proc(gameCode: ^dm.GameCode, libName: string) -> bool {
     result := LoadGameCode(gameCode, libName)
 
     // assert(result)

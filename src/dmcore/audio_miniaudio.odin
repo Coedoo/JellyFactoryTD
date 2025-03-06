@@ -56,11 +56,11 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
         return {}
     }
 
-    sound._volume = 1
+    sound.volume = 1
     return sound.handle
 }
 
-_LoadSound :: proc(audio: ^Audio, path: string) -> SoundHandle {
+_LoadSoundFromFile :: proc(audio: ^Audio, path: string) -> SoundHandle {
     sound := CreateElement(&audio.sounds)
     path := strings.clone_to_cstring(path, context.temp_allocator)
     result := ma.sound_init_from_file(&audio.engine, path, 0, nil, nil, &sound.maSound)
@@ -71,7 +71,7 @@ _LoadSound :: proc(audio: ^Audio, path: string) -> SoundHandle {
         return {}
     }
 
-    sound._volume = 1
+    sound.volume = 1
     return sound.handle
 }
 
@@ -81,7 +81,16 @@ _PlaySound :: proc(audio: ^Audio, handle: SoundHandle) {
         return
     }
 
-    ma.sound_seek_to_pcm_frame(&sound.maSound, 0) 
+    if(sound.delay != 0) {
+        currentTime := ma.engine_get_time_in_milliseconds(&audio.engine)
+        ma.sound_set_start_time_in_milliseconds(&sound.maSound, currentTime + u64(sound.delay * 1000))
+    }
+
+    ma.sound_set_volume(&sound.maSound, sound.volume)
+    ma.sound_set_pan(&sound.maSound, sound.pan)
+    ma.sound_set_looping(&sound.maSound, b32(sound.looping))
+
+    ma.sound_seek_to_pcm_frame(&sound.maSound, 0)
     ma.sound_start(&sound.maSound)
 }
 
@@ -92,12 +101,4 @@ _StopSound :: proc(audio: ^Audio, handle: SoundHandle) {
     }
 
     ma.sound_stop(&sound.maSound)
-}
-
-_SetVolume :: proc(sound: ^Sound, volume: f32) {
-    ma.sound_set_volume(&sound.maSound, volume)
-}
-
-_SetLooping :: proc(sound: ^Sound, looping: bool) {
-    ma.sound_set_looping(&sound.maSound, b32(looping))
 }

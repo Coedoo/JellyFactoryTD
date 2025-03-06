@@ -17,8 +17,7 @@ InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) 
 
     batch.backend.buffer = gl.CreateBuffer()
     gl.BindBuffer(gl.ARRAY_BUFFER, batch.backend.buffer)
-    gl.BufferData(gl.ARRAY_BUFFER, count * size_of(RectBatchEntry),
-                  nil, gl.DYNAMIC_DRAW)
+    gl.BufferData(gl.ARRAY_BUFFER, count * size_of(RectBatchEntry), nil, gl.DYNAMIC_DRAW)
 
     // layout (location = 0) in vec2 aPos;
     // layout (location = 1) in vec2 aSize;
@@ -40,7 +39,7 @@ InitRectBatch :: proc(renderCtx: ^RenderContext, batch: ^RectBatch, count: int) 
     gl.VertexAttribDivisor(0, 1)
     gl.VertexAttribDivisor(1, 1)
     gl.VertexAttribDivisor(2, 1)
-    gl.VertexAttribDivisor(3, 1) 
+    gl.VertexAttribDivisor(3, 1)
     gl.VertexAttribDivisor(4, 1)
     gl.VertexAttribDivisor(5, 1)
     gl.VertexAttribDivisor(6, 1)
@@ -79,7 +78,7 @@ DrawBatch :: proc(ctx: ^RenderContext, batch: ^RectBatch) {
     
     oneOverAtlasSize := v2{1 / f32(tex.width), 1 / f32(tex.height)}
     // @TODO: get frame size from context
-    screenSize := v2{ 2. / 800., -2./600.}
+    screenSize := v2{ 2 / f32(ctx.frameSize.x), -2 / f32(ctx.frameSize.y)}
 
     gl.Uniform2fv(gl.GetUniformLocation(shader.backend.shaderID, "OneOverAtlasSize"), oneOverAtlasSize)
     gl.Uniform2fv(gl.GetUniformLocation(shader.backend.shaderID, "ScreenSize"), screenSize)
@@ -91,6 +90,14 @@ DrawBatch :: proc(ctx: ^RenderContext, batch: ^RectBatch) {
     gl.BufferSubData(gl.ARRAY_BUFFER, 0, batch.count * size_of(RectBatchEntry), raw_data(batch.buffer))
 
     // fmt.println(mem.slice_data_cast([]u32, batch.buffer[0:1]))
+
+    gl.VertexAttribDivisor(0, 1)
+    gl.VertexAttribDivisor(1, 1)
+    gl.VertexAttribDivisor(2, 1)
+    gl.VertexAttribDivisor(3, 1)
+    gl.VertexAttribDivisor(4, 1)
+    gl.VertexAttribDivisor(5, 1)
+    gl.VertexAttribDivisor(6, 1)
 
     gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, batch.count)
 

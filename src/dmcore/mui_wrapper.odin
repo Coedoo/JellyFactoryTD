@@ -13,14 +13,10 @@ import "../dmcore"
 Mui :: struct {
     muiCtx: mu.Context,
     muiTextAtlas: TexHandle,
-
-    muiBatch: RectBatch,
 }
 
 /// Wrappers
-muiInit :: proc(renderCtx: ^dmcore.RenderContext) -> ^Mui {
-    mui := new(Mui)
-
+muiInit :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
     mu.init(&mui.muiCtx)
 
     mui.muiCtx.text_width = mu.default_atlas_text_width
@@ -41,18 +37,12 @@ muiInit :: proc(renderCtx: ^dmcore.RenderContext) -> ^Mui {
 
     mui.muiTextAtlas = CreateTexture(renderCtx, rgba8, mu.DEFAULT_ATLAS_WIDTH, mu.DEFAULT_ATLAS_HEIGHT, 4, .Point)
 
-    InitRectBatch(renderCtx, &mui.muiBatch, 2048)
-    mui.muiBatch.shader = renderCtx.defaultShaders[.ScreenSpaceRect]
-    mui.muiBatch.texture = mui.muiTextAtlas
-
     // to initialize pool allocators, so we can make some
     // setup before actual work
     mu.begin(&mui.muiCtx)
     mu.end(&mui.muiCtx)
 
     mui.muiCtx.style.colors[.WINDOW_BG].a = 160
-
-    return mui
 }
 
 muiBegin :: proc(using mui: ^Mui) {
@@ -70,7 +60,7 @@ muiLayoutRow :: proc(mui: ^Mui, widths: []i32, height: i32 = 0) {
 muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: mu.Options = {}) -> (ret: bool) {
     ret = mu.begin_window(&muiCtx, label, rect, options)
     if ret {
-        mu.layout_row(&muiCtx, {-1}, 13)
+        mu.layout_row(&muiCtx, {-1})
     }
 
     return ret
@@ -78,6 +68,25 @@ muiBeginWindow :: proc(using mui: ^Mui, label: string, rect: mu.Rect, options: m
 
 muiEndWindow :: proc(using mui: ^Mui) {
     mu.end_window(&muiCtx)
+}
+
+@(deferred_in_out=muiScopedHoverWindow)
+muiHoverWindow :: proc(mui: ^Mui, label: string, pos, size: iv2, 
+        options: mu.Options = {.NO_TITLE, .NO_RESIZE, .NO_INTERACT}) -> bool
+{
+    cnt := mu.get_container(&mui.muiCtx, label)
+
+    cnt.rect = {pos.x, pos.y, size.x, size.y}
+    cnt.open = true
+    mu.bring_to_front(&mui.muiCtx, cnt)
+
+    return muiBeginWindow(mui, label, cnt.rect, options)
+}
+
+muiScopedHoverWindow :: proc(mui: ^Mui, label: string, pos, size: iv2, options: mu.Options, ok: bool) {
+    if(ok) {        
+        muiEndWindow(mui)
+    }
 }
 
 muiPushID :: proc(mui: ^Mui, id: int) {
@@ -95,8 +104,8 @@ muiShowWindow :: proc(mui: ^Mui, label: string) {
     container.open = true
 }
 
-muiLabel :: proc(using mui: ^Mui, params: ..any) {
-    mu.label(&muiCtx, fmt.tprint(..params))
+muiLabel :: proc(using mui: ^Mui, params: ..any, sep := " ") {
+    mu.label(&muiCtx, fmt.tprint(..params, sep = sep))
 }
 
 muiText :: proc(using mui: ^Mui, params: ..any) {
@@ -117,8 +126,11 @@ muiSliderInt :: proc(using mui: ^Mui, value: ^int, low, high: int, step: int = 0
 }
 
 muiButton :: proc(mui:^Mui, label: string, icon: mu.Icon = .NONE, opt: mu.Options = {.ALIGN_CENTER}) -> bool {
-
     return .SUBMIT in  mu.button(&mui.muiCtx, label, icon, opt)
+}
+
+muiButtonEx:: proc(mui:^Mui, label: string, icon: mu.Icon = .NONE, opt: mu.Options = {.ALIGN_CENTER}) -> mu.Result_Set {
+    return mu.button(&mui.muiCtx, label, icon, opt)
 }
 
 muiToggle :: proc(using mui: ^Mui, label: string, state: ^bool) -> bool {
@@ -129,11 +141,26 @@ muiHeader :: proc(mui: ^Mui, label: string, opt: mu.Options = {.EXPANDED}) -> bo
     return mu.header(&mui.muiCtx, label, opt) != {}
 }
 
+muiOpenPopup :: proc(mui: ^Mui, label: string) {
+    mu.open_popup(&mui.muiCtx, label)
+}
+
+@(deferred_in_out=scoped_muPopup)
+muiPopup :: proc(mui: ^Mui, label: string) -> bool {
+    return mu.begin_popup(&mui.muiCtx, label)
+}
+
+scoped_muPopup :: proc(mui: ^Mui, label: string, ok: bool) {
+    if ok {
+        mu.end_popup(&mui.muiCtx)
+    }
+}
+
 /// Utility
 
-muiIsCursorOverUI :: proc(mui: ^Mui, cursorPos: iv2) -> bool {
+muiIsCursorOverUI :: proc(cursorPos: iv2) -> bool {
     for container in mui.muiCtx.containers {
-        if container.open {
+        if container.used_last_frame {
             left  := container.rect.x
             top   := container.rect.y
             right := container.rect.x + container.rect.w
@@ -167,7 +194,7 @@ muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
 
     clipRect := mu.unclipped_rect
 
-    assert(mui.muiBatch.count == 0)
+    BeginScreenSpace()
 
     cmd: ^mu.Command;
     for mu.next_command(&mui.muiCtx, &cmd) {
@@ -175,18 +202,25 @@ muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
             case ^mu.Command_Rect:
                 rect := c.rect
 
-                whiteRect := mu.default_atlas[mu.DEFAULT_ATLAS_WHITE]
-                entry := RectBatchEntry {
-                    position = {f32(rect.x), f32(rect.y)},
-                    size = {f32(rect.w), f32(rect.h)},
+                texSrc := mu.default_atlas[mu.DEFAULT_ATLAS_WHITE]
+                // entry := RectBatchEntry {
+                //     position = {f32(rect.x), f32(rect.y)},
+                //     size = {f32(rect.w), f32(rect.h)},
 
-                    texPos  = { whiteRect.x, whiteRect.y },
-                    texSize = { whiteRect.w, whiteRect.h },
+                //     texPos  = { texSrc.x, texSrc.y },
+                //     texSize = { texSrc.w, texSrc.h },
 
-                    color = ToColor(c.color),
-                }
+                //     color = ToColor(c.color),
+                // }
 
-                AddBatchEntry(renderCtx, &mui.muiBatch, entry)
+                DrawRectSrcDst(
+                    mui.muiTextAtlas,
+                    RectInt{texSrc.x, texSrc.y, texSrc.w, texSrc.h},
+                    Rect{f32(rect.x), f32(rect.y), f32(rect.w), f32(rect.h)},
+                    renderCtx.defaultShaders[.Rect],
+                    origin = 0,
+                    color = ToColor(c.color)
+                )
 
             case ^mu.Command_Text:
                 posX := c.pos.x
@@ -209,19 +243,26 @@ muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
                         continue
                     }
 
-                    entry := RectBatchEntry {
-                        position = {f32(left), f32(top)},
-                        size = ToV2(size),
+                    // entry := RectBatchEntry {
+                    //     position = {f32(left), f32(top)},
+                    //     size = ToV2(size),
 
-                        texPos = texPos,
-                        texSize = size,
+                    //     texPos = texPos,
+                    //     texSize = size,
 
-                        color = ToColor(c.color),
-                    }
+                    //     color = ToColor(c.color),
+                    // }
 
                     posX += src.w
 
-                    AddBatchEntry(renderCtx, &mui.muiBatch, entry)
+                    DrawRectSrcDst(
+                        mui.muiTextAtlas,
+                        RectInt{texPos.x, texPos.y, size.x, size.y},
+                        Rect{f32(left), f32(top), f32(size.x), f32(size.y)},
+                        renderCtx.defaultShaders[.Rect],
+                        origin = 0,
+                        color = ToColor(c.color)
+                    )
                 }
 
             case ^mu.Command_Icon:
@@ -258,7 +299,14 @@ muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
                     color = ToColor(c.color),
                 }
 
-                AddBatchEntry(renderCtx, &mui.muiBatch, entry)
+                DrawRectSrcDst(
+                    mui.muiTextAtlas,
+                    RectInt{texPos.x, texPos.y, size.x, size.y},
+                    Rect{f32(left), f32(top), f32(size.x), f32(size.y)},
+                    renderCtx.defaultShaders[.Rect],
+                    origin = 0,
+                    color = ToColor(c.color)
+                )
 
             case ^mu.Command_Clip:
                 clipRect = c.rect
@@ -267,7 +315,8 @@ muiRender :: proc(mui: ^Mui, renderCtx: ^dmcore.RenderContext) {
         }
     }
 
-    DrawBatch(renderCtx, &mui.muiBatch)
+    // DrawBatch(renderCtx, &mui.muiBatch)
+    EndScreenSpace()
 }
 
 SCROLL_SPEED :: 20
@@ -280,34 +329,68 @@ muiProcessInput :: proc(mui: ^Mui, input: ^dmcore.Input) {
     mu.input_scroll(&mui.muiCtx, SCROLL_SPEED * i32(input.scrollX), SCROLL_SPEED * -i32(input.scroll))
 
     // keys
-    if      GetMouseButtonCtx(input, .Left) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .LEFT)
-    else if GetMouseButtonCtx(input, .Left) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .LEFT)
+    if      GetMouseButton(.Left) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .LEFT)
+    else if GetMouseButton(.Left) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .LEFT)
 
-    if      GetMouseButtonCtx(input, .Right) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .RIGHT)
-    else if GetMouseButtonCtx(input, .Right) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .RIGHT)
+    if      GetMouseButton(.Right) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .RIGHT)
+    else if GetMouseButton(.Right) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .RIGHT)
 
-    if      GetMouseButtonCtx(input, .Middle) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .MIDDLE)
-    else if GetMouseButtonCtx(input, .Middle) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .MIDDLE)
+    if      GetMouseButton(.Middle) == .JustPressed  do mu.input_mouse_down(&mui.muiCtx, posX, posY, .MIDDLE)
+    else if GetMouseButton(.Middle) == .JustReleased do mu.input_mouse_up(&mui.muiCtx, posX, posY, .MIDDLE)
 
-    if      GetKeyStateCtx(input, .LShift) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .SHIFT)
-    else if GetKeyStateCtx(input, .LShift) == .JustReleased do mu.input_key_up(&mui.muiCtx, .SHIFT)
+    if      GetKeyState(.LShift) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .SHIFT)
+    else if GetKeyState(.LShift) == .JustReleased do mu.input_key_up(&mui.muiCtx, .SHIFT)
 
-    if      GetKeyStateCtx(input, .LCtrl) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .CTRL)
-    else if GetKeyStateCtx(input, .LCtrl) == .JustReleased do mu.input_key_up(&mui.muiCtx, .CTRL)
+    if      GetKeyState(.LCtrl) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .CTRL)
+    else if GetKeyState(.LCtrl) == .JustReleased do mu.input_key_up(&mui.muiCtx, .CTRL)
 
-    if      GetKeyStateCtx(input, .LAlt) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .ALT)
-    else if GetKeyStateCtx(input, .LAlt) == .JustReleased do mu.input_key_up(&mui.muiCtx, .ALT)
+    if      GetKeyState(.LAlt) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .ALT)
+    else if GetKeyState(.LAlt) == .JustReleased do mu.input_key_up(&mui.muiCtx, .ALT)
 
-    if      GetKeyStateCtx(input, .Backspace) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .BACKSPACE)
-    else if GetKeyStateCtx(input, .Backspace) == .JustReleased do mu.input_key_up(&mui.muiCtx, .BACKSPACE)
+    if      GetKeyState(.Backspace) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .BACKSPACE)
+    else if GetKeyState(.Backspace) == .JustReleased do mu.input_key_up(&mui.muiCtx, .BACKSPACE)
 
-    if      GetKeyStateCtx(input, .Return) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .RETURN)
-    else if GetKeyStateCtx(input, .Return) == .JustReleased do mu.input_key_up(&mui.muiCtx, .RETURN)
+    if      GetKeyState(.Return) == .JustPressed  do mu.input_key_down(&mui.muiCtx, .RETURN)
+    else if GetKeyState(.Return) == .JustReleased do mu.input_key_up(&mui.muiCtx, .RETURN)
 
     str := utf8.runes_to_string(input.runesBuffer[:], context.temp_allocator)
     mu.input_text(&mui.muiCtx, str)
 }
 
+// 
+DebugWindow :: proc(platform: ^Platform) {
+    if GetKeyState(.U) == .JustPressed {
+        platform.debugState = !platform.debugState
+        platform.pauseGame = platform.debugState
+
+        if platform.debugState {
+            muiShowWindow(&platform.frameMui, "Debug")
+        }
+    }
+
+    if platform.debugState && 
+       muiBeginWindow(&platform.frameMui, "Debug", {0, 0, 100, 240}, nil)
+    {
+
+        muiLabel(&platform.frameMui, "Real Time:", platform.time.realTime)
+        muiLabel(&platform.frameMui, "GameTime:", platform.time.gameTime)
+        // muiLabel(&platform.frameMui, "GameDuration:", platform.time.gameDuration)
+
+        muiLabel(&platform.frameMui, "Frame:", platform.time.frame)
+        muiLabel(&platform.frameMui, "FPS:", 1 / platform.time.deltaTime)
+        muiLabel(&platform.frameMui, "Frame Time:", platform.time.deltaTime * 1000)
+
+        if muiButton(&platform.frameMui, "Play" if platform.pauseGame else "Pause") {
+            platform.pauseGame = !platform.pauseGame
+        }
+
+        if muiButton(&platform.frameMui, ">") {
+            platform.moveOneFrame = true
+        }
+
+        muiEndWindow(&platform.frameMui)
+    }
+}
 
 /// Test windows
 
@@ -348,7 +431,7 @@ test_window :: proc(using mui: ^Mui) {
 
     // NOTE(oskar): mu.button() returns Res_Bits and not bool (should fix this)
     button :: #force_inline proc(muiCtx: ^mu.Context, label: string) -> bool {
-        return mu.button(muiCtx, label) == {.SUBMIT}
+        return (.SUBMIT in mu.button(muiCtx, label))
     }
 
     /* do window */

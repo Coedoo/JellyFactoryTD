@@ -7,9 +7,8 @@ import "core:strings"
 foreign import audio "audio"
 foreign audio {
     Load :: proc "c" (dataPtr: rawptr, dataLen: int) ---
-    Play :: proc "c" (dataPtr: rawptr) ---
-    jsSetVolume :: proc "c" (dataPtr: rawptr, volume: f32) ---
-    jsSetLooping :: proc "c" (dataPtr: rawptr, volume: bool) ---
+    Play :: proc "c" (dataPtr: rawptr, volume: f32, pan: f32, delay: f32) ---
+    Stop :: proc "c" (dataPtr: rawptr) ---
 }
 
 
@@ -32,7 +31,7 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
     Load(raw_data(data), len(data))
     sound := CreateElement(&audio.sounds)
 
-    sound._volume = 1
+    sound._volume = 0.5
     sound.ptr = raw_data(data)
 
     return sound.handle
@@ -40,19 +39,10 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
 
 _PlaySound :: proc(audio: ^Audio, handle: SoundHandle) {
     sound, ok := GetElementPtr(audio.sounds, handle)
-    Play(sound.ptr)
+    Play(sound.ptr, sound._volume, sound.pan, sound.delay)
 }
-
-_SetVolume :: proc(sound: ^Sound, volume: f32) {
-    sound._volume = volume
-    jsSetVolume(sound.ptr, volume)
-}
-
-_SetLooping :: proc(sound: ^Sound, looping: bool) {
-    sound._looping = looping
-    jsSetLooping(sound.ptr, looping)
-}
-
 
 _StopSound :: proc(audio: ^Audio, handle: SoundHandle) {
+    sound, ok := GetElementPtr(audio.sounds, handle)
+    Stop(sound.ptr)
 }

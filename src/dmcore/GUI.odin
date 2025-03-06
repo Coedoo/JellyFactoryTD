@@ -154,7 +154,7 @@ UIRect :: struct {
 }
 
 Style :: struct {
-    font: Font,
+    font: FontHandle,
     fontSize: int,
 
     textColor: color,
@@ -183,9 +183,9 @@ InitUI :: proc(uiCtx: ^UIContext, renderCtx: ^RenderContext) {
     uiCtx.nodes = make([dynamic]UINode, 0, 1024)
     uiCtx.stylesStack = make([dynamic]Style, 0, 32)
 
-    font := LoadDefaultFont(renderCtx)
+    // font := LoadDefaultFont(renderCtx)
     uiCtx.defaultStyle = {
-        font = font,
+        // font = font,
         fontSize = 18,
 
         textColor = {1, 1, 1, 1},
@@ -459,7 +459,7 @@ DoLayout :: proc() {
         if node.preferredSize[.X].type == .Text ||
            node.preferredSize[.Y].type == .Text
         {
-            node.textSize = MeasureText(node.text, node.font, node.fontSize)
+            node.textSize = MeasureText(node.text, node.font, f32(node.fontSize))
             paddedSize := v2 {
                 f32(node.padding.left + node.padding.right),
                 f32(node.padding.top + node.padding.bot),
@@ -916,7 +916,7 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
+    // DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor
@@ -929,11 +929,10 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
         }
 
         DrawRect(
-                renderCtx, 
                 node.targetPos,
                 node.targetSize,
                 node.origin,
-                color
+                color = color,
             )
     }
 
@@ -952,18 +951,17 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
             node.targetPos,
             node.targetSize,
             node.origin,
-            color
+            color = color,
         )
     }
 
     if .DrawText in node.flags {
         pos := node.targetPos + (node.targetSize - node.textSize) / 2
         DrawText(
-            renderCtx,
             node.text,
-            node.font,
             pos,
-            node.fontSize,
+            node.font,
+            f32(node.fontSize),
             color = node.textColor,
         )
     }

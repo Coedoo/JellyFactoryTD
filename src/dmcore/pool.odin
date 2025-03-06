@@ -133,7 +133,10 @@ FreeSlotAtHandle :: proc(pool: ^ResourcePool($T, $H), handle: H) {
 }
 
 ClearPool :: proc(pool: ^ResourcePool($T, $H)) {
-    clear(&pool.slots)
+    // resize(&pool.slots, 0)
+    for &s, i in pool.slots {
+        s = {}
+    }
     clear(&pool.elements)
 }
 

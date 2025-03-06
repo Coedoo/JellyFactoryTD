@@ -134,6 +134,8 @@ CreateSpriteFromTextureRect :: proc(texture: TexHandle, rect: RectInt,
     tint := color{1, 1, 1, 1},
     scale := f32(1),
     frames := i32(1),
+    flipX := false,
+    flipY := false
 ) -> Sprite
 {
     return {
@@ -145,6 +147,9 @@ CreateSpriteFromTextureRect :: proc(texture: TexHandle, rect: RectInt,
         origin = origin,
 
         tint = tint,
+
+        flipX = flipX,
+        flipY = flipY,
 
         scale = scale,
         frames = frames,

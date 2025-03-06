@@ -169,9 +169,10 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
 @(export)
 GameUpdate : dm.GameUpdate : proc(state: rawptr) {
+    // fmt.printf("%p\n", dm.mui)
     gameState = cast(^GameState) state
 
-    cursorOverUI := dm.muiIsCursorOverUI(dm.mui, dm.input.mousePos)
+    cursorOverUI := dm.muiIsCursorOverUI(dm.input.mousePos)
 
     // Move Player
     moveX := dm.GetAxis(.A, .D)
@@ -181,6 +182,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         moveX,
         moveY
     }
+
+    fmt.println(moveVec, dm.GetKeyState(.D))
 
     if moveVec != {0, 0} {
         moveVec = glsl.normalize(moveVec)
@@ -841,7 +844,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     for tile, idx in gameState.level.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
         if DEBUG_TILE_OVERLAY {
-            dm.DrawBlankSprite(tile.worldPos, {1, 1}, TileTypeColor[tile.type])
+            dm.DrawRectBlank(tile.worldPos, {1, 1}, color = TileTypeColor[tile.type])
         }
 
         #partial switch tile.type {
@@ -872,7 +875,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     }
     for tile, idx in gameState.level.grid {
         if tile.isCorner {
-            dm.DrawBlankSprite(tile.worldPos, {1, 1}, {1, 0, 0, 0.8})
+            dm.DrawRectBlank(tile.worldPos, {1, 1}, color = {1, 0, 0, 0.8})
         }
     }
 
@@ -880,13 +883,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     // Pipe
     for tile, idx in gameState.level.grid {
         for dir in tile.pipeDir {
-            dm.DrawWorldRect(
+            dm.DrawRectPos(
                 dm.renderCtx.whiteTexture,
                 tile.worldPos,
-                {0.5, 0.1},
+                size = v2{0.5, 0.1},
                 rotation = math.to_radians(DirToRot[dir]),
                 color = {0, 0.1, 0.8, 0.9},
-                pivot = {0, 0.5}
+                origin = {0, 0.5}
             )
         }
     }
@@ -926,11 +929,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
         }
 
-        if dm.platform.debugState {
-            if .Attack in buildingData.flags {
-                dm.DrawCircle(dm.renderCtx, pos, buildingData.range, false)
-            }
-        }
+        // if dm.platform.debugState {
+        //     if .Attack in buildingData.flags {
+        //         dm.DrawCircle(dm.renderCtx, pos, buildingData.range, false)
+        //     }
+        // }
     }
     // dm.PopShader()
 
@@ -975,13 +978,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                            {0.8, 0.1, 0, 0.5})
 
         for dir in gameState.buildingPipeDir {
-            dm.DrawWorldRect(
+            dm.DrawRectPos(
                 dm.renderCtx.whiteTexture,
                 dm.ToV2(coord) + 0.5,
-                {0.5, 0.1},
+                size = v2{0.5, 0.1},
                 rotation = math.to_radians(DirToRot[dir]),
                 color = color,
-                pivot = {0, 0.5}
+                origin = {0, 0.5}
             )
         }
     }
@@ -991,7 +994,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         if IsInDistance(gameState.playerPosition, MousePosGrid()) {
             tile := TileUnderCursor()
             if tile.building != {} || tile.pipeDir != nil {
-                dm.DrawBlankSprite(tile.worldPos, 1, {1, 0, 0, 0.5})
+                dm.DrawRectBlank(tile.worldPos, 1, color = {1, 0, 0, 0.5})
             }
         }
     }
@@ -1000,14 +1003,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     packetIt := dm.MakePoolIter(&gameState.energyPackets)
     energyTex := dm.GetTextureAsset("Energy.png")
     for packet in dm.PoolIterate(&packetIt) {
-        dm.DrawWorldRect(energyTex, packet.position, 1, color = EnergyColor[packet.energyType])
+        dm.DrawRect(energyTex, packet.position, 1, color = EnergyColor[packet.energyType])
     }
 
     // Enemy
     enemyIt := dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
         stats := Enemies[enemy.statsIdx]
-        dm.DrawBlankSprite(enemy.position, .4, color = stats.tint)
+        dm.DrawRect(enemy.position, .4, color = stats.tint)
     }
 
 
@@ -1017,7 +1020,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         p := enemy.health / stats.maxHealth
         color := math.lerp(dm.RED, dm.GREEN, p)
         
-        dm.DrawBlankSprite(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
+        dm.DrawRect(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
     }
 
     // Building Range
@@ -1053,7 +1056,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
                     case .None:
                     }
 
-                    dm.DrawBlankSprite(CoordToPos(coord), {1, 1}, color)
+                    dm.DrawRectBlank(CoordToPos(coord), {1, 1}, color = color)
                 }
             }
         }
@@ -1107,5 +1110,16 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.UpdateAndDrawParticleSystem(&system)
     }
 
-    dm.DrawText(dm.renderCtx, "WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", dm.LoadDefaultFont(dm.renderCtx), {0, f32(dm.renderCtx.frameSize.y - 30)}, 20)
+
+    if dm.muiBeginWindow(dm.mui, "Render mui", {200, 10, 110, 450}) {
+        dm.muiLabel(dm.mui, gameState.selectedTile)
+        dm.muiLabel(dm.mui, "Money:", gameState.money)
+        dm.muiLabel(dm.mui, "HP:", gameState.hp)
+
+        dm.muiEndWindow(dm.mui)
+    }
+    // dm.DrawText("WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", 
+    //     {0, f32(dm.renderCtx.frameSize.y - 30)}, 
+    //     font = dm.LoadDefaultFont(dm.renderCtx),
+    //     20)
 }

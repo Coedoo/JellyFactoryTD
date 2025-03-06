@@ -7,6 +7,8 @@ InputState :: enum {
     JustReleased,
 }
 
+InputStateSet :: bit_set[InputState]
+
 MouseButton :: enum {
     Invalid,
     Left,
@@ -25,10 +27,8 @@ Key :: enum {
     Left, Right, Up, Down,
 }
 
-
 Input :: struct {
-    prev: map[Key]InputState,
-    curr: map[Key]InputState,
+    key: [Key]InputStateSet,
 
     mousePos:   iv2,
     mouseDelta: iv2,
@@ -36,48 +36,39 @@ Input :: struct {
     scroll: int,
     scrollX: int,
 
-    mousePrev: [MouseButton]InputState,
-    mouseCurr: [MouseButton]InputState,
+    mouseKey: [MouseButton]InputStateSet,
 
     runesCount: int,
     runesBuffer: [16]rune,
 }
 
 GetKeyState :: proc(key: Key) -> InputState {
-    return GetKeyStateCtx(input, key)
-}
-
-GetKeyStateCtx :: proc(input: ^Input, key: Key) -> InputState {
-    curr := input.curr[key]
-    prev := input.prev[key]
-    
-    if curr == prev {
-        return curr
-    }
-    else if curr == .Down && prev == .Up {
+    if .JustPressed in input.key[key] {
         return .JustPressed
     }
-    else {
+    else if .JustReleased in input.key[key] {
         return .JustReleased
+    }
+    else if .Down in input.key[key] {
+        return .Down
+    }
+    else {
+        return .Up
     }
 }
 
 GetMouseButton :: proc(btn: MouseButton) -> InputState {
-    return GetMouseButtonCtx(input, btn)
-}
-
-GetMouseButtonCtx :: proc(input: ^Input, btn: MouseButton) -> InputState {
-    curr := input.mouseCurr[btn]
-    prev := input.mousePrev[btn]
-    
-    if curr == prev {
-        return curr
-    }
-    else if curr == .Down && prev == .Up {
+    if .JustPressed in input.mouseKey[btn] {
         return .JustPressed
     }
-    else {
+    else if .JustReleased in input.mouseKey[btn] {
         return .JustReleased
+    }
+    else if .Down in input.mouseKey[btn] {
+        return .Down
+    }
+    else {
+        return .Up
     }
 }
 
@@ -86,10 +77,10 @@ GetAxis :: proc(left: Key, right: Key) -> f32 {
 }
 
 GetAxisCtx :: proc(input: ^Input, left: Key, right: Key) -> f32 {
-    if GetKeyStateCtx(input, left) == .Down {
+    if GetKeyState(left) == .Down {
         return -1
     }
-    else if GetKeyStateCtx(input, right) == .Down {
+    else if GetKeyState(right) == .Down {
         return 1
     }
 
@@ -97,14 +88,10 @@ GetAxisCtx :: proc(input: ^Input, left: Key, right: Key) -> f32 {
 }
 
 GetAxisInt :: proc(left: Key, right: Key, state: InputState = .Down) -> i32 {
-    return GetAxisIntCtx(input, left, right, state)
-}
-
-GetAxisIntCtx :: proc(input: ^Input, left: Key, right: Key, state: InputState = .Down) -> i32 {
-    if GetKeyStateCtx(input, left) == state {
+    if GetKeyState(left) == state {
         return -1
     }
-    else if GetKeyStateCtx(input, right) == state {
+    else if GetKeyState(right) == state {
         return 1
     }
 
@@ -112,15 +99,15 @@ GetAxisIntCtx :: proc(input: ^Input, left: Key, right: Key, state: InputState = 
 }
 
 InputDebugWindow :: proc(input: ^Input, mui: ^Mui) {
-    if muiBeginWindow(mui, "Input", {0, 0, 100, 200}, nil) {
+    // if muiBeginWindow(mui, "Input", {0, 0, 100, 200}, nil) {
 
-        muiLabel(mui, input.mousePrev)
-        muiLabel(mui, input.mouseCurr)
+    //     muiLabel(mui, input.mousePrev)
+    //     muiLabel(mui, input.mouseCurr)
 
-        for key, state in input.curr {
-            muiLabel(mui, key, state)
-        }
+    //     for key, state in input.curr {
+    //         muiLabel(mui, key, state)
+    //     }
 
-        muiEndWindow(mui)
-    }
+    //     muiEndWindow(mui)
+    // }
 }

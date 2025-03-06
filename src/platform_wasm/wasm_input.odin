@@ -98,12 +98,14 @@ InitInput :: proc() {
     JsKeyToKey["Numpad8"] = .Num8
     JsKeyToKey["Numpad9"] = .Num9
 
-    js.add_window_event_listener(.Mouse_Down, nil, StoreEvent)
-    js.add_window_event_listener(.Mouse_Up, nil,   StoreEvent)
-    js.add_window_event_listener(.Mouse_Move, nil, StoreEvent)
+    js.add_event_listener("game_viewport", .Mouse_Down, nil, StoreEvent)
+    js.add_event_listener("game_viewport", .Mouse_Up, nil,   StoreEvent)
+    js.add_event_listener("game_viewport", .Mouse_Move, nil, StoreEvent)
 
-    js.add_window_event_listener(.Key_Down, nil, StoreEvent)
-    js.add_window_event_listener(.Key_Up, nil, StoreEvent)
+    js.add_event_listener("game_viewport", .Key_Down, nil, StoreEvent)
+    js.add_event_listener("game_viewport", .Key_Up, nil, StoreEvent)
+
+    js.add_event_listener("game_viewport", .Wheel, nil, StoreEvent)
 }
 
 

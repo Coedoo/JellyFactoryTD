@@ -1,11 +1,13 @@
 package dmcore
 
-import math "core:math/linalg/glsl"
+import glsl "core:math/linalg/glsl"
+import "core:math"
 
 import "core:fmt"
 
 Camera :: struct {
     position: v3,
+    rotation: f32,
 
     orthoSize: f32,
 
@@ -27,7 +29,7 @@ CreateCamera :: proc(orthoSize, aspect:f32, near:f32 = 0.0001, far:f32 = 10000) 
 
 // @TODO: actual view matrix...
 GetViewMatrix :: proc(camera: Camera) -> mat4 {
-    view := math.mat4Translate(-camera.position)
+    view := glsl.mat4Translate(-camera.position) * glsl.mat4Rotate({0, 0, 1}, camera.rotation * math.RAD_PER_DEG)
     return view
 }
 
@@ -58,7 +60,7 @@ GetProjectionMatrixNTO :: proc(camera: Camera) -> mat4 {
     orthoHeight := camera.orthoSize
     orthoWidth  := camera.aspect * orthoHeight
 
-    proj := math.mat4Ortho3d(-orthoWidth, orthoWidth, 
+    proj := glsl.mat4Ortho3d(-orthoWidth, orthoWidth, 
                              -orthoHeight, orthoHeight, 
                               camera.near, camera.far)
 
@@ -69,13 +71,34 @@ GetVPMatrix :: proc(camera: Camera) -> mat4 {
     orthoHeight := camera.orthoSize
     orthoWidth  := camera.aspect * orthoHeight
 
-    proj := math.mat4Ortho3d(-orthoWidth, orthoWidth, 
+    proj := glsl.mat4Ortho3d(-orthoWidth, orthoWidth, 
                              -orthoHeight, orthoHeight, 
                               camera.near, camera.far)
 
-    view := math.mat4Translate(-camera.position)
+    view := GetViewMatrix(camera)
 
     return proj * view
+}
+
+GetCameraSize :: proc(camera: Camera) -> (size: v2) {
+    size.y = camera.orthoSize * 2
+    size.x = camera.aspect * size.y
+
+    return
+}
+
+
+WorldToScreenPoint :: proc(pos: v2) -> iv2 {
+    p := GetVPMatrix(renderCtx.camera) * v4{pos.x, pos.y, 0, 1}
+    p.xyz /= p.w
+
+    p = p * 0.5 + 0.5
+    p.y = 1 - p.y
+
+    return {
+        i32(p.x * f32(renderCtx.frameSize.x)),
+        i32(p.y * f32(renderCtx.frameSize.y)),
+    }
 }
 
 WorldToClipSpace :: proc(camera: Camera, point: v3) -> v3 {
@@ -100,7 +123,7 @@ ScreenToWorldSpaceCtx :: proc(camera: Camera, point: iv2, screenSize: iv2) -> v3
 
     // @TODO: I don't understand why it works....
     vp := GetVPMatrix(camera)
-    p := math.inverse(vp) * v4{clip.x, -clip.y, 0, 1}
+    p := glsl.inverse(vp) * v4{clip.x, -clip.y, 0, 1}
 
     return v3{p.x, p.y, p.z}
 }
@@ -124,12 +147,6 @@ ControlCamera :: proc(camera: ^Camera) {
     camera.position += {horizontal, -vertical, 0} * f32(time.deltaTime)
 }
 
-IsPointInCamera :: proc(point: v3) -> bool {
-    return (point.x >= -1 && point.x <= 1) &&
-           (point.y >= -1 && point.y <= 1) &&
-           (point.z >= -1 && point.z <= 1)
-}
-
 IsInsideCamera :: proc {
     IsInsideCamera_Rect,
     IsInsideCamera_Sprite,
@@ -147,11 +164,17 @@ IsInsideCamera_Rect :: proc(camera: Camera, rect: Rect) -> bool {
     dc := WorldToClipSpace(camera, ToV3(d))
 
     // fmt.println(ac, bc, cc, dc)
+    
+    IsInRange :: #force_inline proc(point: v3) -> bool {
+        return (point.x >= -1 && point.x <= 1) &&
+               (point.y >= -1 && point.y <= 1) &&
+               (point.z >= -1 && point.z <= 1)
+    }
 
-    return IsPointInCamera(ac) ||
-           IsPointInCamera(bc) ||
-           IsPointInCamera(cc) ||
-           IsPointInCamera(dc)
+    return IsInRange(ac) ||
+           IsInRange(bc) ||
+           IsInRange(cc) ||
+           IsInRange(dc)
 }
 
 IsInsideCamera_Sprite :: proc(camera: Camera, position: v2, sprite: Sprite) -> bool {

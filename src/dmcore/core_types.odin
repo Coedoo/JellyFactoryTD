@@ -58,8 +58,6 @@ Ray2D :: struct {
 }
 
 CreateBounds :: proc(pos: v2, size: v2, anchor: v2 = {0.5, 0.5}) -> Bounds2D {
-    anchor := math.saturate(anchor)
-
     return {
         left  = pos.x - size.x * anchor.x,
         right = pos.x + size.x * (1 - anchor.x),
@@ -82,6 +80,10 @@ CreateRay2D :: proc(pos: v2, dir: v2) -> Ray2D {
     }
 }
 
+PointAtRay :: proc(ray: Ray2D, dist: f32) -> v2 {
+    return ray.origin + ray.direction * dist
+}
+
 Ray2DFromTwoPoints :: proc(a, b: v2) -> Ray2D {
     delta := math.normalize(b - a)
     return {
@@ -96,68 +98,84 @@ IsInBounds :: proc(bounds: Bounds2D, point: v2) -> bool {
            point.y > bounds.bot && point.y < bounds.top
 }
 
+SpriteBounds :: proc(sprite: Sprite, position: v2) -> Bounds2D {
+    spriteSize: v2
+    spriteSize.x = sprite.scale
+    spriteSize.y = f32(sprite.textureSize.y) / f32(sprite.textureSize.x) * spriteSize.x
+
+    anchor := sprite.origin
+    bounds := CreateBounds(position, spriteSize, anchor)
+
+    return bounds
+}
+
 ///////////
 
 TimeData :: struct {
-    startTimestamp: time.Time,
+    startTime: time.Tick,
 
-    lastTimestamp: time.Time,
-    currentTimestamp: time.Time,
+    prevTime: time.Tick,
+    currTime: time.Tick,
+    // startTimestamp: time.Time,
 
-    gameDuration: time.Duration,
+    // lastTimestamp: time.Time,
+    // currentTimestamp: time.Time,
 
-    deltaTime: f64,
-  
+    accumulator: f64,
+
+    // gameDuration: time.Duration,
+
+    deltaTime: f32,
     frame: uint,
 
     gameTime: f64,
-    unscalledTime: f64, // time as if game was never paused
+    realTime: f64, // time as if game was never paused
 }
 
 TimeInit :: proc(platform: ^Platform) {
-    platform.time.startTimestamp = time.now()
-    platform.time.currentTimestamp = time.now()
+    platform.time.startTime = time.tick_now()
+
+    // platform.time.startTimestamp = time.now()
+    platform.time.currTime = time.tick_now()
+    platform.time.prevTime = time.tick_now()
 }
 
 TimeUpdate :: proc(platform: ^Platform) {
-    platform.time.lastTimestamp = platform.time.currentTimestamp
-    platform.time.currentTimestamp = time.now()
+    platform.time.prevTime = platform.time.currTime
+    platform.time.currTime = time.tick_now()
 
-    delta := time.diff(platform.time.lastTimestamp, platform.time.currentTimestamp)
-    platform.time.deltaTime = time.duration_seconds(delta)
-
-    gameDelta := time.diff(platform.time.startTimestamp, platform.time.currentTimestamp)
-    platform.time.unscalledTime = time.duration_seconds(gameDelta)
+    platform.time.deltaTime = f32(time.tick_diff(platform.time.prevTime, platform.time.currTime))
+    platform.time.realTime = time.duration_seconds(time.tick_since(platform.time.startTime));
 
     if platform.pauseGame == false || platform.moveOneFrame {
-        platform.time.gameDuration += delta
+        // platform.time.gameDuration += delta
 
-        platform.time.frame += 1
-        platform.moveOneFrame = false
+        // platform.time.frame += 1
+        // platform.moveOneFrame = false
     }
 
-    platform.time.gameTime = time.duration_seconds(platform.time.gameDuration)
+   // platform.time.gameTime = time.duration_seconds(platform.time.gameDuration)
 }
 
 ///////////////
 
-Platform :: struct {
-    mui:       ^Mui,
-    input:     Input,
-    time:      TimeData,
-    renderCtx: ^RenderContext,
-    assets:    Assets,
-    audio:     Audio,
-    uiCtx:     UIContext,
+// Platform :: struct {
+//     mui:       ^Mui,
+//     input:     Input,
+//     time:      TimeData,
+//     renderCtx: ^RenderContext,
+//     assets:    Assets,
+//     audio:     Audio,
+//     uiCtx:     UIContext,
 
-    gameState: rawptr,
+//     gameState: rawptr,
 
-    debugState: bool,
-    pauseGame: bool,
-    moveOneFrame: bool,
+//     debugState: bool,
+//     pauseGame: bool,
+//     moveOneFrame: bool,
 
-    SetWindowSize: proc(width, height: int),
-}
+//     SetWindowSize: proc(width, height: int),
+// }
 
 AllocateGameData :: proc(platform: ^Platform, $type: typeid) -> ^type {
     platform.gameState = new(type)
@@ -175,3 +193,4 @@ GameRender  :: proc(gameState: rawptr)
 GameReload  :: proc(gameState: rawptr)
 GameUpdateDebug :: proc(gameState: rawptr, debug: bool)
 UpdateStatePointerFunc :: proc(platformPtr: ^Platform)
+UpdateAndRender :: proc(platform: ^Platform)

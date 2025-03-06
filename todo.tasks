@@ -1,81 +1,15 @@
-RUSH:
- ✔ Level Reset @done (24-07-02 22:40)
- ✔ Waves list per level @done (24-07-07 11:27)
- ✔ Second Level @done (24-07-04 22:23)
+GAMEPLAY:
+  ☐ Better shooting visualisaion
+  ☐ Shot Hit effects
+  ☐ Jorb as the defending structure
 
- ✘ Turrets with .RotatingTurreg should fire only when they are facing enemy @cancelled (24-05-25 22:27)
-  ☐ two turret types:
-    ✔ Simple @done (24-05-25 22:27)
-    ✔ AoE @done (24-07-04 22:48)
- ✔ Resources and building cost @done (24-07-01 22:39)
- ☐ Working, semi final wire placement and energy transfer
- ☐ Several enemies types
- ☐ Win/Lose conditions
- ☐ UI:
-   ☐ HP, Resources
-  ☐ Waves visualisation
-  ☐ Turret info
-  ☐ Tutorial Panels
-  ☐ End panel
- ☐ VFX
- 
-Enemies:
-  ✔ Movement on path @done (24-04-29 23:05)
-  ✔ Health @done (24-05-02 23:10)
-  ☐ Waves
-    ✔ Spawning enemy in wave @done (24-05-22 22:27)
+  ART:
+  ☐ New Tiles in 24x24
+  ☐ Diagonal ship sprites
+  ☐ Pipes sprites
+  ☐ New enrgy sprite
 
-
-Level:
-  ✔ Specify walls, building area and enemy walk area @done (24-04-18 21:21)
-  ☐ LDTK Import:
-    ✔ Enemy start and end position @done (24-04-21 17:39)
-    ☐ Player start position
-    ☐ start buildigns (are they even needed?)
-    ☐ figure out how to get Level size in tiles
-
-Pathfinding:
- ☐ add weight to tiles next to walls so enemies use more natural path
- ✔ remove ability to more diagonally between walls somehow @done (24-05-12 22:20)
- ☐ check if I can simplify path and move outside grid. (Do I even want that?)
- ☐ check if I can remove dynamic array from recreating a path
- ☐ Simplify path
- ☐ Find new path for every enemy after it changed
-
-Buildings:
-  ✔ Building definition @done (24-04-11 21:54)
-  ✔ Selecting building @done (24-05-02 23:09)
-  ✔ Putting buildings on the map @done (24-04-11 21:54)
-  ✔ connecting buildings @done (24-05-12 22:19)
-    ✔ Specify building input and output @done (24-04-15 21:56)
-    ✘ Render input and outputs icon @cancelled (24-05-12 22:20)
-      ✘ (with small animation) @cancelled (24-05-12 22:20)
-    ✔ implement pathfinding algorithm to find connection (kinda overkill but I need it anyway) @done (24-05-12 21:52)
-    ☐ Moving energy between buildings
-      ☐ With flow speed
-  ✔ destroying buildings @done (24-04-15 21:10)
- ✔ Turrets damage @done (24-05-13 20:29)
- ☐ Turrets Graphics
-   ✔ barrel rotation @done (24-05-23 21:01)
- ☐ Better wire visualution while building
-   ☐ Red arrow when deleting
-
-MUI WRAPPER:
-  ☐ Textbox
-  ☐ Add ability to reopen windows/remove ability to close them
-  ☐ Tarnsparent palette
-  ☐ DEFER End functions for their Begin counterparts
-
-Issues:
-  ✔ Tiles have pointers to buildings @done (24-04-15 21:10)
-  ✔ Fix MUI for now...? @done (24-05-02 22:48)
-  ✔ spawned buildings names break after hot reload @done (24-05-12 21:54)
-
-
-Others:
-  ✘ Create sprites that are driven by rule sets. Mostly for wires @cancelled (24-05-12 21:54)
-  ☐ Debug view where camera is unrestrited and better tiles visualisation
-  ☐ Cache buildings sprites (or create functions that use explicit parameters instead of Sprite struct)
-  ☐ Rewrite Pool implementation with two variants: dynamic and static
-  ✔ TileUnderCursor function @done (24-05-12 22:18)
-  ✔ Check if cursor is under UI and don't do game actions @done (24-05-12 22:12)
+FRAMEWORK:
+  ☐ Update framework version
+  ☐ Map Editor
+  ☐ Input rework

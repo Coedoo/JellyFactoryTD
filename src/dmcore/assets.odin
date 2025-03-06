@@ -39,6 +39,7 @@ AssetDescriptor :: union {
 
 AssetData :: struct {
     fileName: string,
+    alias: string,
 
     fileData: []u8,
 
@@ -46,65 +47,47 @@ AssetData :: struct {
 
     handle: Handle,
 
-    descriptor: AssetDescriptor,
+    descriptor: AssetDescriptor
+}
 
-    // Linked list
-    // @NOTE: 
-    // This is primarly for loading assets in asynchronous way,
-    // since you can't index map the easy way.
-    // So the question is, wouldn't be better to just have array of
-    // registered assets, and store them in map only after loading?
-    // prev: ^AssetData,
-    next: ^AssetData,
+LoadEntry :: struct {
+    key: string,
+    name: string,
 }
 
 Assets :: struct {
     assetsMap: map[string]AssetData,
 
-    // firstAsset: ^AssetData,
-    // lastAsset: ^AssetData,
-    toLoad: [dynamic]^AssetData
+    loadQueue: [dynamic]LoadEntry
 }
 
-RegisterAsset :: proc(fileName: string, desc: AssetDescriptor) {
-    RegisterAssetCtx(assets, fileName, desc)
+RegisterAsset :: proc(fileName: string, desc: AssetDescriptor, key: string = "") {
+    RegisterAssetCtx(assets, fileName, desc, key)
 }
 
-RegisterAssetCtx :: proc(assets: ^Assets, fileName: string, desc: AssetDescriptor) {
+RegisterAssetCtx :: proc(assets: ^Assets, fileName: string, desc: AssetDescriptor, key: string = "") {
     if fileName in assets.assetsMap {
         fmt.eprintln("Duplicated asset file name:", fileName, ". Skipping...")
         return
     }
 
+
     clonedName := strings.clone(fileName)
-    assets.assetsMap[clonedName] = AssetData {
+
+    clonedKey: string
+    if key == "" {
+        clonedKey = clonedName
+    }
+    else {
+        clonedKey = strings.clone(key)
+    }
+
+    assets.assetsMap[clonedKey] = AssetData {
         fileName = clonedName,
         descriptor = desc,
     }
 
-    // add to linked list
-    assetPtr := &assets.assetsMap[clonedName]
-    append(&assets.toLoad, assetPtr)
-    // if assets.firstAsset == nil {
-    //     assets.firstAsset = assetPtr
-    //     assets.lastAsset = assetPtr
-    // }
-    // else {
-    //     // assetPtr.prev = assets.lastAsset
-
-    //     fmt.println("Prev:", assets.lastAsset.fileName, "Adding:", assetPtr.fileName)
-
-    //     assets.lastAsset.next = assetPtr
-    //     assets.lastAsset = assetPtr
-
-    //             a := platform.assets.firstAsset
-    //     for a != nil {
-    //         fmt.print(a.fileName)
-    //         fmt.print("->")
-    //         a = a.next
-    //     }
-    //     fmt.println()
-    // }
+    append(&assets.loadQueue, LoadEntry{clonedKey, clonedName})
 }
 
 GetAssetData :: proc(fileName: string) -> ^AssetData {
@@ -114,7 +97,6 @@ GetAssetData :: proc(fileName: string) -> ^AssetData {
 GetAssetDataCtx :: proc(assets: ^Assets, fileName: string) -> ^AssetData {
     return &assets.assetsMap[fileName]
 }
-
 
 GetAsset :: proc(fileName: string) -> Handle {
     return GetAssetCtx(assets, fileName)
@@ -143,5 +125,52 @@ ReleaseAssetDataCtx :: proc(assets: ^Assets, fileName: string) {
     if ok && assetData.fileData != nil {
         delete(assetData.fileData)
         assetData.fileData = nil
+    }
+}
+
+CheckAndHotReloadAssets :: proc(assets: ^Assets) {
+    for name, &asset in &assets.assetsMap {
+        switch desc in asset.descriptor {
+        case FontAssetDescriptor, SoundAssetDescriptor:
+            continue
+
+        case TextureAssetDescriptor:
+            path := strings.concatenate({ASSETS_ROOT, name}, context.temp_allocator)
+            assetNewTime, err := os.last_write_time_by_name(path)
+            if err == os.ERROR_NONE && assetNewTime > asset.lastWriteTime {
+                data, ok := os.read_entire_file(path, context.temp_allocator)
+                if ok {
+                    // image, pngErr := png.load_from_bytes(data, allocator = context.temp_allocator)
+                    // if pngErr == nil {
+                    //     tex := GetTextureCtx(engineData.renderCtx, auto_cast asset.handle)
+                    //     _ReleaseTexture(tex)
+                    //     _InitTexture(engineData.renderCtx, tex, image.pixels.buf[:], image.width, image.height, image.channels, desc.filter)
+
+                    //     asset.lastWriteTime = assetNewTime
+                    // }
+                }
+            }
+
+        case ShaderAssetDescriptor:
+            path := strings.concatenate({ASSETS_ROOT, name}, context.temp_allocator)
+            assetNewTime, err := os.last_write_time_by_name(path)
+            if err == os.ERROR_NONE && assetNewTime > asset.lastWriteTime {
+                data, ok := os.read_entire_file(path, context.temp_allocator)
+                if ok {
+                    handle := ShaderHandle(asset.handle)
+                    DestroyShader(renderCtx, handle, freeHandle = false)
+
+                    source := strings.string_from_ptr(raw_data(data), len(data))
+
+                    shader, _ := GetElementPtr(renderCtx.shaders, handle)
+                    InitShaderSource(renderCtx, shader, source)
+
+                    asset.lastWriteTime = assetNewTime
+                    fmt.println("Reloading shader:", name)
+                }
+            }
+        case RawFileAssetDescriptor: // @TODO: I'm not sure how to handle that, or even if I should?
+        }
+
     }
 }

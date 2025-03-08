@@ -3,6 +3,8 @@ package dmcore
 import "core:mem"
 import "core:encoding/base64"
 
+import sa "core:container/small_array"
+
 TexHandle :: distinct Handle
 ShaderHandle :: distinct Handle
 BatchHandle :: distinct Handle
@@ -21,7 +23,9 @@ RenderContext :: struct {
     debugBatch:   PrimitiveBatch,
     debugBatchScreen: PrimitiveBatch,
 
-    commandBuffer: CommandBuffer,
+    // commandBuffer: CommandBuffer,
+
+    shadersStack: sa.Small_Array(128, ShaderHandle),
 
     textures:     ResourcePool(Texture, TexHandle),
     shaders:      ResourcePool(Shader, ShaderHandle),

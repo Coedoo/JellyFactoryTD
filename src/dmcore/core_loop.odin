@@ -179,7 +179,7 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     muiRender(&platform.tickMui, platform.renderCtx)
     muiRender(&platform.frameMui, platform.renderCtx)
 
-    FlushCommands(platform.renderCtx)
+    // FlushCommands(platform.renderCtx)
 
     DrawPrimitiveBatch(platform.renderCtx, &platform.renderCtx.debugBatch)
     DrawPrimitiveBatch(platform.renderCtx, &platform.renderCtx.debugBatchScreen)

@@ -165,17 +165,18 @@ DrawText :: proc(str: string, position: v2,
             pY -= f32(glyphData.pixelHeight) * scale;
         }
 
-        cmd: DrawRectCommand
-        cmd.position = {posX, pY} + {0, glyphData.offset.y * scale * yDir}
-        cmd.size = v2{f32(glyphData.pixelWidth), f32(glyphData.pixelHeight)} * scale
-        cmd.texSource = {texPos.x, texPos.y, texSize.x, texSize.y}
-        cmd.tint = color
-        cmd.pivot = {0, 0}
+        position := v2{posX, pY} + {0, glyphData.offset.y * scale * yDir}
+        size := v2{f32(glyphData.pixelWidth), f32(glyphData.pixelHeight)} * scale
+        texSource := RectInt{texPos.x, texPos.y, texSize.x, texSize.y}
+        // tint = color
+        // pivot = {0, 0}
 
-        cmd.texture = font.atlas
-        cmd.shader =  shader
+        // cmd.texture = font.atlas
+        // cmd.shader =  shader
 
-        append(&renderCtx.commandBuffer.commands, cmd)
+        // append(&renderCtx.commandBuffer.commands, cmd)
+
+        DrawRectSrcDst(font.atlas, texSource, {position.x, position.y, size.x, size.y}, shader, {0, 0}, 0, color)
 
         advance := glyphData.advanceX if glyphData.advanceX != 0 else glyphData.pixelWidth
         posX += f32(advance) * scale

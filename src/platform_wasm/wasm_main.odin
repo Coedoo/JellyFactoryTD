@@ -65,7 +65,7 @@ FileLoadedCallback :: proc(data: []u8) {
         asset.fileData = data
 
     case dm.SoundAssetDescriptor:
-        asset.handle = cast(dm.Handle) dm.LoadSoundFromMemoryCtx(&engineData.audio, data)
+        asset.handle = cast(dm.Handle) dm.LoadSoundFromMemory(data)
         // delete(data)
     }
 
@@ -112,23 +112,37 @@ main :: proc() {
     //////////////
 
     engineData.renderCtx = dm.CreateRenderContextBackend()
-    dm.InitRenderContext(engineData.renderCtx)
-    engineData.mui = dm.muiInit(engineData.renderCtx)
-    dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
+    dm.InitPlatform(&engineData)
+    // dm.InitRenderContext(engineData.renderCtx)
+    // engineData.mui = dm.muiInit(engineData.renderCtx)
+    // dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
 
-    dm.InitAudio(&engineData.audio)
-    dm.TimeInit(&engineData)
+    // dm.InitAudio(&engineData.audio)
+    // dm.TimeInit(&engineData)
 
     engineData.SetWindowSize = SetWindowSize
 
+    engineData.gameCode.updateAndRender = dm.CoreUpdateAndRender
+    engineData.gameCode.gameUpdate = game.GameUpdate
+    engineData.gameCode.gameUpdateDebug = game.GameUpdateDebug
+    engineData.gameCode.gameRender = game.GameRender
+
+
     ////////////
 
-    dm.UpdateStatePointer(&engineData)
+    dm.UpdateStatePointers(&engineData)
     game.PreGameLoad(&engineData.assets)
 
     assetsLoadingState.maxCount = len(engineData.assets.assetsMap)
     if(assetsLoadingState.maxCount > 0) {
         assetsLoadingState.nowLoading = engineData.assets.loadQueue[0].name
+    }
+
+    for &state in engineData.frameInput.key {
+        state += {.Up}
+    }
+    for &state in engineData.tickInput.key {
+        state += {.Up}
     }
 
     LoadNextAsset()
@@ -165,7 +179,7 @@ step :: proc (delta: f32) -> bool {
             )
 
             dm.EndScreenSpace()
-            dm.FlushCommands(engineData.renderCtx)
+            // dm.FlushCommands(engineData.renderCtx)
         }
         return true
     }
@@ -179,126 +193,68 @@ step :: proc (delta: f32) -> bool {
 
     dm.TimeUpdate(&engineData)
 
-    for key, state in engineData.input.curr {
-        engineData.input.prev[key] = state
-    }
+    // for key, state in engineData.input.curr {
+    //     engineData.input.prev[key] = state
+    // }
 
-    for mouseBtn, i in engineData.input.mouseCurr {
-        engineData.input.mousePrev[i] = engineData.input.mouseCurr[i]
-    }
+    // for mouseBtn, i in engineData.input.mouseCurr {
+    //     engineData.input.mousePrev[i] = engineData.input.mouseCurr[i]
+    // }
 
-    engineData.input.runesCount = 0
-    engineData.input.scrollX = 0;
-    engineData.input.scroll = 0;
+    // engineData.input.runesCount = 0
+    // engineData.input.scrollX = 0;
+    // engineData.input.scroll = 0;
 
     for i in 0..<eventBufferOffset {
         e := &eventsBuffer[i]
         // fmt.println(e)
         #partial switch e.kind {
-            case .Mouse_Down:
-                idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
-                btn := JsToDMMouseButton[idx]
+            // case .Mouse_Down:
+            //     idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
+            //     btn := JsToDMMouseButton[idx]
 
-                engineData.input.mouseCurr[btn] = .Down
+            //     engineData.frameInput.mouseCurr[btn] = .Down
 
-            case .Mouse_Up:
-                idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
-                btn := JsToDMMouseButton[idx]
+            // case .Mouse_Up:
+            //     idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
+            //     btn := JsToDMMouseButton[idx]
 
-                engineData.input.mouseCurr[btn] = .Up
+            //     engineData.frameInput.mouseCurr[btn] = .Up
 
-            case .Mouse_Move: 
-                // fmt.println(e.mouse.offset)
+            // case .Mouse_Move: 
+            //     // fmt.println(e.mouse.offset)
 
-                canvasRect := js.get_bounding_client_rect("game_viewport")
+            //     canvasRect := js.get_bounding_client_rect("game_viewport")
 
-                engineData.input.mousePos.x = i32(e.mouse.client.x - i64(canvasRect.x))
-                engineData.input.mousePos.y = i32(e.mouse.client.y - i64(canvasRect.y))
+            //     engineData.frameInput.mousePos.x = i32(e.mouse.client.x - i64(canvasRect.x))
+            //     engineData.frameInput.mousePos.y = i32(e.mouse.client.y - i64(canvasRect.y))
 
-                engineData.input.mouseDelta.x = i32(e.mouse.movement.x)
-                engineData.input.mouseDelta.y = i32(e.mouse.movement.y)
+            //     engineData.frameInput.mouseDelta.x = i32(e.mouse.movement.x)
+            //     engineData.frameInput.mouseDelta.y = i32(e.mouse.movement.y)
 
-            case .Key_Up:
-                // fmt.println()
-                c := string(e.key._code_buf[:e.key._code_len])
-                key := JsKeyToKey[c]
-                engineData.input.curr[key] = .Up
+            // case .Key_Up:
+            //     // fmt.println()
+            //     c := string(e.key._code_buf[:e.key._code_len])
+            //     key := JsKeyToKey[c]
+            //     engineData.frameInput.curr[key] = .Up
 
-            case .Key_Down:
-                c := string(e.key._code_buf[:e.key._code_len])
-                key := JsKeyToKey[c]
-                engineData.input.curr[key] = .Down
+            // case .Key_Down:
+            //     c := string(e.key._code_buf[:e.key._code_len])
+            //     key := JsKeyToKey[c]
+            //     engineData.frameInput.curr[key] = .Down
 
-            case .Wheel:
-                engineData.input.scroll  = -int(e.wheel.delta[1] / 100)
-                engineData.input.scrollX = int(e.wheel.delta[0] / 100)
+            // case .Wheel:
+            //     engineData.frameInput.scroll  = -int(e.wheel.delta[1] / 100)
+            //     engineData.frameInput.scrollX = int(e.wheel.delta[0] / 100)
 
                 // fmt.println(e.wheel)
         }
 
     }
+
     eventBufferOffset = 0
 
-    /////////
-
-
-    dm.muiProcessInput(engineData.mui, &engineData.input)
-    dm.muiBegin(engineData.mui)
-
-    // dm.UpdateStatePointer(&engineData)
-    // dm.UIBegin(dm.uiCtx,
-    //            int(engineData.renderCtx.frameSize.x),
-    //            int(engineData.renderCtx.frameSize.y))
-
-    when ODIN_DEBUG {
-        if dm.GetKeyStateCtx(&engineData.input, .U) == .JustPressed {
-            engineData.debugState = !engineData.debugState
-            engineData.pauseGame = engineData.debugState
-
-            if engineData.debugState {
-                dm.muiShowWindow(engineData.mui, "Debug")
-            }
-        }
-
-        if engineData.debugState && dm.muiBeginWindow(engineData.mui, "Debug", {0, 0, 100, 240}, nil) {
-            // dm.muiLabel(mui, "Time:", time.time)
-            dm.muiLabel(engineData.mui, "GameTime:", engineData.time.gameTime)
-
-            dm.muiLabel(engineData.mui, "Frame:", engineData.time.frame)
-
-            if dm.muiButton(engineData.mui, "Play" if engineData.pauseGame else "Pause") {
-                engineData.pauseGame = !engineData.pauseGame
-            }
-
-            if dm.muiButton(engineData.mui, ">") {
-                engineData.moveOneFrame = true
-            }
-
-            dm.muiEndWindow(engineData.mui)
-        }
-    }
-
-
-    if engineData.pauseGame == false || engineData.moveOneFrame {
-        game.GameUpdate(engineData.gameState)
-    }
-
-    when ODIN_DEBUG {
-        game.GameUpdateDebug(engineData.gameState, engineData.debugState)
-    }
-
-    game.GameRender(engineData.gameState)
-
-    // dm.UIEnd()
-    dm.DrawUI(engineData.renderCtx)
-
-    dm.muiEnd(engineData.mui)
-    dm.muiRender(engineData.mui, engineData.renderCtx)
-
-    dm.FlushCommands(engineData.renderCtx)
-    // DrawPrimitiveBatch(cast(^renderer.RenderContext_d3d) renderCtx)
-    // renderCtx.debugBatch.index = 0
-
+    engineData.gameCode.updateAndRender(&engineData)
 
     return true
 }

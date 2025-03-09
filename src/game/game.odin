@@ -1110,14 +1110,6 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.UpdateAndDrawParticleSystem(&system)
     }
 
-
-    if dm.muiBeginWindow(dm.mui, "Render mui", {200, 10, 110, 450}) {
-        dm.muiLabel(dm.mui, gameState.selectedTile)
-        dm.muiLabel(dm.mui, "Money:", gameState.money)
-        dm.muiLabel(dm.mui, "HP:", gameState.hp)
-
-        dm.muiEndWindow(dm.mui)
-    }
     // dm.DrawText("WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", 
     //     {0, f32(dm.renderCtx.frameSize.y - 30)}, 
     //     font = dm.LoadDefaultFont(dm.renderCtx),

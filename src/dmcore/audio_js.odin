@@ -23,7 +23,7 @@ _InitAudio :: proc(audio: ^Audio) {
 
 }
 
-_LoadSound :: proc(audio: ^Audio, path: string) -> SoundHandle {
+_LoadSoundFromFile :: proc(audio: ^Audio, path: string) -> SoundHandle {
     panic("Unsupported on wasm target")
 }
 
@@ -31,7 +31,7 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
     Load(raw_data(data), len(data))
     sound := CreateElement(&audio.sounds)
 
-    sound._volume = 0.5
+    sound.volume = 0.5
     sound.ptr = raw_data(data)
 
     return sound.handle
@@ -39,7 +39,7 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
 
 _PlaySound :: proc(audio: ^Audio, handle: SoundHandle) {
     sound, ok := GetElementPtr(audio.sounds, handle)
-    Play(sound.ptr, sound._volume, sound.pan, sound.delay)
+    Play(sound.ptr, sound.volume, sound.pan, sound.delay)
 }
 
 _StopSound :: proc(audio: ^Audio, handle: SoundHandle) {

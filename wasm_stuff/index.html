@@ -7,14 +7,29 @@
     <title>WASM Example</title>
 </head>
 <body id="body">
-    <canvas width="800" height="600" id="game_viewport" tabindex="1" oncontextmenu="return false;"></canvas>
-
+    <canvas width="1200" height="900" id="game_viewport" tabindex="1" oncontextmenu="return false;"></canvas>
+<!-- 
     <script type="text/javascript" src="audio.js"></script>
-    <script type="text/javascript" src="files.js"></script>
+    <script type="text/javascript" src="files.js"></script> -->
+
     <script type="text/javascript" src="odin.js"></script>
+    <script type="text/javascript" src="DanMofu.js"></script>
     <script type="text/javascript">
+        let wasmMemoryInterface = new window.odin.WasmMemoryInterface();
+        let dmImports = GetDMImports(wasmMemoryInterface);
+
         const custom_console = {};
-        odin.runWasm("index.wasm", custom_console);
+        odin.runWasm("index.wasm", custom_console, dmImports, wasmMemoryInterface);
+
+        let canvas = document.getElementById("game_viewport");
+        canvas.onwheel = function(event){
+            event.preventDefault();
+        };
+
+        canvas.onmousewheel = function(event){
+            event.preventDefault();
+        };
+
     </script>
 
 </body>

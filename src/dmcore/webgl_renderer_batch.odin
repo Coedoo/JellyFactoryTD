@@ -114,5 +114,5 @@ CreatePrimitiveBatch :: proc(ctx: ^RenderContext, maxCount: int, shaderSource: s
     return {}
 }
 
-DrawPrimitiveBatch :: proc(batch: ^PrimitiveBatch, ctx: ^RenderContext) {
+DrawPrimitiveBatch :: proc(ctx: ^RenderContext, batch: ^PrimitiveBatch) {
 }

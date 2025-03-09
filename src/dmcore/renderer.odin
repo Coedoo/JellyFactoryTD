@@ -174,3 +174,142 @@ float4 ps_main(vs_out input) : SV_TARGET {
     PrimitiveVertexShaderSource := ``
     PrimitiveVertexScreenShaderSource := ``
 }
+
+DrawSprite :: proc(sprite: Sprite, position: v2, 
+    rotation: f32 = 0, color := WHITE)
+{
+    texPos := sprite.texturePos
+    texSize := GetTextureSize(sprite.texture)
+
+    if sprite.animDirection == .Horizontal {
+        texPos.x += sprite.textureSize.x * sprite.currentFrame
+        if texPos.x >= texSize.x {
+            texPos.x = texPos.x % max(texSize.x, 1)
+        }
+    }
+    else {
+        texPos.y += sprite.textureSize.y * sprite.currentFrame
+        if texPos.y >= texSize.y {
+            texPos.y = texPos.y % max(texSize.y, 1)
+        }
+    }
+
+
+    // @TODO: flip will be incorrect for every sprite that doesn't
+    // use {0.5, 0.5} as origin
+    flip := v2{sprite.flipX ? -1 : 1, sprite.flipY ? -1 : 1}
+    size := GetSpriteSize(sprite) * flip
+
+    // cmd: DrawRectCommand
+
+    // cmd.position = position
+    // cmd.pivot = sprite.origin
+    // cmd.size = size * flip
+    // cmd.texSource = {texPos.x, texPos.y, sprite.textureSize.x, sprite.textureSize.y}
+    // cmd.rotation = rotation
+    // cmd.tint = color * sprite.tint
+    // cmd.texture = sprite.texture
+    // cmd.shader  = renderCtx.defaultShaders[.Sprite]
+
+    // append(&renderCtx.commandBuffer.commands, cmd)
+    src := RectInt{texPos.x, texPos.y, sprite.textureSize.x, sprite.textureSize.y}
+    dest := Rect{position.x, position.y, size.x, size.y}
+    DrawRectSrcDst(
+        sprite.texture, 
+        src, 
+        dest, 
+        renderCtx.defaultShaders[.Sprite], 
+        sprite.origin, 
+        rotation, 
+        color * sprite.tint
+    )
+}
+
+
+DrawRect :: proc {
+    DrawRectPos,
+
+    DrawRectSrcDst,
+    DrawRectBlank,
+}
+
+DrawRectSrcDst :: proc(texture: TexHandle,
+                 source: RectInt, dest: Rect, shader: ShaderHandle,
+                 origin := v2{0.5, 0.5},
+                 rotation: f32 = 0,
+                 color: color = WHITE)
+{
+    // cmd: DrawRectCommand
+
+    // size := v2{dest.width, dest.height}
+
+    // cmd.position = {dest.x, dest.y}
+    // cmd.rotation = rotation
+    // cmd.size = size
+    // cmd.texSource = source
+    // cmd.tint = color
+    // cmd.pivot = origin
+
+    // cmd.texture = texture
+    // cmd.shader =  shader
+
+    // append(&renderCtx.commandBuffer.commands, cmd)
+
+    if renderCtx.defaultBatch.count >= renderCtx.defaultBatch.maxCount {
+        DrawBatch(renderCtx, &renderCtx.defaultBatch)
+    }
+
+    shadersLen := sa.len(renderCtx.shadersStack)
+    shader :=  shadersLen > 0 ? sa.get(renderCtx.shadersStack, shadersLen - 1) : shader
+
+    if renderCtx.defaultBatch.shader.gen != 0 && 
+       renderCtx.defaultBatch.shader != shader {
+        DrawBatch(renderCtx, &renderCtx.defaultBatch)
+    }
+
+    if renderCtx.defaultBatch.texture.gen != 0 && 
+       renderCtx.defaultBatch.texture != texture {
+        DrawBatch(renderCtx, &renderCtx.defaultBatch)
+    }
+
+    renderCtx.defaultBatch.shader = shader
+    renderCtx.defaultBatch.texture = texture
+
+    entry := RectBatchEntry {
+        position = {dest.x, dest.y},
+        size = v2{dest.width, dest.height},
+        rotation = rotation,
+
+        texPos  = {source.x, source.y},
+        texSize = {source.width, source.height},
+        pivot = origin,
+        color = color,
+    }
+
+    AddBatchEntry(renderCtx, &renderCtx.defaultBatch, entry)
+}
+
+DrawRectPos :: proc(texture: TexHandle, position: v2,
+                size: Maybe(v2) = nil, 
+                origin := v2{0.5, 0.5},
+                rotation: f32 = 0,
+                color: color = WHITE)
+{
+    texSize := GetTextureSize(texture)
+    destSize := size.? or_else ToV2(texSize.x)
+
+    src := RectInt{ 0, 0, texSize.x, texSize.y}
+    dest := Rect{ position.x, position.y, destSize.x, destSize.y }
+
+    shader := renderCtx.defaultShaders[.Sprite]
+
+    DrawRectSrcDst(texture, src, dest, shader, origin, rotation, color)
+}
+
+DrawRectBlank :: proc(position: v2, size: v2,
+                     origin := v2{0.5, 0.5},
+                     rotation: f32 = 0,
+                     color: color = WHITE)
+{
+    DrawRectPos(renderCtx.whiteTexture, position, size, origin, rotation, color)
+}

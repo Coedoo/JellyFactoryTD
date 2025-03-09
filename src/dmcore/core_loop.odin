@@ -4,6 +4,9 @@ import coreTime "core:time"
 import "core:math"
 import "core:fmt"
 
+import "core:dynlib"
+import "core:os"
+
 input: ^Input
 time: ^TimeData
 renderCtx: ^RenderContext
@@ -38,6 +41,20 @@ Platform :: struct {
     SetWindowSize: proc(width, height: int),
 }
 
+InitPlatform :: proc(platformPtr: ^Platform) {
+    InitRenderContext(platformPtr.renderCtx)
+
+    muiInit(&platformPtr.tickMui, platformPtr.renderCtx)
+    muiInit(&platformPtr.frameMui, platformPtr.renderCtx)
+    InitUI(&platformPtr.uiCtx, platformPtr.renderCtx)
+
+    InitAudio(&platformPtr.audio)
+
+    TimeInit(&platformPtr.time)
+
+    UpdateStatePointers(platformPtr)
+}
+
 @(export)
 UpdateStatePointers : UpdateStatePointerFunc : proc(platformPtr: ^Platform) {
     platform = platformPtr
@@ -49,12 +66,16 @@ UpdateStatePointers : UpdateStatePointerFunc : proc(platformPtr: ^Platform) {
     // mui       = platformPtr.mui
     assets    = &platformPtr.assets
     uiCtx     = &platformPtr.uiCtx
+}
 
-    fmt.println("Setting state pointers")
-
-    // for k, v in assets.assetsMap {
-    //     fmt.println(k, v)
-    // }
+when ODIN_OS == .Windows {
+    GameCodeBackend :: struct {
+        lib: dynlib.Library,
+        lastWriteTime: os.File_Time,
+    }
+}
+else {
+    GameCodeBackend :: struct {}
 }
 
 GameCode :: struct {
@@ -75,11 +96,9 @@ DELTA :: 1.0 / 30.0
 
 @(export)
 CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
-    // SetStatePointers(platformPtr)
-
     mui = &platform.frameMui
     input = &platform.frameInput
-    
+
     muiProcessInput(&platform.frameMui, &platform.frameInput)
     muiBegin(&platform.frameMui)
 
@@ -96,11 +115,9 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
         DebugWindow(platform)
     }
 
-    // fmt.println(platform.time.deltaTime, platform.time.accumulator, numTicks)
-    // fmt.println(durr)
+    fmt.println(platform.time.deltaTime, platform.time.accumulator, numTicks)
+    fmt.println(durr)
     if numTicks > 0 {
-        // tick_input.cursor_delta /= f32(num_ticks)
-        // tick_input.scroll_delta /= f32(num_ticks)
         input = &platform.tickInput
 
         platform.tickInput.scrollX /= numTicks
@@ -108,21 +125,13 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
         platform.tickInput.mouseDelta /= i32(numTicks)
 
         for tIdx in 0 ..< numTicks {
-
             muiProcessInput(&platform.tickMui, &platform.tickInput)
             muiBegin(&platform.tickMui)
 
-            // runtime.mem_copy_non_overlapping(&prev_game, &game, size_of(Game))
-            // game_tick(&game, prev_game, tick_input, DELTA)
-
-            // Clear temporary flags
-            // for &flags in tick_input.keys do flags &= {.Down}
-            // for &flags in tick_input.mouse_buttons do flags &= {.Down}
             if platform.pauseGame == false || platform.moveOneFrame {
-                platform.time.deltaTime = DELTA
                 mui = &platform.tickMui
-                // fmt.println(mui)
-                // fmt.printf("%p\n", mui)
+
+                platform.time.deltaTime = DELTA
                 platform.gameCode.gameUpdate(platform.gameState)
 
                 when ODIN_DEBUG {
@@ -133,37 +142,23 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
                 platform.tickInput.runesCount = 0
 
-
                 for &state in platform.tickInput.key {
-                    // platform.tickInput.prev[key] = state
                     state -= { .JustPressed, .JustReleased }
                 }
 
                 for &state in platform.tickInput.mouseKey {
-                    // platform.tickInput.mousePrev[i] = platform.input.mouseCurr[i]
                     state -= { .JustPressed, .JustReleased }
                 }
             }
-
 
             platform.tickInput.scrollX = 0;
             platform.tickInput.scroll = 0;
             platform.tickInput.mouseDelta = {}
 
-            // platform.tickInput = {}
-
             muiEnd(&platform.tickMui)
         }
-
-
-        // Now clear the rest of the input state
-        // tick_input.cursor_delta = {}
-        // tick_input.scroll_delta = {}
     }
 
-    // alpha = platform.timeaccumulator / DELTA
-
-    // game_draw(game, prev_game, alpha)
     mui = &platform.frameMui
     input = &platform.frameInput
 
@@ -173,8 +168,6 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     platform.gameCode.gameRender(platform.gameState)
 
     muiEnd(&platform.frameMui)
-
-    // platform.frameInput = {}
 
     muiRender(&platform.tickMui, platform.renderCtx)
     muiRender(&platform.frameMui, platform.renderCtx)
@@ -187,12 +180,14 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     EndFrame(platform.renderCtx)
 
     for &state in platform.frameInput.key {
-        // platform.frameInput.prev[key] = state
         state -= { .JustPressed, .JustReleased }
     }
 
     for &state in platform.frameInput.mouseKey {
-        // platform.frameInput.mousePrev[i] = platform.input.mouseCurr[i]
         state -= { .JustPressed, .JustReleased }
     }
+
+    platform.frameInput.scrollX = 0;
+    platform.frameInput.scroll = 0;
+    platform.frameInput.mouseDelta = {}
 }

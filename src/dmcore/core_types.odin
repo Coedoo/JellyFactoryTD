@@ -132,12 +132,12 @@ TimeData :: struct {
     realTime: f64, // time as if game was never paused
 }
 
-TimeInit :: proc(platform: ^Platform) {
-    platform.time.startTime = time.tick_now()
+TimeInit :: proc(timeData: ^TimeData) {
+    timeData.startTime = time.tick_now()
 
     // platform.time.startTimestamp = time.now()
-    platform.time.currTime = time.tick_now()
-    platform.time.prevTime = time.tick_now()
+    timeData.currTime = time.tick_now()
+    timeData.prevTime = time.tick_now()
 }
 
 TimeUpdate :: proc(platform: ^Platform) {

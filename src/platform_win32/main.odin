@@ -82,16 +82,17 @@ main :: proc() {
     nativeWnd := dxgi.HWND(window_system_info.info.win.window)
 
     engineData.renderCtx = dm.CreateRenderContextBackend(nativeWnd)
-    dm.InitRenderContext(engineData.renderCtx)
+    dm.InitPlatform(&engineData)
+    // dm.InitRenderContext(engineData.renderCtx)
 
-    // Other Init
-    dm.muiInit(&engineData.tickMui, engineData.renderCtx)
-    dm.muiInit(&engineData.frameMui, engineData.renderCtx)
-    dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
+    // // Other Init
+    // dm.muiInit(&engineData.tickMui, engineData.renderCtx)
+    // dm.muiInit(&engineData.frameMui, engineData.renderCtx)
+    // dm.InitUI(&engineData.uiCtx, engineData.renderCtx)
 
-    dm.InitAudio(&engineData.audio)
+    // dm.InitAudio(&engineData.audio)
 
-    dm.TimeInit(&engineData)
+    // dm.TimeInit(&engineData)
 
     context.random_generator = rand.default_random_generator()
 
@@ -103,8 +104,6 @@ main :: proc() {
     }
 
     engineData.gameCode.setStatePointers(&engineData)
-
-    dm.assets = &engineData.assets
 
     // Assets loading!
     if engineData.gameCode.preGameLoad != nil {
@@ -162,12 +161,14 @@ main :: proc() {
 
     sdl.ShowWindow(window)
 
+    // @HACK
     for &state in engineData.frameInput.key {
         state += {.Up}
     }
     for &state in engineData.tickInput.key {
         state += {.Up}
     }
+
     for shouldClose := false; !shouldClose; {
         frameStart := sdl.GetPerformanceCounter()
         free_all(context.temp_allocator)
@@ -187,11 +188,6 @@ main :: proc() {
 
         // Assets Hot Reload
         dm.CheckAndHotReloadAssets(&engineData.assets)
-
-        // Frame Begin
-        // dm.TimeUpdate(&engineData)
-
-        // Input
 
         for e: sdl.Event; sdl.PollEvent(&e); {
             #partial switch e.type {
@@ -299,48 +295,6 @@ main :: proc() {
             }
         }
 
-        // dm.muiProcessInput(engineData.mui, &engineData.input)
-        // dm.muiBegin(engineData.mui)
-
-        // dm.UIBegin(&engineData.uiCtx,
-        //            int(engineData.renderCtx.frameSize.x),
-        //            int(engineData.renderCtx.frameSize.y))
-
-
-
-        // if gameCode.lib != nil {
-        //     if engineData.pauseGame == false || engineData.moveOneFrame {
-        //         gameCode.gameUpdate(engineData.gameState)
-        //     }
-
-        //     when ODIN_DEBUG {
-        //         if gameCode.gameUpdateDebug != nil {
-        //             gameCode.gameUpdateDebug(engineData.gameState, engineData.debugState)
-        //         }
-        //     }
-
-        //     gameCode.gameRender(engineData.gameState)
-        // }
-
-        // dm.UIEnd()
-        // dm.muiEnd(engineData.mui)
-
-
-        // dm.CoreUpdateAndRender(&engineData)
-
         engineData.gameCode.updateAndRender(&engineData)
-        // dm.DrawUI(engineData.renderCtx)
-
-
-
-
-        // frameEnd := sdl.GetPerformanceCounter()
-        // elapsedMS := f32(frameEnd - frameStart) / f32(sdl.GetPerformanceFrequency()) * 1000
-
-        // TARGET_DELAY :: (1.0/20.0) * 1000.0
-        // wait := u32(TARGET_DELAY - elapsedMS)
-        // if wait < 1000 {
-        //     sdl.Delay(wait)
-        // }
     }
 }

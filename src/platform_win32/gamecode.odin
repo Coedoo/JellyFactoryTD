@@ -6,11 +6,6 @@ import "core:fmt"
 
 import dm "../dmcore"
 
-GameCodeBackend :: struct {
-    lib: dynlib.Library,
-    lastWriteTime: os.File_Time,
-}
-
 LoadProc :: proc(lib: dynlib.Library, name: string, $type: typeid) -> type {
     ptr, ok := dynlib.symbol_address(lib, name)
     if ok == false {

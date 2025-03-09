@@ -61,6 +61,15 @@ CompileShaderSource :: proc(renderCtx: ^RenderContext, name, source: string) -> 
     return shader.handle
 }
 
+InitShaderSource :: proc(renderCtx: ^RenderContext, shader: ^Shader, source: string) -> (result: bool) {
+    return false
+}
+
+DestroyShader :: proc(renderCtx: ^RenderContext, handle: ShaderHandle, freeHandle := true) {
+    panic("unsupported")
+}
+
+
 // FRAMEBUFFER
 
 FramebufferBackend :: struct {

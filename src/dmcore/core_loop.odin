@@ -115,8 +115,17 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
         DebugWindow(platform)
     }
 
-    fmt.println(platform.time.deltaTime, platform.time.accumulator, numTicks)
-    fmt.println(durr)
+    if platform.pauseGame {
+        numTicks = 0
+    }
+
+    if platform.moveOneFrame {
+        numTicks = max(1, numTicks)
+        platform.moveOneFrame = false
+    }
+
+    // fmt.println(platform.time.deltaTime, platform.time.accumulator, numTicks)
+    // fmt.println(durr)
     if numTicks > 0 {
         input = &platform.tickInput
 
@@ -128,27 +137,25 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
             muiProcessInput(&platform.tickMui, &platform.tickInput)
             muiBegin(&platform.tickMui)
 
-            if platform.pauseGame == false || platform.moveOneFrame {
-                mui = &platform.tickMui
+            mui = &platform.tickMui
 
-                platform.time.deltaTime = DELTA
-                platform.gameCode.gameUpdate(platform.gameState)
+            platform.time.deltaTime = DELTA
+            platform.gameCode.gameUpdate(platform.gameState)
 
-                when ODIN_DEBUG {
-                    if platform.gameCode.gameUpdateDebug != nil {
-                        platform.gameCode.gameUpdateDebug(platform.gameState, platform.debugState)
-                    }
+            when ODIN_DEBUG {
+                if platform.gameCode.gameUpdateDebug != nil {
+                    platform.gameCode.gameUpdateDebug(platform.gameState, platform.debugState)
                 }
+            }
 
-                platform.tickInput.runesCount = 0
+            platform.tickInput.runesCount = 0
 
-                for &state in platform.tickInput.key {
-                    state -= { .JustPressed, .JustReleased }
-                }
+            for &state in platform.tickInput.key {
+                state -= { .JustPressed, .JustReleased }
+            }
 
-                for &state in platform.tickInput.mouseKey {
-                    state -= { .JustPressed, .JustReleased }
-                }
+            for &state in platform.tickInput.mouseKey {
+                state -= { .JustPressed, .JustReleased }
             }
 
             platform.tickInput.scrollX = 0;

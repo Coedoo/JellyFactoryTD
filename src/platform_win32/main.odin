@@ -208,7 +208,6 @@ main :: proc() {
                     engineData.tickInput.key[key] -= { .Up }
                     engineData.tickInput.key[key] += { .Down }
                     engineData.tickInput.key[key] += { .JustPressed }
-                    fmt.println(engineData.tickInput.key[key])
                 }
 
                 if .Up in engineData.frameInput.key[key] {
@@ -225,7 +224,6 @@ main :: proc() {
                     engineData.tickInput.key[key] -= { .Down }
                     engineData.tickInput.key[key] += { .Up }
                     engineData.tickInput.key[key] += { .JustReleased }
-                    fmt.println(engineData.tickInput.key[key])
                 }
 
                 if .Down in engineData.frameInput.key[key] {

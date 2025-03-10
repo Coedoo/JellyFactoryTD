@@ -63,27 +63,16 @@ PrimitiveBatch :: struct {
     buffer: [dynamic]PrimitiveVertex,
 }
 
-DrawLine :: proc{
-    // DrawLine3D,
-    DrawLine2D,
-}
 
-DrawLine2D :: proc(ctx: ^RenderContext, a, b: v2, screenSpace: bool, color: color = RED) {
+DrawDebugLine :: proc(ctx: ^RenderContext, a, b: v2, screenSpace: bool, color: color = RED) {
     batch := &ctx.debugBatch if screenSpace == false else &ctx.debugBatchScreen
 
     append(&batch.buffer, PrimitiveVertex{ToV3(a), color})
     append(&batch.buffer, PrimitiveVertex{ToV3(b), color})
 }
 
-// DrawLine3D :: proc(ctx: ^RenderContext, a, b: v3, color: color = RED) {
-//     using ctx.debugBatch
 
-//     append(&buffer, PrimitiveVertex{a, color})
-//     append(&buffer, PrimitiveVertex{b, color})
-
-// }
-
-DrawBox2D :: proc(ctx: ^RenderContext, pos, size: v2, screenSpace: bool, color: color = GREEN) {
+DrawDebugBox :: proc(ctx: ^RenderContext, pos, size: v2, screenSpace: bool, color: color = GREEN) {
     batch := &ctx.debugBatch if screenSpace == false else &ctx.debugBatchScreen
 
     left  := pos.x - size.x / 2
@@ -107,7 +96,7 @@ DrawBox2D :: proc(ctx: ^RenderContext, pos, size: v2, screenSpace: bool, color: 
 
 }
 
-DrawBounds2D :: proc(ctx: ^RenderContext, bounds: Bounds2D, screenSpace: bool, color := GREEN) {
+DrawDebugBounds :: proc(ctx: ^RenderContext, bounds: Bounds2D, screenSpace: bool, color := GREEN) {
     pos := v2{
         bounds.left + (bounds.right - bounds.left) / 2,
         bounds.bot  + (bounds.top - bounds.bot) / 2,
@@ -118,10 +107,10 @@ DrawBounds2D :: proc(ctx: ^RenderContext, bounds: Bounds2D, screenSpace: bool, c
         (bounds.top - bounds.bot),
     }
 
-    DrawBox2D(ctx, pos, size, screenSpace, color)
+    DrawDebugBox(ctx, pos, size, screenSpace, color)
 }
 
-DrawCircle :: proc(ctx: ^RenderContext, pos: v2, radius: f32, screenSpace: bool, color: color = GREEN) {
+DrawDebugCircle :: proc(ctx: ^RenderContext, pos: v2, radius: f32, screenSpace: bool, color: color = GREEN) {
     batch := &ctx.debugBatch if screenSpace == false else &ctx.debugBatchScreen
 
     resolution :: 32
@@ -149,12 +138,7 @@ DrawCircle :: proc(ctx: ^RenderContext, pos: v2, radius: f32, screenSpace: bool,
     }
 }
 
-DrawRay :: proc{
-    DrawRay2D,
-    // DrawRay3D
-}
-
-DrawRay2D :: proc(ctx: ^RenderContext, ray: Ray2D, screenSpace: bool, distance: f32 = 1., color := GREEN) {
+DrawDebugRay :: proc(ctx: ^RenderContext, ray: Ray2D, screenSpace: bool, distance: f32 = 1., color := GREEN) {
     dir := math.normalize(ray.direction) * distance
-    DrawLine(ctx, ray.origin, ray.origin + dir, screenSpace, color)
+    DrawDebugLine(ctx, ray.origin, ray.origin + dir, screenSpace, color)
 }

@@ -183,8 +183,6 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         moveY
     }
 
-    fmt.println(moveVec, dm.GetKeyState(.D))
-
     if moveVec != {0, 0} {
         moveVec = glsl.normalize(moveVec)
         gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
@@ -1076,14 +1074,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
         posA := CoordToPos(a)
         posB := CoordToPos(b)
-        dm.DrawLine(dm.renderCtx, posA, posB, false, dm.BLUE)
-        dm.DrawCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+        dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
+        dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
     }
 
     // mouseGrid := MousePosGrid()
     // tiles: [dynamic]iv2
     // hit := IsEmptyLineBetweenCoords(gameState.selectedTile, mouseGrid, &tiles)
-    // dm.DrawLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(mouseGrid), false)
+    // dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(mouseGrid), false)
     // for t in tiles {
     //     pos := CoordToPos(t)
     //     dm.DrawBlankSprite(pos, {1, 1}, {0, 1, 0, 0.4} if hit else {1, 0, 0, 0.4})
@@ -1092,7 +1090,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     selectedTile := GetTileAtCoord(gameState.selectedTile)
     if selectedTile != nil {
         for waypoint in selectedTile.visibleWaypoints {
-            dm.DrawLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
+            dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
         }
     }
 
@@ -1101,7 +1099,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             a := path[i]
             b := path[i + 1]
 
-            dm.DrawLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
+            dm.DrawDebugLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
         }
     }
 

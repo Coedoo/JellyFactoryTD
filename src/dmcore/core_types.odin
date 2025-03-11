@@ -116,17 +116,12 @@ TimeData :: struct {
 
     prevTime: time.Tick,
     currTime: time.Tick,
-    // startTimestamp: time.Time,
-
-    // lastTimestamp: time.Time,
-    // currentTimestamp: time.Time,
-
     accumulator: f64,
-
-    // gameDuration: time.Duration,
 
     deltaTime: f32,
     frame: uint,
+
+    gameTickTime: time.Duration,
 
     gameTime: f64,
     realTime: f64, // time as if game was never paused

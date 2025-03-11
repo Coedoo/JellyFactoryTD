@@ -46,7 +46,7 @@ InitPlatform :: proc(platformPtr: ^Platform) {
 
     muiInit(&platformPtr.tickMui, platformPtr.renderCtx)
     muiInit(&platformPtr.frameMui, platformPtr.renderCtx)
-    InitUI(&platformPtr.uiCtx, platformPtr.renderCtx)
+    InitUI(&platformPtr.uiCtx)
 
     InitAudio(&platformPtr.audio)
 
@@ -92,7 +92,7 @@ GameCode :: struct {
     updateAndRender: proc(platform: ^Platform)
 }
 
-DELTA :: 1.0 / 30.0
+DELTA :: 1.0 / 60.0
 
 @(export)
 CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
@@ -103,13 +103,28 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     muiBegin(&platform.frameMui)
 
     platform.time.currTime = coreTime.tick_now()
-    durr := coreTime.duration_seconds(coreTime.tick_diff(platform.time.prevTime, platform.time.currTime))
+    durrTick := coreTime.tick_diff(platform.time.prevTime, platform.time.currTime)
+    durr := coreTime.duration_seconds(durrTick)
+
+    if platform.pauseGame == false {
+        platform.time.gameTickTime += durrTick
+        platform.time.gameTime = coreTime.duration_seconds(platform.time.gameTickTime)
+    }
+
+    platform.time.realTime = coreTime.duration_seconds(
+        coreTime.tick_diff(
+            platform.time.startTime,
+            platform.time.currTime
+        )
+    )
 
     platform.time.prevTime = platform.time.currTime
 
     platform.time.accumulator += durr
     numTicks := int(math.floor(platform.time.accumulator / DELTA))
     platform.time.accumulator -= f64(numTicks) * DELTA
+
+
 
     when ODIN_DEBUG {
         DebugWindow(platform)
@@ -137,6 +152,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
             muiProcessInput(&platform.tickMui, &platform.tickInput)
             muiBegin(&platform.tickMui)
 
+            UIBegin(int(renderCtx.frameSize.x), int(renderCtx.frameSize.y))
+
             mui = &platform.tickMui
 
             platform.time.deltaTime = DELTA
@@ -162,6 +179,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
             platform.tickInput.scroll = 0;
             platform.tickInput.mouseDelta = {}
 
+            UIEnd()
+
             muiEnd(&platform.tickMui)
         }
     }
@@ -178,6 +197,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
     muiRender(&platform.tickMui, platform.renderCtx)
     muiRender(&platform.frameMui, platform.renderCtx)
+
+    DrawUI(platform.renderCtx)
 
     // FlushCommands(platform.renderCtx)
 

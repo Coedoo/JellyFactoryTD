@@ -175,7 +175,7 @@ Layout :: struct {
     preferredSize: [LayoutAxis]NodePreferredSize,
 }
 
-InitUI :: proc(uiCtx: ^UIContext, renderCtx: ^RenderContext) {
+InitUI :: proc(uiCtx: ^UIContext) {
     memory := make([]byte, mem.Megabyte)
     mem.arena_init(&uiCtx.transientArena, memory)
     uiCtx.transientAllocator = mem.arena_allocator(&uiCtx.transientArena)
@@ -298,7 +298,10 @@ DoLayoutParentPercent :: proc(node: ^UINode) {
         size := node.preferredSize[axis]
 
         if size.type == .ParentPercent {
-            node.targetSize[axis] = node.parent.targetSize[axis] * size.value
+            parent := node.parent
+            parentPadding := parent.padding.left + parent.padding.right
+
+            node.targetSize[axis] = parent.targetSize[axis] * size.value - f32(parentPadding)
         }
     }
 
@@ -342,8 +345,6 @@ DoLayoutChildren :: proc(node: ^UINode) {
 }
 
 ResolveLayoutContraints :: proc(node: ^UINode) {
-
-    maxSize := node.targetSize
     childrenSize: v2
     childrenMinSize: v2
 
@@ -352,8 +353,12 @@ ResolveLayoutContraints :: proc(node: ^UINode) {
         childrenMinSize.x += child.targetSize.x * (1 - child.preferredSize[.X].strictness)
         childrenMinSize.y += child.targetSize.y * (1 - child.preferredSize[.Y].strictness)
     }
+
     childrenSize[node.childrenAxis] += f32(node.childrenCount - 1) * f32(node.spacing)
-    
+    childrenSize.x += f32(node.padding.left + node.padding.right)
+    childrenSize.y += f32(node.padding.top + node.padding.bot)
+
+    maxSize := node.targetSize
     violation := childrenSize - maxSize
 
     // @TODO: what to do when childrenMinSize == 0?
@@ -522,7 +527,7 @@ EndLayout :: proc() {
     PopParent()
 }
 
-UIBegin :: proc(uiCtx: ^UIContext, screenWidth, screenHeight: int) {
+UIBegin :: proc(screenWidth, screenHeight: int) {
     #reverse for &node, i in uiCtx.nodes {
         if node.touchedThisFrame == false || node.id == 0 {
             unordered_remove(&uiCtx.nodes, i)
@@ -740,23 +745,23 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
 
     background := AddNode(
         text, 
-        { .DrawBackground, .FloatingX, .FloatingY }, 
+        { .DrawBackground, .FloatingX, .FloatingY },
         uiCtx.defaultStyle, uiCtx.defaultLayout
     )
-    background.bgColor = MAGENTA
+    background.bgColor = {0, 0.5, 0.3, 0.8}
 
     background.childrenAxis = .Y
     background.preferredSize[.X] = {.Children, 0, 1}
     background.preferredSize[.Y] = {.Children, 0, 1}
 
-    // SetLayout(background, .Container)
+    // // SetLayout(background, .Container)
     PushParent(background)
 
-    header := AddNode("Header", {.Clickable}, uiCtx.defaultStyle, uiCtx.defaultLayout)
+    header := AddNode("Header", {.Clickable})
     header.preferredSize[.X] = {.ParentPercent, 1, 1}
     header.preferredSize[.Y] = {.Children, 0, 1}
     header.childrenAxis = .X
-    // header.isFloating = true
+    // // header.isFloating = true
 
     interaction := GetNodeInteraction(header)
     if interaction.cursorPressed {
@@ -766,21 +771,21 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
 
     PushParent(header)
 
-    // UILabel(text)
-    label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.defaultLayout)
-    label.preferredSize[.X] = {.Text, 1, 1}
-    label.preferredSize[.Y] = {.Text, 1, 1}
+        // UILabel(text)
+        label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.defaultLayout)
+        label.preferredSize[.X] = {.Text, 1, 1}
+        label.preferredSize[.Y] = {.Text, 1, 1}
 
-    spacer := AddNode("Spacer", {})
-    spacer.preferredSize[.X] = {.ParentPercent, 1, 0}
-    spacer.preferredSize[.Y] = {.ParentPercent, 1, 0}
+        spacer := AddNode("Spacer", {})
+        spacer.preferredSize[.X] = {.ParentPercent, 1, 0}
+        spacer.preferredSize[.Y] = {.ParentPercent, 1, 0}
 
-    // TODO: close button
-    if UIButton("X") {
-        isOpen^ = false
-    }
+        // TODO: close button
+        if UIButton("X") {
+            isOpen^ = false
+        }
+
     PopParent()
-
 
     return true
 }
@@ -916,7 +921,7 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    // DrawBox2D(renderCtx, nodeCenter, node.targetSize, true)
+    DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor
@@ -972,9 +977,13 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
 }
 
 DrawUI :: proc(renderCtx: ^RenderContext) {
+    BeginScreenSpace()
+
     if len(uiCtx.nodes) > 0 {
         DrawNode(renderCtx, &uiCtx.nodes[0])
     }
+
+    EndScreenSpace()
 }
 
 CreateUIDebugString :: proc() -> string {

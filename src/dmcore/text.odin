@@ -136,7 +136,7 @@ DrawText :: proc(str: string, position: v2,
 
     ///// DEBUG
     // size := MeasureText(str, font, fontSize)
-    // DrawBox2D(renderCtx, position + size / 2 * {1, yDir}, size, renderCtx.inScreenSpace, color = RED)
+    // DrawDebugBox(renderCtx, position + size / 2 * {1, yDir}, size, renderCtx.inScreenSpace, color = RED)
     ////
 
     shader := renderCtx.defaultShaders[.SDFFont] if font.type == .SDF else renderCtx.defaultShaders[.Sprite]
@@ -220,7 +220,8 @@ MeasureTextFont :: proc(str: string, font: Font, fontSize: f32 = 0) -> v2 {
     width := f32(0)
     height := 0
 
-    for c, i in str {
+    runes := utf8.string_to_runes(str, context.temp_allocator)
+    for c, i in runes {
         if c == '\n' {
             width = max(width, posX)
 
@@ -233,8 +234,23 @@ MeasureTextFont :: proc(str: string, font: Font, fontSize: f32 = 0) -> v2 {
         index := GetCodepointIndex(c)
         glyphData := font.glyphData[index]
 
-        advance := glyphData.advanceX if glyphData.advanceX != 0 else glyphData.pixelWidth
-        posX += f32(advance)
+        if i + 1 < len(runes) {
+            if runes[i + 1] == '\n' {
+                idx := GetCodepointIndex(runes[i + 1])
+                posX += f32(font.glyphData[idx].pixelWidth)
+            }
+            else {
+                advance := glyphData.advanceX if glyphData.advanceX != 0 else glyphData.pixelWidth
+                posX += f32(advance)
+            }
+        }
+        else {
+            posX += f32(glyphData.pixelWidth)
+        }
+
+        if i + 1 < len(runes) {
+            posX += KerningLookup(font, c, runes[i+1])
+        }
     }
 
     width = max(width, posX)

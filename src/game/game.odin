@@ -360,9 +360,9 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         from = building.handle,
                         to   = target.handle,
                         }
-                    path, ok := gameState.pathsBetweenBuildings[pathKey]
+                    path, pathExists := gameState.pathsBetweenBuildings[pathKey]
 
-                    if ok {
+                    if pathExists {
                         packet := dm.CreateElement(&gameState.energyPackets)
 
                         packet.path = path
@@ -379,11 +379,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
 
         if .RotatingTurret in buildingData.flags {
-            enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
-            if ok {
-                delta := building.position - enemy.position
-                building.turretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
-            }
+            // enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
+            // if ok {
+            //     delta := building.position - enemy.position
+            //     building.turretAngle = math.atan2(delta.y, delta.x) + math.PI / 2
+            // }
         }
 
         if .Attack in buildingData.flags {
@@ -392,25 +392,31 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             handle := FindClosestEnemy(building.position, buildingData.range)
             building.targetEnemy = handle
 
+            building.fireTimer -= dm.time.deltaTime
+
+            enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
+            if ok == false {
+                continue
+            }
+
+            dm.DrawDebugLine(dm.renderCtx, enemy.position, building.position, false)
+
+
             currentEnergy := BuildingEnergy(building)
-            if handle != {} && 
-               currentEnergy >= buildingData.energyRequired &&
+            if currentEnergy >= buildingData.energyRequired &&
                building.attackTimer <= 0
             {
-                enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
-                if ok == false {
-                    continue
-                }
-
                 building.attackTimer = buildingData.reloadTime
 
-                angle := building.turretAngle + math.PI / 2
-                delta := v2 {
-                    math.cos(angle),
-                    math.sin(angle),
-                }
+                building.fireTimer = 1
+                building.firePosition = enemy.position
+                // angle := building.turretAngle + math.PI / 2
+                // delta := v2 {
+                //     math.cos(angle),
+                //     math.sin(angle),
+                // }
 
-                dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
+                // dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
                 RemoveEnergyFromBuilding(building, buildingData.energyRequired)
 
@@ -421,12 +427,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 case .Cannon:
                     enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
                     for e in enemies {
-                        enemy, ok := dm.GetElementPtr(gameState.enemies, e)
-                        if ok == false {
+                        enemyInRange, enemyOk := dm.GetElementPtr(gameState.enemies, e)
+                        if enemyOk == false {
                             continue
                         }
 
-                        DamageEnemy(enemy, buildingData.damage)
+                        DamageEnemy(enemyInRange, buildingData.damage)
                     }
                 case .None:
                     assert(false) // TODO: Error handling/logger
@@ -811,8 +817,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
-    // TestUI()
-    // GameMenu() 
+    TestUI()
+    // GameMenu()
 }
 
 @(export)
@@ -909,6 +915,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         // dm.SetShaderData(2, [4]f32{1, 0, 1, 1})
         dm.DrawSprite(sprite, pos)
 
+        if building.fireTimer > 0 {
+            delta := building.firePosition - building.position
+            rayPos := building.position + delta / 2
+            rot := math.atan2(delta.y, delta.x)
+
+            dm.DrawRectBlank(rayPos, {glsl.length(delta), 0.1}, rotation = rot, color = {1, 1, 1, building.fireTimer * 0.1})
+        }
+
         // currentEnergy := BuildingEnergy(&building)
         // if buildingData.energyStorage != 0 {
         //     // @TODO this breaks batching
@@ -919,13 +933,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         //     )
         // }
 
-        if .RotatingTurret in buildingData.flags {
-            sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
-            sprite.origin = buildingData.turretSpriteOrigin
-            sprite.scale = f32(buildingData.size.x)
+        // if .RotatingTurret in buildingData.flags {
+        //     sprite := dm.CreateSprite(tex, buildingData.turretSpriteRect)
+        //     sprite.origin = buildingData.turretSpriteOrigin
+        //     sprite.scale = f32(buildingData.size.x)
             
-            dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
-        }
+        //     dm.DrawSprite(sprite, pos, rotation = building.turretAngle)
+        // }
 
         // if dm.platform.debugState {
         //     if .Attack in buildingData.flags {

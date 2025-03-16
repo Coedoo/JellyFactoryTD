@@ -165,7 +165,7 @@ DrawText :: proc(str: string, position: v2,
             pY -= f32(glyphData.pixelHeight) * scale;
         }
 
-        position := v2{posX, pY} + {0, glyphData.offset.y * scale * yDir}
+        finalPos := v2{posX, pY} + {0, glyphData.offset.y * scale * yDir}
         size := v2{f32(glyphData.pixelWidth), f32(glyphData.pixelHeight)} * scale
         texSource := RectInt{texPos.x, texPos.y, texSize.x, texSize.y}
         // tint = color
@@ -176,7 +176,7 @@ DrawText :: proc(str: string, position: v2,
 
         // append(&renderCtx.commandBuffer.commands, cmd)
 
-        DrawRectSrcDst(font.atlas, texSource, {position.x, position.y, size.x, size.y}, shader, {0, 0}, 0, color)
+        DrawRectSrcDst(font.atlas, texSource, {finalPos.x, finalPos.y, size.x, size.y}, shader, {0, 0}, 0, color)
 
         advance := glyphData.advanceX if glyphData.advanceX != 0 else glyphData.pixelWidth
         posX += f32(advance) * scale

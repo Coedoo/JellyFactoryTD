@@ -128,6 +128,7 @@ TestUI :: proc() {
     dm.muiLabel(dm.mui, "Nodes:", len(dm.uiCtx.nodes))
     dm.muiLabel(dm.mui, "Hot Id:", dm.uiCtx.hotId)
     dm.muiLabel(dm.mui, "activeId:", dm.uiCtx.activeId)
+
     if windowOpen == false {
         if dm.muiButton(dm.mui, "Open Again") {
             windowOpen = true
@@ -155,11 +156,16 @@ TestUI :: proc() {
                 dm.UILabel("Label1")
                 dm.UILabel("Label2")
                 dm.UILabel("Label3")
+                dm.UILabel("Label6")
             }
         }
         
+        dm.UIImage(gameState.playerSprite.texture)
+
         dm.UILabel("Label AAAAA")
         dm.UILabel("Label AAAAAAA")
+        dm.UILabel("A")
+        dm.UILabel("B")
 
 
         dm.UIEndWindow()

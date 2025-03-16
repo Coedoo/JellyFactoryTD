@@ -95,11 +95,11 @@ LoadLevels :: proc() -> (levels: []Level) {
     // @TODO: it's kinda error prone
     PixelsPerTile :: 16
 
-    for loadedLevel, i in project.levels {
+    for loadedLevel, levelIdx in project.levels {
         levelPxSize := iv2{i32(loadedLevel.px_width), i32(loadedLevel.px_height)}
         levelSize := dm.ToV2(levelPxSize) / PixelsPerTile
 
-        level := &levels[i]
+        level := &levels[levelIdx]
         level.sizeX = i32(levelSize.x)
         level.sizeY = i32(levelSize.y)
 
@@ -113,10 +113,10 @@ LoadLevels :: proc() -> (levels: []Level) {
                 level.grid = make([]Tile, layer.c_width * layer.c_height)
 
                 // Setup tile's types
-                for type, i in layer.int_grid_csv {
+                for type, gridIdx in layer.int_grid_csv {
                     coord := iv2{
-                        i32(i) % level.sizeX,
-                        i32(i) / level.sizeX,
+                        i32(gridIdx) % level.sizeX,
+                        i32(gridIdx) / level.sizeX,
                     }
 
                     coord.y = level.sizeY - coord.y - 1
@@ -131,7 +131,7 @@ LoadLevels :: proc() -> (levels: []Level) {
                 }
 
                 // Tile's sprites
-                for tile, i in tiles {
+                for tile in tiles {
                     sprite := dm.CreateSprite(
                         tilesHandle,
                         dm.RectInt{i32(tile.src.x), i32(tile.src.y), PixelsPerTile, PixelsPerTile}
@@ -159,8 +159,8 @@ LoadLevels :: proc() -> (levels: []Level) {
                     case "EndPoint": level.endCoord = coord; continue
                     }
 
-                    buildingIdx, ok := buildingsNameCache[entity.identifier]
-                    if ok == false {
+                    buildingIdx, buildingFound := buildingsNameCache[entity.identifier]
+                    if buildingFound == false {
                         newIdentifier, _ := strings.replace_all(entity.identifier, "_", " ", context.temp_allocator)
                         for building, i in Buildings {
                             if building.name == newIdentifier {
@@ -183,8 +183,8 @@ LoadLevels :: proc() -> (levels: []Level) {
                     level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
                 }
 
-                tilesetID, ok := layer.tileset_def_uid.?
-                if ok == false {
+                tilesetID, tilesetFound := layer.tileset_def_uid.?
+                if tilesetFound == false {
                     fmt.println("Pipes layer doesn't have specified tileset ID!")
                     continue
                 }
@@ -342,13 +342,13 @@ RefreshVisibilityGraph :: proc() {
     }
 
     // @TODO: optimisation
-    for &tile, i in gameState.level.grid {
+    for &tile in gameState.level.grid {
         tile.isCorner = false
     }
 
     cornerTiles := make([dynamic]^Tile, allocator = context.temp_allocator)
     append(&cornerTiles, GetTileAtCoord(gameState.level.startCoord))
-    for &tile, i in gameState.level.grid {
+    for &tile in gameState.level.grid {
         // tile.isCorner = false
 
         foundPatterns := [4]bool{true, true, true, true}
@@ -384,11 +384,11 @@ RefreshVisibilityGraph :: proc() {
             }
         }
 
-        for found, i in foundPatterns {
+        for found, patternIdx in foundPatterns {
             if found {
                 // tile.isCorner = true
                 // break
-                offset := cornerDirections[i]
+                offset := cornerDirections[patternIdx]
                 cornerTile := GetTileAtCoord(tile.gridPos + offset)
                 if cornerTile != nil {
                     cornerTile.isCorner = true

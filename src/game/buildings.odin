@@ -86,7 +86,7 @@ BuildingInstance :: struct {
     gridPos: iv2,
     position: v2,
 
-    // energy
+    // energy production
     producedEnergyType: EnergyType,
     currentEnergy: EnergySet,
 
@@ -98,9 +98,13 @@ BuildingInstance :: struct {
     attackTimer: f32,
     targetEnemy: EnemyHandle,
 
-    turretAngle: f32,
-    targetTurretAngle: f32,
+    firePosition: v2,
+    fireTimer: f32,
 
+    // turretAngle: f32,
+    // targetTurretAngle: f32,
+
+    // energy usage
     lastUsedSourceIdx: int,
     energySources: [dynamic]BuildingHandle,
     energyTargets: [dynamic]BuildingHandle,

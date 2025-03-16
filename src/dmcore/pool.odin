@@ -82,6 +82,8 @@ AppendElement :: proc(pool: ^ResourcePool($T, $H), element: T) -> H {
 IsHandleValid :: proc(pool: ResourcePool($T, $H), handle: H) -> bool {
     assert(int(handle.slotIndex) < len(pool.slots))
 
+    if handle == {} do return false
+
     slot := pool.slots[handle.slotIndex]
     return slot.elemIndex != 0 && slot.gen == handle.gen
 }

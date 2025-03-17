@@ -184,3 +184,25 @@ GetSpriteSize :: proc(sprite: Sprite) -> v2 {
 
     return {sizeX, sizeY}
 }
+
+
+SpriteAtlas :: struct {
+    texture: TexHandle,
+    gridSize: iv2,
+}
+
+GetSprite :: proc(atlas: SpriteAtlas, cell: iv2, 
+    origin := v2{0.5, 0.5}, 
+    cellSize := iv2{1, 1}) -> Sprite
+{
+    return Sprite {
+        texture = atlas.texture,
+        origin = origin,
+        texturePos = atlas.gridSize * cell,
+        textureSize = atlas.gridSize * cellSize,
+    }
+}
+
+
+
+

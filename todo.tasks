@@ -17,7 +17,7 @@ GAMEPLAY:
   ☐ New enrgy sprite
 
 FRAMEWORK:
-  ☐ New sprite API
+  ✘ New sprite API @cancelled (25-03-17 21:45)
   ✔ Update framework version @done (25-03-15 21:35)
   ☐ Map Editor
   ☐ Input rework

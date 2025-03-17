@@ -817,7 +817,8 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         }
     }
 
-    TestUI()
+    // BuildingsWindow()
+    // TestUI()
     // GameMenu()
 }
 

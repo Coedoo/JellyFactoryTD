@@ -64,6 +64,8 @@ NodeFlag :: enum {
 
     FloatingX,
     FloatingY,
+
+    AnchoredPosition,
 }
 NodeFlags :: distinct bit_set[NodeFlag]
 
@@ -95,6 +97,10 @@ UINode :: struct {
     textureSource: UIRect,
 
     origin: v2,
+
+    anchoredPosPercent: v2,
+    anchoredPosOffset: v2,
+
     targetPos: v2,
     targetSize: v2,
 
@@ -106,13 +112,6 @@ UINodeInteraction :: struct {
     cursorDown: b8,
     cursorPressed: b8,
     cursorUp: b8
-}
-
-ControlStyle :: enum {
-    None,
-    Container,
-    Button,
-    Label,
 }
 
 /////////
@@ -173,6 +172,30 @@ Layout :: struct {
     spacing: int,
 
     preferredSize: [LayoutAxis]NodePreferredSize,
+}
+
+UIAnchor :: enum {
+    TopLeft,
+    TopCenter,
+    TopRight,
+    MiddleLeft,
+    MiddleCenter,
+    MiddleRight,
+    BotLeft,
+    BotCenter,
+    BorRight,
+}
+
+UIAnchorToPercent: [UIAnchor]v2 = {
+    .TopLeft      = {0,   0},
+    .TopCenter    = {0.5, 0},
+    .TopRight     = {1,   0},
+    .MiddleLeft   = {0,   0.5},
+    .MiddleCenter = {0.5, 0.5},
+    .MiddleRight  = {1,   0.5},
+    .BotLeft      = {0,   1},
+    .BotCenter    = {0.5, 1},
+    .BorRight     = {1,   1},
 }
 
 InitUI :: proc(uiCtx: ^UIContext) {
@@ -240,6 +263,7 @@ PushId :: proc {
     PushIdBytes,
     PushIdStr,
     PushIdPtr,
+    PushIdInt,
 }
 
 PushIdPtr :: proc(ptr: rawptr) {
@@ -255,6 +279,11 @@ PushIdStr :: proc(str: string) {
 PushIdBytes :: proc(bytes: []byte) {
     id := GetIdBytes(bytes)
     append(&uiCtx.hashStack, id)
+}
+
+PushIdInt :: proc(i: int) {
+    i := i
+    PushIdPtr(&i)
 }
 
 PopId :: proc() {
@@ -398,6 +427,12 @@ DoFinalLayout :: proc(node: ^UINode) {
     if node.childrenAxis == .X {
         childPos: f32 = nodePos.x + f32(node.padding.left)
         for next := node.firstChild; next != nil; next = next.nextSibling {
+            if .AnchoredPosition in next.flags {
+                next.targetPos = 
+                    node.targetPos + node.targetSize * next.anchoredPosPercent + next.anchoredPosOffset
+                continue
+            }
+
             if .FloatingX not_in next.flags {
                 next.targetPos.x = childPos
             }
@@ -424,6 +459,11 @@ DoFinalLayout :: proc(node: ^UINode) {
         childPos: f32 = nodePos.y + f32(node.padding.top)
 
         for next := node.firstChild; next != nil; next = next.nextSibling {
+            if .AnchoredPosition in next.flags {
+                next.targetPos = 
+                    node.targetPos + node.targetSize * next.anchoredPosPercent + next.anchoredPosOffset
+                continue
+            }
 
             if .FloatingY not_in next.flags {
                 next.targetPos.y = childPos
@@ -608,9 +648,15 @@ GetNode :: proc(text: string) -> ^UINode {
 
 AddNode :: proc(text: string, flags: NodeFlags, 
     style := uiCtx.defaultStyle,
-    layout := uiCtx.defaultLayout) -> ^UINode
+    layout := uiCtx.defaultLayout,
+    idIdx: Maybe(int) = nil) -> ^UINode
 {
-    node := GetNode(text)
+    specialId, hasId := idIdx.?
+    
+    if hasId do PushId(specialId)
+        node := GetNode(text)
+    if hasId do PopId()
+
     mem.zero_item(&node.PerFrameData)
 
     if len(uiCtx.stylesStack) > 0 {
@@ -734,12 +780,38 @@ EndPanel :: proc() {
     PopParent()
 }
 
+@(deferred_none=EndContainer)
+UIContainer :: proc(text: string, anchor: UIAnchor, 
+    anchorOffset := v2{0, 0},
+    layoutAxis := LayoutAxis.X) -> bool
+{
+    container := AddNode(text, {})
+    container.childrenAxis = layoutAxis
+    container.preferredSize[.X] = {.Children, 0, 1}
+    container.preferredSize[.Y] = {.Children, 0, 1}
+
+    container.flags += { .AnchoredPosition }
+
+    container.origin = UIAnchorToPercent[anchor]
+    container.anchoredPosPercent = container.origin
+
+    container.anchoredPosOffset = anchorOffset
+
+    PushParent(container)
+
+    return true
+}
+
+EndContainer :: proc() {
+    PopParent()
+}
+
 /////////
 // Windows
 /////////
 
-UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
-    if isOpen^ == false {
+UIBeginWindow :: proc(text: string, isOpen: ^bool = nil) -> bool {
+    if isOpen != nil && isOpen^ == false {
         return false 
     }
 
@@ -781,8 +853,10 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool) -> bool {
         spacer.preferredSize[.Y] = {.ParentPercent, 1, 0}
 
         // TODO: close button
-        if UIButton("X") {
-            isOpen^ = false
+        if isOpen != nil {
+            if UIButton("X") {
+                isOpen^ = false
+            }
         }
 
     PopParent()
@@ -812,8 +886,8 @@ UILabel :: proc(text: string) {
     node := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
 }
 
-UIImage :: proc(image: TexHandle, maybeSize: Maybe(iv2) = nil) {
-    node := AddNode(fmt.tprint("Tex", image), {.BackgroundTexture})
+UIImage :: proc(image: TexHandle, maybeSize: Maybe(iv2) = nil, idIdx: Maybe(int) = nil) {
+    node := AddNode(fmt.tprint("Tex", image), {.BackgroundTexture}, idIdx = idIdx)
 
     node.texture = image
 

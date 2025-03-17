@@ -10,17 +10,46 @@ import "core:mem"
 
 import "../ldtk"
 
+ImageButton :: proc(text: string, image: dm.TexHandle) -> bool{
+    node := dm.AddNode(text, {.Clickable}, dm.uiCtx.panelStyle, dm.uiCtx.panelLayout)
+    interaction := dm.GetNodeInteraction(node)
+
+    dm.PushParent(node)
+
+    dm.UIImage(image)
+    dm.UILabel(text)
+
+    dm.PopParent()
+
+    return cast(bool) interaction.cursorUp
+}
+
 BuildingsWindow :: proc() {
-    if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 200, 350}, {}) {
+    // if dm.muiBeginWindow(dm.mui, "Buildings", {10, 10, 200, 350}, {}) {
+    //     for b, idx in Buildings {
+    //         // sprite := gameState.buildingSprites[b.sprite]
+    //         // dm.DrawRectSize(sprite.texture, {10, 10}, {40, 40}, origin = {0, 0})
+    //         if dm.muiButton(dm.mui, b.name) {
+    //             gameState.selectedBuildingIdx = idx + 1
+    //         }
+    //     }
+
+    //     dm.muiEndWindow(dm.mui)
+    // }
+
+    // dm.NextNodePosition({100, 100})
+    if dm.UIBeginWindow("Buildings") {
         for b, idx in Buildings {
+            tex := dm.GetTextureAsset(b.spriteName)
             // sprite := gameState.buildingSprites[b.sprite]
-            // dm.DrawRectSize(sprite.texture, {10, 10}, {40, 40}, origin = {0, 0})
-            if dm.muiButton(dm.mui, b.name) {
+            if ImageButton(b.name, tex) {
                 gameState.selectedBuildingIdx = idx + 1
+                gameState.buildUpMode = .Building
+                // fmt.println("AAAAAAA")
             }
         }
 
-        dm.muiEndWindow(dm.mui)
+        dm.UIEndWindow()
     }
 }
 
@@ -124,17 +153,37 @@ GameMenu :: proc() {
 TestUI :: proc() {
     @static windowOpen := true
 
-    dm.muiBeginWindow(dm.mui, "UI debug", {600, 50, 100, 150}, {})
-    dm.muiLabel(dm.mui, "Nodes:", len(dm.uiCtx.nodes))
-    dm.muiLabel(dm.mui, "Hot Id:", dm.uiCtx.hotId)
-    dm.muiLabel(dm.mui, "activeId:", dm.uiCtx.activeId)
+    // dm.muiBeginWindow(dm.mui, "UI debug", {600, 50, 100, 150}, {})
+    // dm.muiLabel(dm.mui, "Nodes:", len(dm.uiCtx.nodes))
+    // dm.muiLabel(dm.mui, "Hot Id:", dm.uiCtx.hotId)
+    // dm.muiLabel(dm.mui, "activeId:", dm.uiCtx.activeId)
 
-    if windowOpen == false {
-        if dm.muiButton(dm.mui, "Open Again") {
-            windowOpen = true
-        }
+    // if windowOpen == false {
+    //     if dm.muiButton(dm.mui, "Open Again") {
+    //         windowOpen = true
+    //     }
+    // }
+    // dm.muiEndWindow(dm.mui)
+
+    // dm.NextNodePosition(dm.ToV2(dm.renderCtx.frameSize / 2))
+    // panel := dm.AddNode("testpanel", {})
+    // panel.origin = {1, 1}
+    // panel.childrenAxis = .X
+    // panel.preferredSize[.X] = {.Children, 0, 1}
+    // panel.preferredSize[.Y] = {.Children, 0, 1}
+
+    // panel.flags += {.AnchoredPosition}
+    // panel.anchoredPosPercent = {1, 1}
+    // panel.anchoredPosOffset = {-100, -50}
+
+
+    // dm.PushParent(panel)
+
+    if dm.UIContainer("container", .TopCenter, layoutAxis = .Y) {
+        dm.UIImage(gameState.playerSprite.texture, idIdx = 0)
+        dm.UIImage(gameState.arrowSprite.texture)
+        dm.UIImage(gameState.playerSprite.texture, idIdx = 1)
     }
-    dm.muiEndWindow(dm.mui)
 
     if dm.UIBeginWindow("Window", &windowOpen) {
         @static toggle: bool = true

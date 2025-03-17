@@ -1,3 +1,10 @@
+UI:
+  ✔ button with image @done (25-03-17 21:10)
+  ✔ Anchoring floating panel @done (25-03-17 21:10)
+    ✔ API @done (25-03-17 21:10)
+  ☐ Scrolls
+  
+
 GAMEPLAY:
   ☐ Better shooting visualisaion
   ☐ Shot Hit effects
@@ -10,6 +17,12 @@ GAMEPLAY:
   ☐ New enrgy sprite
 
 FRAMEWORK:
-  ☐ Update framework version
+  ☐ New sprite API
+  ✔ Update framework version @done (25-03-15 21:35)
   ☐ Map Editor
   ☐ Input rework
+  ✔ move build script from the other project @done (25-03-16 16:02)
+  ☐ new build script still launches the game even when there is an compiler error
+
+  BUGS:
+    ☐ UI - infinity loop when there is two nodes with the same ID

@@ -22,18 +22,20 @@ if "%release%" == "1" (
     rem set flags=%flags% -debug -o:none -use-separate-modules -lld -show-timings
 )
 
-set errorlevel=0
+REM Reset errorlevel
+ver > nul
+
 if not "%only_game%"=="1" (
     echo "Building Platform"
     del %exe_name%
     odin build ..\src\platform_win32 %flags% -out:%exe_name%
 )
 
-if %errorlevel% == 0 (
+if %errorlevel%==0 (
     odin build ..\src\game -build-mode=dll -out="Game.dll" %flags%
 )
 
-if "%run%" == "1" if %errorlevel% == 0 if %game_running% == false (
+if "%run%" == "1" if %errorlevel%==0 if %game_running% == false (
     %exe_name%
 )
 

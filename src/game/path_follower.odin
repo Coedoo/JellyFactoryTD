@@ -48,6 +48,18 @@ UpdateFollower :: proc(follower: ^PathFollower, speed: f32) {
     follower.position = pos
 }
 
+DistanceLeft :: proc(follower: PathFollower) -> f32 {
+    nextPos := CoordToPos(follower.path[follower.nextPointIdx])
+    dist := glsl.distance(follower.position, nextPos)
+
+    for i := follower.nextPointIdx; i < len(follower.path) - 1; i += 1 {
+        a := CoordToPos(follower.path[i])
+        b := CoordToPos(follower.path[i + 1])
+        dist += glsl.distance(a, b)
+    }
+
+    return dist
+}
 
 GetTransitEnergy :: proc(handle: BuildingHandle) -> (amount: f32) {
     for packet in gameState.energyPackets.elements {

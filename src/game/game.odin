@@ -388,14 +388,37 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         if .Attack in buildingData.flags {
             building.attackTimer -= f32(dm.time.deltaTime)
-
-            handle := FindClosestEnemy(building.position, buildingData.range)
-            building.targetEnemy = handle
-
             building.fireTimer -= dm.time.deltaTime
 
-            enemy, ok := dm.GetElementPtr(gameState.enemies, handle)
+            switch building.targetingMethod {
+            case .KeepTarget:
+                if building.targetEnemy == {} {
+                    building.targetEnemy = FindClosestEnemy(building.position, buildingData.range)
+                }
+
+            case .Closest:
+                building.targetEnemy = FindClosestEnemy(building.position, buildingData.range)
+
+            case .LowestPathDist:
+                enemies := FindEnemiesInRange(building.position, buildingData.range)
+                minDist := max(f32)
+                for &e in enemies {
+                    dist := DistanceLeft(e)
+                    if dist < minDist {
+                        minDist = dist
+                        building.targetEnemy = e.handle
+                    }
+                }
+            }
+
+            enemy, ok := dm.GetElementPtr(gameState.enemies, building.targetEnemy)
             if ok == false {
+                building.targetEnemy = {}
+                continue
+            }
+
+            if glsl.distance(building.position, enemy.position) > buildingData.range {
+                building.targetEnemy = {}
                 continue
             }
 
@@ -408,7 +431,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             {
                 building.attackTimer = buildingData.reloadTime
 
-                building.fireTimer = 1
+                building.fireTimer = SHOT_VISUAL_TIMER
                 building.firePosition = enemy.position
                 // angle := building.turretAngle + math.PI / 2
                 // delta := v2 {
@@ -427,12 +450,12 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 case .Cannon:
                     enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
                     for e in enemies {
-                        enemyInRange, enemyOk := dm.GetElementPtr(gameState.enemies, e)
-                        if enemyOk == false {
-                            continue
-                        }
+                        // enemyInRange, enemyOk := dm.GetElementPtr(gameState.enemies, e)
+                        // if enemyOk == false {
+                        //     continue
+                        // }
 
-                        DamageEnemy(enemyInRange, buildingData.damage)
+                        DamageEnemy(e, buildingData.damage)
                     }
                 case .None:
                     assert(false) // TODO: Error handling/logger
@@ -736,56 +759,57 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
     tile := GetTileAtCoord(gameState.selectedTile)
     if tile.building != {} || tile.pipeDir != {} {
+        building, buildingData := GetBuilding(tile.building)
+        dm.DrawDebugCircle(dm.renderCtx, building.position, buildingData.range, false, dm.RED)
+
         if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}, {.NO_CLOSE}) {
             dm.muiLabel(dm.mui, tile.pipeDir)
 
             if dm.muiHeader(dm.mui, "Building") {
                 if tile.building != {} {
-                    building, ok := dm.GetElementPtr(gameState.spawnedBuildings, tile.building)
-                    if ok {
-                        data := &Buildings[building.dataIdx]
-                        dm.muiLabel(dm.mui, "Name:", data.name)
-                        dm.muiLabel(dm.mui, building.handle)
-                        dm.muiLabel(dm.mui, "Pos:", building.gridPos)
-                        // dm.muiLabel(dm.mui, "requestedEnergy:", building.requestedEnergy)
+                    data := &Buildings[building.dataIdx]
+                    dm.muiLabel(dm.mui, "Name:", data.name)
+                    dm.muiLabel(dm.mui, building.handle)
+                    dm.muiLabel(dm.mui, "Pos:", building.gridPos)
+                    // dm.muiLabel(dm.mui, "requestedEnergy:", building.requestedEnergy)
 
-                        if .RequireEnergy in data.flags {
-                            dm.muiLabel(dm.mui, "Fractions:", building.requiredEnergyFractions)
-                        }
+                    if .RequireEnergy in data.flags {
+                        dm.muiLabel(dm.mui, "Fractions:", building.requiredEnergyFractions)
+                    }
 
-                        if .SendsEnergy in data.flags {
-                            dm.muiLabel(dm.mui, "Spawn timer:", building.packetSpawnTimer)
-                        }
+                    if .SendsEnergy in data.flags {
+                        dm.muiLabel(dm.mui, "Spawn timer:", building.packetSpawnTimer)
+                    }
 
-                        dm.muiLabel(dm.mui, "Energy:", BuildingEnergy(building), "/", data.energyStorage)
-                        if dm.muiHeader(dm.mui, "Energy") {
-                            for eType in EnergyType {
-                                dm.muiLayoutRow(dm.mui, {40, -1}, 13)
-                                dm.muiLabel(dm.mui, eType)
-                                dm.muiSlider(dm.mui, &building.currentEnergy[eType], 0, data.energyStorage)
-                            }
-                        }
-
-                        if dm.muiHeader(dm.mui, "Energy Targets") {
-                            for b in building.energyTargets {
-                                dm.muiLabel(dm.mui, b)
-                            }
-                        }
-
-                        if dm.muiHeader(dm.mui, "Energy Sources") {
-                            for b in building.energySources {
-                                dm.muiLabel(dm.mui, b)
-                            }
-                        }
-
-                        if .SendsEnergy in data.flags &&
-                            dm.muiHeader(dm.mui, "Request Queue")
-                        {
-                            for b in building.requestedEnergyQueue {
-                                dm.muiLabel(dm.mui, b)
-                            }
+                    dm.muiLabel(dm.mui, "Energy:", BuildingEnergy(building), "/", data.energyStorage)
+                    if dm.muiHeader(dm.mui, "Energy") {
+                        for eType in EnergyType {
+                            dm.muiLayoutRow(dm.mui, {40, -1}, 13)
+                            dm.muiLabel(dm.mui, eType)
+                            dm.muiSlider(dm.mui, &building.currentEnergy[eType], 0, data.energyStorage)
                         }
                     }
+
+                    if dm.muiHeader(dm.mui, "Energy Targets") {
+                        for b in building.energyTargets {
+                            dm.muiLabel(dm.mui, b)
+                        }
+                    }
+
+                    if dm.muiHeader(dm.mui, "Energy Sources") {
+                        for b in building.energySources {
+                            dm.muiLabel(dm.mui, b)
+                        }
+                    }
+
+                    if .SendsEnergy in data.flags &&
+                        dm.muiHeader(dm.mui, "Request Queue")
+                    {
+                        for b in building.requestedEnergyQueue {
+                            dm.muiLabel(dm.mui, b)
+                        }
+                    }
+                    
                 }
             }
 
@@ -916,12 +940,16 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         // dm.SetShaderData(2, [4]f32{1, 0, 1, 1})
         dm.DrawSprite(sprite, pos)
 
+        // firing effect
         if building.fireTimer > 0 {
             delta := building.firePosition - building.position
             rayPos := building.position + delta / 2
             rot := math.atan2(delta.y, delta.x)
 
-            dm.DrawRectBlank(rayPos, {glsl.length(delta), 0.1}, rotation = rot, color = {1, 1, 1, building.fireTimer * 0.1})
+            p := building.fireTimer / SHOT_VISUAL_TIMER
+            alpha := p
+
+            dm.DrawRectBlank(rayPos, {glsl.length(delta), 0.08}, rotation = rot, color = {1, 1, 1, alpha})
         }
 
         // currentEnergy := BuildingEnergy(&building)

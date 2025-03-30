@@ -42,6 +42,12 @@ AttackType :: enum {
     Cannon,
 }
 
+TargetingMethod :: enum {
+    LowestPathDist,
+    KeepTarget,
+    Closest,
+}
+
 Building :: struct {
     name: string,
     spriteName: string,
@@ -95,6 +101,7 @@ BuildingInstance :: struct {
     requiredEnergyFractions: [EnergyType]f32,
 
     // attack
+    targetingMethod: TargetingMethod,
     attackTimer: f32,
     targetEnemy: EnemyHandle,
 

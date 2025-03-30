@@ -9,10 +9,10 @@ import "core:slice"
 
 EnergyType :: enum {
     None,
-    Blue,
-    Green,
-    Cyan,
-    Red,
+    Blue,  // standard
+    Green, // poison
+    Cyan,  // slow
+    Red,   // damage boost...?
 }
 
 EnergyColor := [EnergyType]dm.color {
@@ -30,6 +30,7 @@ EnergyPacket :: struct {
     using pathFollower: PathFollower,
 
     speed: f32,
+
     energyType: EnergyType,
     energy: f32,
 }

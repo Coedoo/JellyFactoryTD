@@ -14,6 +14,8 @@ START_MONEY :: 1000
 START_HP :: 200
 
 
+SHOT_VISUAL_TIMER :: 0.1
+
 
 START_LEVEL :: "Level_0"
 
@@ -116,7 +118,7 @@ Buildings := [?]Building {
         range = 4,
         energyRequired = 8,
         reloadTime = 0.2,
-        damage = 10,
+        damage = 30,
     },
 
     {

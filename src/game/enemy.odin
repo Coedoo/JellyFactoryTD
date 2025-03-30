@@ -106,13 +106,13 @@ FindClosestEnemy :: proc(pos: v2, radius: f32) -> (handle: EnemyHandle) {
     return
 }
 
-FindEnemiesInRange :: proc(center: v2, radius: f32, allocator := context.allocator) -> []EnemyHandle {
-    enemies := make([dynamic]EnemyHandle, 0, 5, allocator)
+FindEnemiesInRange :: proc(center: v2, radius: f32, allocator := context.temp_allocator) -> []^EnemyInstance {
+    enemies := make([dynamic]^EnemyInstance, 0, 5, allocator)
 
-    for e in gameState.enemies.elements {
+    for &e in gameState.enemies.elements {
         dist := glsl.distance(center, e.position)
         if dist < radius {
-            append(&enemies, e.handle)
+            append(&enemies, &e)
         }
     }
 

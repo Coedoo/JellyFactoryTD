@@ -49,7 +49,7 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
         return {}
     }
 
-    result = ma.sound_init_from_data_source(&audio.engine, cast(^ma.data_source) &sound.decoder, 0, nil, &sound.maSound)
+    result = ma.sound_init_from_data_source(&audio.engine, cast(^ma.data_source) &sound.decoder, {}, nil, &sound.maSound)
 
     if result != .SUCCESS {
         fmt.eprintln("Failed to init sound from decoder")
@@ -63,7 +63,7 @@ _LoadSoundFromMemory :: proc(audio: ^Audio, data: []u8) -> SoundHandle {
 _LoadSoundFromFile :: proc(audio: ^Audio, path: string) -> SoundHandle {
     sound := CreateElement(&audio.sounds)
     path := strings.clone_to_cstring(path, context.temp_allocator)
-    result := ma.sound_init_from_file(&audio.engine, path, 0, nil, nil, &sound.maSound)
+    result := ma.sound_init_from_file(&audio.engine, path, {}, nil, nil, &sound.maSound)
 
     if result != .SUCCESS {
         FreeSlot(&audio.sounds, sound.handle)

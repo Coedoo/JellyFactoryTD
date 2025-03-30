@@ -209,45 +209,83 @@ step :: proc (delta: f32) -> bool {
         e := &eventsBuffer[i]
         // fmt.println(e)
         #partial switch e.kind {
-            // case .Mouse_Down:
-            //     idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
-            //     btn := JsToDMMouseButton[idx]
+            case .Mouse_Down:
+                idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
+                btn := JsToDMMouseButton[idx]
 
-            //     engineData.frameInput.mouseCurr[btn] = .Down
+                // engineData.frameInput.mouseCurr[btn] = .Down
+                engineData.tickInput.mouseKey[btn] -= { .Up }
+                engineData.tickInput.mouseKey[btn] += { .Down, .JustPressed }
 
-            // case .Mouse_Up:
-            //     idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
-            //     btn := JsToDMMouseButton[idx]
+                engineData.frameInput.mouseKey[btn] -= { .Up }
+                engineData.frameInput.mouseKey[btn] += { .Down, .JustReleased }
 
-            //     engineData.frameInput.mouseCurr[btn] = .Up
 
-            // case .Mouse_Move: 
-            //     // fmt.println(e.mouse.offset)
+            case .Mouse_Up:
+                idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))
+                btn := JsToDMMouseButton[idx]
 
-            //     canvasRect := js.get_bounding_client_rect("game_viewport")
+                // engineData.frameInput.mouseCurr[btn] = .Up
+                engineData.tickInput.mouseKey[btn] -= { .Down }
+                engineData.tickInput.mouseKey[btn] += { .Up, .JustReleased }
 
-            //     engineData.frameInput.mousePos.x = i32(e.mouse.client.x - i64(canvasRect.x))
-            //     engineData.frameInput.mousePos.y = i32(e.mouse.client.y - i64(canvasRect.y))
+                engineData.frameInput.mouseKey[btn] -= { .Down }
+                engineData.frameInput.mouseKey[btn] += { .Up, .JustReleased }
 
-            //     engineData.frameInput.mouseDelta.x = i32(e.mouse.movement.x)
-            //     engineData.frameInput.mouseDelta.y = i32(e.mouse.movement.y)
+            case .Mouse_Move: 
+                // fmt.println(e.mouse.offset)
 
-            // case .Key_Up:
-            //     // fmt.println()
-            //     c := string(e.key._code_buf[:e.key._code_len])
-            //     key := JsKeyToKey[c]
-            //     engineData.frameInput.curr[key] = .Up
+                canvasRect := js.get_bounding_client_rect("game_viewport")
 
-            // case .Key_Down:
-            //     c := string(e.key._code_buf[:e.key._code_len])
-            //     key := JsKeyToKey[c]
-            //     engineData.frameInput.curr[key] = .Down
+                engineData.frameInput.mousePos.x = i32(e.mouse.client.x - i64(canvasRect.x))
+                engineData.frameInput.mousePos.y = i32(e.mouse.client.y - i64(canvasRect.y))
 
-            // case .Wheel:
-            //     engineData.frameInput.scroll  = -int(e.wheel.delta[1] / 100)
-            //     engineData.frameInput.scrollX = int(e.wheel.delta[0] / 100)
+                engineData.frameInput.mouseDelta.x = i32(e.mouse.movement.x)
+                engineData.frameInput.mouseDelta.y = i32(e.mouse.movement.y)
 
-                // fmt.println(e.wheel)
+                engineData.tickInput.mouseDelta = engineData.frameInput.mouseDelta
+                engineData.tickInput.mousePos = engineData.frameInput.mousePos
+
+            case .Key_Up:
+                // fmt.println()
+                c := string(e.key._code_buf[:e.key._code_len])
+                key := JsKeyToKey[c]
+                // engineData.frameInput.curr[key] = .Up
+
+                if .Down in engineData.tickInput.key[key] {
+                    engineData.tickInput.key[key] -= { .Down }
+                    engineData.tickInput.key[key] += { .Up, .JustReleased }
+                }
+
+                if .Down in engineData.frameInput.key[key] {
+                    engineData.frameInput.key[key] -= { .Down }
+                    engineData.frameInput.key[key] += { .Up, .JustReleased }
+                }
+
+            case .Key_Down:
+                c := string(e.key._code_buf[:e.key._code_len])
+                key := JsKeyToKey[c]
+                // engineData.frameInput.curr[key] = .Down
+
+                if .Up in engineData.tickInput.key[key] {
+                    engineData.tickInput.key[key] -= { .Up }
+                    engineData.tickInput.key[key] += { .Down, .JustPressed }
+                }
+
+                if .Up in engineData.frameInput.key[key] {
+                    engineData.frameInput.key[key] -= { .Up }
+                    engineData.frameInput.key[key] += { .Down, .JustPressed }
+                }
+
+
+            case .Wheel:
+                engineData.frameInput.scroll  = -int(e.wheel.delta[1] / 100)
+                engineData.frameInput.scrollX = int(e.wheel.delta[0] / 100)
+
+                engineData.tickInput.scroll  = engineData.frameInput.scroll
+                engineData.tickInput.scrollX = engineData.frameInput.scrollX
+
+                // fmt.println(engineData.frameInput.scroll)
         }
 
     }

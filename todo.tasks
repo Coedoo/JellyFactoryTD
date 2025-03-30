@@ -1,3 +1,31 @@
+JAM TIME:
+  UI:
+    ☐ Buildings info
+    ☐ Main Menu
+    ☐ Changing target method
+
+  GAMEPLAY:
+    ✔ Better attack effects @done (25-03-30 15:39)
+    ☐ Balance
+    ✔ targeting @done (25-03-30 15:40)
+    ☐ Energy effects
+
+  SYSTEM:
+    ☐ FIX FUCKING WASM VERSION
+
+  ART:
+    ☐ better jelly sprites (diagonals)
+    ☐ turrets
+    ☐ Tilesets
+    ☐ Ask Kairo for art:
+      ☐ Menu art
+      ☐ Turrets concepts?
+    ☐ Music and SFX!!
+    ☐ ENEMIES
+
+  BUGS:
+    ☐ Pathfiding don't update enemies path after recreating it
+
 UI:
   ✔ button with image @done (25-03-17 21:10)
   ✔ Anchoring floating panel @done (25-03-17 21:10)

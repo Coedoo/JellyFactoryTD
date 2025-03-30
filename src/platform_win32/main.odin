@@ -206,14 +206,12 @@ main :: proc() {
 
                 if .Up in engineData.tickInput.key[key] {
                     engineData.tickInput.key[key] -= { .Up }
-                    engineData.tickInput.key[key] += { .Down }
-                    engineData.tickInput.key[key] += { .JustPressed }
+                    engineData.tickInput.key[key] += { .Down, .JustPressed }
                 }
 
                 if .Up in engineData.frameInput.key[key] {
                     engineData.frameInput.key[key] -= { .Up }
-                    engineData.frameInput.key[key] += { .Down }
-                    engineData.frameInput.key[key] += { .JustPressed }
+                    engineData.frameInput.key[key] += { .Down, .JustPressed }
                 }
 
 
@@ -222,14 +220,12 @@ main :: proc() {
 
                 if .Down in engineData.tickInput.key[key] {
                     engineData.tickInput.key[key] -= { .Down }
-                    engineData.tickInput.key[key] += { .Up }
-                    engineData.tickInput.key[key] += { .JustReleased }
+                    engineData.tickInput.key[key] += { .Up, .JustReleased }
                 }
 
                 if .Down in engineData.frameInput.key[key] {
                     engineData.frameInput.key[key] -= { .Down }
-                    engineData.frameInput.key[key] += { .Up }
-                    engineData.frameInput.key[key] += { .JustReleased }
+                    engineData.frameInput.key[key] += { .Up, .JustReleased }
                 }
 
 
@@ -263,12 +259,10 @@ main :: proc() {
                 btn := SDLMouseToButton[btnIndex]
 
                 engineData.tickInput.mouseKey[btn] -= { .Up }
-                engineData.tickInput.mouseKey[btn] += { .Down }
-                engineData.tickInput.mouseKey[btn] += { .JustPressed }
+                engineData.tickInput.mouseKey[btn] += { .Down, .JustPressed }
 
                 engineData.frameInput.mouseKey[btn] -= { .Up }
-                engineData.frameInput.mouseKey[btn] += { .Down }
-                engineData.frameInput.mouseKey[btn] += { .JustPressed }
+                engineData.frameInput.mouseKey[btn] += { .Down, .JustReleased }
 
             case .MOUSEBUTTONUP:
                 btnIndex := e.button.button
@@ -278,12 +272,10 @@ main :: proc() {
                 btn := SDLMouseToButton[btnIndex]
 
                 engineData.tickInput.mouseKey[btn] -= { .Down }
-                engineData.tickInput.mouseKey[btn] += { .Up }
-                engineData.tickInput.mouseKey[btn] += { .JustReleased }
+                engineData.tickInput.mouseKey[btn] += { .Up, .JustReleased }
 
                 engineData.frameInput.mouseKey[btn] -= { .Down }
-                engineData.frameInput.mouseKey[btn] += { .Up }
-                engineData.frameInput.mouseKey[btn] += { .JustReleased }
+                engineData.frameInput.mouseKey[btn] += { .Up, .JustReleased }
 
             case .TEXTINPUT:
                 // @TODO: I'm not sure here, I should probably scan entire buffer

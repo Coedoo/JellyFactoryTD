@@ -7,6 +7,8 @@ import "core:fmt"
 import "core:dynlib"
 import "core:os"
 
+// foreign import "odin_env"
+
 input: ^Input
 time: ^TimeData
 renderCtx: ^RenderContext
@@ -47,6 +49,7 @@ InitPlatform :: proc(platformPtr: ^Platform) {
     muiInit(&platformPtr.tickMui, platformPtr.renderCtx)
     muiInit(&platformPtr.frameMui, platformPtr.renderCtx)
     InitUI(&platformPtr.uiCtx)
+
 
     InitAudio(&platformPtr.audio)
 
@@ -94,6 +97,14 @@ GameCode :: struct {
 
 DELTA :: 1.0 / 60.0
 
+_tick_now_ :: proc "contextless" () -> f32 {
+    foreign odin_env {
+        tick_now :: proc "contextless" () -> f32 ---
+    }
+    return tick_now()
+}
+
+
 @(export)
 CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     mui = &platform.frameMui
@@ -105,6 +116,7 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     platform.time.currTime = coreTime.tick_now()
     durrTick := coreTime.tick_diff(platform.time.prevTime, platform.time.currTime)
     durr := coreTime.duration_seconds(durrTick)
+
 
     if platform.pauseGame == false {
         platform.time.gameTickTime += durrTick
@@ -139,7 +151,7 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
         platform.moveOneFrame = false
     }
 
-    // fmt.println(platform.time.deltaTime, platform.time.accumulator, numTicks)
+    // fmt.println("delta:", platform.time.deltaTime, "\n", "acc:", platform.time.accumulator, "\n", "ticks:", numTicks)
     // fmt.println(durr)
     if numTicks > 0 {
         input = &platform.tickInput

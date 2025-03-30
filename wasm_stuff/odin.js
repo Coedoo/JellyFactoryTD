@@ -110,7 +110,10 @@ class WasmMemoryInterface {
 	}
 
 	loadCstring(ptr) {
-		const start = this.loadPtr(ptr);
+		return this.loadCstringDirect(this.loadPtr(ptr));
+	}
+
+	loadCstringDirect(start) {
 		if (start == 0) {
 			return null;
 		}
@@ -287,7 +290,7 @@ class WebGLInterface {
 			SetCurrentContextById: (name_ptr, name_len) => {
 				let name = this.mem.loadString(name_ptr, name_len);
 				let element = getElement(name);
-				return this.setCurrentContext(element, {alpha: false, antialias: true, depth: true, premultipliedAlpha: false});
+				return this.setCurrentContext(element, {alpha: true, antialias: true, depth: true, premultipliedAlpha: true});
 			},
 			CreateCurrentContextById: (name_ptr, name_len, attributes) => {
 				let name = this.mem.loadString(name_ptr, name_len);

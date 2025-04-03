@@ -31,7 +31,15 @@ EnemyInstance :: struct {
     // pathPointIdx: int,
     using pathFollower: PathFollower,
 
+    poisonValue: DamageEffectValues,
+    slowValue: DamageEffectValues,
+
     health: f32,
+}
+
+DamageEffectValues :: struct {
+    value: f32,
+    timeLeft: f32,
 }
 
 SpawnEnemy :: proc {
@@ -65,7 +73,18 @@ SpawnEnemyByName :: proc(name: string) -> ^EnemyInstance {
 
 UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     enemyStat := Enemies[enemy.statsIdx]
-    UpdateFollower(enemy, enemyStat.speed)
+
+    speed := enemyStat.speed
+    if enemy.slowValue.timeLeft > 0 {
+        speed = speed * (1 - enemy.slowValue.value)
+        enemy.slowValue.timeLeft -= dm.time.deltaTime
+    }
+
+    if enemy.poisonValue.timeLeft > 0 {
+        enemy.poisonValue.timeLeft -= dm.time.deltaTime
+    }
+
+    UpdateFollower(enemy, speed)
 
     if enemy.finishedPath {
         enemy.finishedPath = false
@@ -77,12 +96,24 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     }
 }
 
-DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32) {
+DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32, usedEnergy: EnergySet) {
     enemy.health -= damage
 
     if enemy.health <= 0 {
         gameState.money += Enemies[enemy.statsIdx].moneyValue
         dm.FreeSlot(&gameState.enemies, enemy.handle)
+
+        return
+    }
+
+    if usedEnergy[.Green] > 0 {
+        enemy.poisonValue.value = 1
+        enemy.poisonValue.timeLeft = 5
+    }
+
+    if usedEnergy[.Cyan] > 0 {
+        enemy.slowValue.value = 0.25
+        enemy.slowValue.timeLeft = 5
     }
 }
 

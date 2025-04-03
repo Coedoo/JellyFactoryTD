@@ -612,6 +612,12 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     buildingTile := GetTileAtCoord(gridPos)
 
+    if .RequireEnergy in building.flags {
+        toSpawn.energyParticles = EnergyParticleSystem
+        toSpawn.energyParticles.position = toSpawn.position
+        dm.InitParticleSystem(&toSpawn.energyParticles)
+    }
+
     if .SendsEnergy in building.flags {
         toSpawn.requestedEnergyQueue = make([dynamic]EnergyRequest, 0, 64, gameState.levelAllocator)
     }
@@ -679,6 +685,7 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         gameState.level.endCoord,
         allocator = gameState.pathAllocator
     )
+
 }
 
 

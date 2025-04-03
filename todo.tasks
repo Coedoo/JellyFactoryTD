@@ -14,17 +14,18 @@ JAM TIME:
     ☐ FIX FUCKING WASM VERSION
 
   ART:
-    ☐ better jelly sprites (diagonals)
+    ✔ better jelly sprites (diagonals) @done (25-04-02 21:04)
     ☐ turrets
     ☐ Tilesets
     ☐ Ask Kairo for art:
-      ☐ Menu art
+      ✔ Menu art @done (25-04-02 21:04)
       ☐ Turrets concepts?
     ☐ Music and SFX!!
     ☐ ENEMIES
 
   BUGS:
     ☐ Pathfiding don't update enemies path after recreating it
+    ☐ Fix rendering error texture when no texture is set
 
 UI:
   ✔ button with image @done (25-03-17 21:10)
@@ -40,7 +41,7 @@ GAMEPLAY:
 
   ART:
   ☐ New Tiles in 24x24
-  ☐ Diagonal ship sprites
+  ✔ Diagonal ship sprites @done (25-04-02 21:05)
   ☐ Pipes sprites
   ☐ New enrgy sprite
 
@@ -50,7 +51,7 @@ FRAMEWORK:
   ☐ Map Editor
   ☐ Input rework
   ✔ move build script from the other project @done (25-03-16 16:02)
-  ☐ new build script still launches the game even when there is an compiler error
+  ✔ new build script still launches the game even when there is an compiler error @done (25-04-02 21:05)
 
   BUGS:
     ☐ UI - infinity loop when there is two nodes with the same ID

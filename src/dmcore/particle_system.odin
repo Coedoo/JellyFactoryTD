@@ -7,13 +7,25 @@ import "core:math/ease"
 
 EaseFun :: ease.Ease
 
+ValueKey :: struct($vT: typeid) {
+    time: f32,
+    value: vT,
+}
+
+
 ValueOverLifetime :: struct($vT: typeid) {
     min, max: vT,
     easeFun: EaseFun,
 }
 
+ValueKeys :: struct($vT: typeid) {
+    keysCount: int,
+    keys: [8]ValueKey(vT)
+}
+
 FloatOverLifetime :: ValueOverLifetime(f32)
 ColorOverLifetime :: ValueOverLifetime(color)
+ColorKeysOverLifetime :: ValueKeys(color)
 
 FloatLifetimeProp :: union {
     f32,
@@ -23,6 +35,7 @@ FloatLifetimeProp :: union {
 ColorLifetimeProp :: union {
     color,
     ColorOverLifetime,
+    ColorKeysOverLifetime,
 }
 
 EvaluateLifetime :: proc(value: ValueOverLifetime($vT), time: f32) -> vT {
@@ -219,7 +232,7 @@ UpdateParticleSystem :: proc(system: ^ParticleSystem, deltaTime: f32) {
             continue
         }
 
-        lifePercent := particle.lifetime / particle.maxLifetime
+        lifePercent := 1 - particle.lifetime / particle.maxLifetime
         particle.velocity += system.gravity * deltaTime
         particle.position += particle.velocity * deltaTime
         particle.rotation += particle.rotationSpeed * deltaTime
@@ -228,14 +241,35 @@ UpdateParticleSystem :: proc(system: ^ParticleSystem, deltaTime: f32) {
         case f32:
             particle.size = particle.startSize * size
         case ValueOverLifetime(f32):
-            particle.size = particle.startSize * EvaluateLifetime(size, 1 - lifePercent)
+            particle.size = particle.startSize * EvaluateLifetime(size, lifePercent)
         }
         
-        switch color in system.color {
+        switch colorValue in system.color {
         case color:
-            particle.color = particle.startColor * color
+            particle.color = particle.startColor * colorValue
+
         case ValueOverLifetime(color):
-            particle.color = particle.startColor * EvaluateLifetime(color, 1 - lifePercent)
+            particle.color = particle.startColor * EvaluateLifetime(colorValue, lifePercent)
+
+        case ValueKeys(color):
+            left, right: ValueKey(color)
+
+            particle.color = colorValue.keys[0].value
+
+            for keyI := 1; keyI < colorValue.keysCount; keyI += 1 {
+                if lifePercent <= colorValue.keys[keyI].time {
+                    // fmt.println(lifePercent, colorValue.keys[keyI].time, colorValue.keys[keyI].time <= lifePercent)
+                    left  = colorValue.keys[keyI - 1]
+                    right = colorValue.keys[keyI]
+                    break
+                }
+            }
+
+            p := math.unlerp(left.time, right.time, lifePercent)
+            p = math.smoothstep(left.time, right.time, p)
+            // fmt.println(p)
+            particle.color = math.lerp(left.value, right.value, p)
+            // fmt.println(particle.color)
         }
     }
 }

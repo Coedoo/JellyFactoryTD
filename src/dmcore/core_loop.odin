@@ -97,12 +97,12 @@ GameCode :: struct {
 
 DELTA :: 1.0 / 60.0
 
-_tick_now_ :: proc "contextless" () -> f32 {
-    foreign odin_env {
-        tick_now :: proc "contextless" () -> f32 ---
-    }
-    return tick_now()
-}
+// _tick_now_ :: proc "contextless" () -> f32 {
+//     foreign odin_env {
+//         tick_now :: proc "contextless" () -> f32 ---
+//     }
+//     return tick_now()
+// }
 
 
 @(export)

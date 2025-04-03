@@ -27,6 +27,7 @@ GRAY    : color : {0.3, 0.3, 0.3, 1}
 RED     : color : {1, 0, 0, 1}
 GREEN   : color : {0, 1, 0, 1}
 BLUE    : color : {0, 0, 1, 1}
+CYAN    : color : {0, 1, 1, 1}
 SKYBLUE : color : {0.4, 0.75, 1, 1}
 LIME    : color : {0, 0.62, 0.18, 1}
 DARKGREEN : color : {0, 0.46, 0.17, 1}

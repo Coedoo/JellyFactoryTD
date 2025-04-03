@@ -116,6 +116,9 @@ BuildingInstance :: struct {
     energySources: [dynamic]BuildingHandle,
     energyTargets: [dynamic]BuildingHandle,
 
+    // energyParticlesTimer: f32,
+    energyParticles: dm.ParticleSystem,
+
     requestedEnergyQueue: [dynamic]EnergyRequest,
 }
 
@@ -133,6 +136,30 @@ ChangeColorModifier :: struct {
     costPercent: f32,
     targetType: EnergyType,
 }
+
+
+EnergyParticleSystem := dm.ParticleSystem{
+    maxParticles = 128,
+    lifetime = 3,
+
+    startColor = dm.WHITE,
+    // color = dm.WHITE,
+    color = dm.ColorKeysOverLifetime{
+        keysCount = 2,
+        keys = {
+            0 = {time = 0, value = dm.WHITE},
+            1 = {time = 1, value = dm.BLACK},
+        },
+    },
+
+    startSize = .4,
+    size = 1,
+
+    startSpeed = 0.5,
+
+    emitRate = 10,
+}
+
 
 GetBuilding :: proc(handle: BuildingHandle) -> (^BuildingInstance, Building) {
     instance, ok := dm.GetElementPtr(gameState.spawnedBuildings, handle)

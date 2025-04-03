@@ -123,6 +123,8 @@ GameHotReloaded : dm.GameHotReloaded : proc(gameState: rawptr) {
 GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState = dm.AllocateGameData(platform, GameState)
 
+    EnergyParticleSystem.texture = dm.GetTextureAsset("Energy.png")
+
     levelMem := make([]byte, LEVEL_MEMORY)
     mem.arena_init(&gameState.levelArena, levelMem)
     gameState.levelAllocator = mem.arena_allocator(&gameState.levelArena)
@@ -187,7 +189,22 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
         moveVec = glsl.normalize(moveVec)
         gameState.playerPosition += moveVec * PLAYER_SPEED * f32(dm.time.deltaTime)
 
-        if moveY == 1 {
+
+        gameState.playerSprite.flipX = false
+        gameState.playerSprite.flipY = false
+
+        if moveX != 0 && moveY != 0 {
+            if moveY  == -1 {
+                gameState.playerSprite.texturePos.y = 192
+            }
+            else {
+                gameState.playerSprite.texturePos.y = 256
+            }
+            gameState.playerSprite.flipX = moveX == -1 ? true : false
+            // gameState.playerSprite.flipX = moveX == -1 ? true : false
+            // gameState.playerSprite.flipY = moveY == -1 ? false : true
+        }
+        else if moveY == 1 {
             gameState.playerSprite.texturePos.y = 64
         }
         else if moveY == -1 {
@@ -333,6 +350,49 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                 })
                 building.lastUsedSourceIdx = idx
             }
+
+            building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
+            keys: dm.ColorKeysOverLifetime
+            keys.keysCount = len(EnergyType)
+            sum: f32
+            for energy, i in building.currentEnergy {
+                idx := i
+                type := EnergyType(i)
+                keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
+
+                sum += energy
+            }
+
+            // fmt.println(keys)
+            if sum == 0 {
+                keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
+            }
+            else {
+                building.energyParticles.color = keys
+            }
+
+            // for particle in building.energyParticles.particles {
+            //     fmt.println(particle.position)
+            // }
+
+            // building.energyParticlesTimer -= dm.time.deltaTime
+            // if building.energyParticlesTimer < 0 {
+            //     building.energyParticlesTimer = 0.1
+
+            //     for energy, i in building.currentEnergy {
+            //         type := cast(EnergyType) i
+            //         if type != .None {
+            //             perc := energy / buildingData.energyStorage
+            //             amount := int(math.round(perc * 5))
+            //             dm.SpawnParticles(
+            //                 &gameState.tileEnergyParticles[type],
+            //                 amount,
+            //                 building.position,
+            //                 EnergyColor[type]
+            //             )
+            //         }
+            //     }
+            // }
         }
 
         if .SendsEnergy in buildingData.flags {
@@ -348,11 +408,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                     continue
                 }
 
-                target, ok := dm.GetElementPtr(gameState.spawnedBuildings, request.to)
-                targetData := Buildings[target.dataIdx]
+                ordered_remove(&building.requestedEnergyQueue, 0)
 
-                if canSpawn {
-                    ordered_remove(&building.requestedEnergyQueue, 0)
+                target, ok := dm.GetElementPtr(gameState.spawnedBuildings, request.to)
+                if ok && canSpawn {
+                    targetData := Buildings[target.dataIdx]
 
                     building.packetSpawnTimer = buildingData.packetSpawnInterval
 
@@ -441,11 +501,11 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
                 // dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
-                RemoveEnergyFromBuilding(building, buildingData.energyRequired)
+                usedEnergy := RemoveEnergyFromBuilding(building, buildingData.energyRequired)
 
                 switch buildingData.attackType {
                 case .Simple:
-                    DamageEnemy(enemy, buildingData.damage)
+                    DamageEnemy(enemy, buildingData.damage, usedEnergy)
 
                 case .Cannon:
                     enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
@@ -455,7 +515,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
                         //     continue
                         // }
 
-                        DamageEnemy(e, buildingData.damage)
+                        DamageEnemy(e, buildingData.damage, usedEnergy)
                     }
                 case .None:
                     assert(false) // TODO: Error handling/logger
@@ -923,7 +983,7 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         }
     }
 
-    // Buildings
+    // Draw Buildings
 
     // shader := dm.GetAsset("Shaders/test.hlsl")
     // dm.PushShader(cast(dm.ShaderHandle) shader)
@@ -939,6 +999,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
         // dm.SetShaderData(2, [4]f32{1, 0, 1, 1})
         dm.DrawSprite(sprite, pos)
+
+        // energy Particles
+        if .RequireEnergy in buildingData.flags {
+            dm.UpdateAndDrawParticleSystem(&building.energyParticles)
+        }
 
         // firing effect
         if building.fireTimer > 0 {
@@ -1047,13 +1112,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         dm.DrawRect(energyTex, packet.position, 1, color = EnergyColor[packet.energyType])
     }
 
-    // Enemy
+    // draw Enemy
     enemyIt := dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
         stats := Enemies[enemy.statsIdx]
         dm.DrawRect(enemy.position, .4, color = stats.tint)
     }
-
 
     enemyIt = dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
@@ -1062,6 +1126,14 @@ GameRender : dm.GameRender : proc(state: rawptr) {
         color := math.lerp(dm.RED, dm.GREEN, p)
         
         dm.DrawRect(enemy.position + {0, 0.6}, {1 * p, 0.09}, color = color)
+
+        if enemy.slowValue.timeLeft > 0 {
+            dm.DrawRect(enemy.position + {0, -0.4}, {enemy.slowValue.timeLeft / 5, 0.09}, color = dm.CYAN)
+        }
+
+        if enemy.poisonValue.timeLeft > 0 {
+            dm.DrawRect(enemy.position + {0, -0.5}, {enemy.poisonValue.timeLeft / 5, 0.09}, color = dm.GREEN)
+        }
     }
 
     // Building Range

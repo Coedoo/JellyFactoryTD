@@ -376,7 +376,8 @@ DebugWindow :: proc(platform: ^Platform) {
         muiLabel(&platform.frameMui, "GameTime:", platform.time.gameTime)
         // muiLabel(&platform.frameMui, "GameDuration:", platform.time.gameDuration)
 
-        muiLabel(&platform.frameMui, "Frame:", platform.time.frame)
+        muiLabel(&platform.frameMui, "Render Frame:", platform.time.renderFrame)
+        muiLabel(&platform.frameMui, "Tick Frame:", platform.time.tickFrame)
         muiLabel(&platform.frameMui, "FPS:", 1 / platform.time.deltaTime)
         muiLabel(&platform.frameMui, "Frame Time:", platform.time.deltaTime * 1000)
 

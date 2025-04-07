@@ -94,7 +94,7 @@ UINode :: struct {
     textSize: v2,
 
     texture: TexHandle,
-    textureSource: UIRect,
+    textureSource: RectInt,
 
     origin: v2,
 
@@ -542,13 +542,12 @@ PopStyle :: proc() {
     pop(&uiCtx.stylesStack)
 }
 
-@(deferred_none=EndLayout)
 BeginLayout :: proc(
     axis:= LayoutAxis.X,
     aligmentX := AligmentX.Middle,
     aligmentY := AligmentY.Middle,
     loc := #caller_location
-) -> bool
+)
 {
     node := AddNode("", {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
 
@@ -559,7 +558,17 @@ BeginLayout :: proc(
     node.childrenAxis = axis
 
     PushParent(node)
+}
 
+@(deferred_none=EndLayout)
+LayoutBlock :: proc(
+    axis:= LayoutAxis.X,
+    aligmentX := AligmentX.Middle,
+    aligmentY := AligmentY.Middle,
+    loc := #caller_location
+) -> bool
+{
+    BeginLayout(axis, aligmentX, aligmentY, loc)
     return true
 }
 
@@ -582,6 +591,7 @@ UIBegin :: proc(screenWidth, screenHeight: int) {
     root.preferredSize = {.X = {.Fixed, f32(screenWidth), 1}, .Y = {.Fixed, f32(screenHeight), 1}}
 
     PushParent(root)
+
 }
 
 UIEnd :: proc() {
@@ -882,25 +892,28 @@ UIButton :: proc(text: string) -> bool {
     return bool(interaction.cursorUp)
 }
 
-UILabel :: proc(text: string) {
-    node := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
+UILabel :: proc(params: ..any, sep := " ") {
+    t := fmt.aprint(..params, sep = sep, allocator = uiCtx.transientAllocator)
+    node := AddNode(t, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
 }
 
-UIImage :: proc(image: TexHandle, maybeSize: Maybe(iv2) = nil, idIdx: Maybe(int) = nil) {
-    node := AddNode(fmt.tprint("Tex", image), {.BackgroundTexture}, idIdx = idIdx)
+UIImage :: proc(
+        image: TexHandle, 
+        maybeSize: Maybe(iv2) = nil,
+        source: Maybe(RectInt) = nil,
+        idIdx: Maybe(int) = nil
+    )
+{
+    id := fmt.aprint("Tex", image, allocator = uiCtx.transientAllocator)
+    node := AddNode(id, {.BackgroundTexture}, idIdx = idIdx)
 
     node.texture = image
+    node.textureSource = source.? or_else {}
 
-    size: v2
-    if pSize, ok := maybeSize.?; ok {
-        size = ToV2(pSize)
-    }
-    else {
-        size = ToV2(GetTextureSize(image))
-    }
+    size := maybeSize.? or_else GetTextureSize(image)
 
-    node.preferredSize[.X] = {.Fixed, size.x, 1}
-    node.preferredSize[.Y] = {.Fixed, size.y, 1}
+    node.preferredSize[.X] = {.Fixed, f32(size.x), 1}
+    node.preferredSize[.Y] = {.Fixed, f32(size.y), 1}
 }
 
 UISpacer :: proc(size: int) {
@@ -913,7 +926,7 @@ UISpacer :: proc(size: int) {
 }
 
 UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
-    if BeginLayout(axis = .X) {
+    if LayoutBlock(axis = .X) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
         label.preferredSize[.X] = {.Fixed, 200, 0}
 
@@ -962,7 +975,7 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 }
 
 UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
-    if BeginLayout(axis = .X) {
+    if LayoutBlock(axis = .X) {
         checkbox := AddNode(fmt.tprint("X##", text), {.DrawBackground, .Clickable})
         checkbox.preferredSize[.X] = {.Fixed, 25, 1}
         checkbox.preferredSize[.Y] = {.Fixed, 25, 1}
@@ -1028,8 +1041,9 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
         DrawRect(
             node.texture,
             node.targetPos,
-            node.targetSize,
-            node.origin,
+            source =  node.textureSource if node.textureSource != {} else nil,
+            size = node.targetSize,
+            origin = node.origin,
             color = color,
         )
     }
@@ -1043,6 +1057,7 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
             f32(node.fontSize),
             color = node.textColor,
         )
+
     }
 
     for next := node.firstChild; next != nil; next = next.nextSibling {

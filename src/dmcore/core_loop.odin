@@ -137,7 +137,6 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     platform.time.accumulator -= f64(numTicks) * DELTA
 
 
-
     when ODIN_DEBUG {
         DebugWindow(platform)
     }
@@ -194,6 +193,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
             UIEnd()
 
             muiEnd(&platform.tickMui)
+
+            platform.time.tickFrame += 1
         }
     }
 
@@ -230,4 +231,6 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     platform.frameInput.scrollX = 0;
     platform.frameInput.scroll = 0;
     platform.frameInput.mouseDelta = {}
+
+    platform.time.renderFrame += 1
 }

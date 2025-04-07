@@ -142,6 +142,10 @@ ClearPool :: proc(pool: ^ResourcePool($T, $H)) {
     clear(&pool.elements)
 }
 
+PoolLen :: proc(pool: ResourcePool($T, $H)) -> int {
+    return len(pool.elements) - 1
+}
+
 PoolIterator :: struct($T: typeid, $H: typeid) {
     idx: int,
     dir: int,

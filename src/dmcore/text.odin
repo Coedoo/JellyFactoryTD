@@ -146,6 +146,10 @@ DrawText :: proc(str: string, position: v2,
 
     runes := utf8.string_to_runes(str, context.temp_allocator)
     for c, i in runes {
+        if c == 0 {
+            break
+        }
+
         if c == '\n' {
             posY += font.lineHeight * scale * yDir
             // posY += font.lineHeight * scale
@@ -222,6 +226,10 @@ MeasureTextFont :: proc(str: string, font: Font, fontSize: f32 = 0) -> v2 {
 
     runes := utf8.string_to_runes(str, context.temp_allocator)
     for c, i in runes {
+        if c == 0 {
+            continue
+        }
+
         if c == '\n' {
             width = max(width, posX)
 

@@ -120,7 +120,8 @@ TimeData :: struct {
     accumulator: f64,
 
     deltaTime: f32,
-    frame: uint,
+    renderFrame: uint,
+    tickFrame: uint,
 
     gameTickTime: time.Duration,
 

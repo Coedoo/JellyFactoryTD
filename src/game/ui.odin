@@ -10,13 +10,23 @@ import "core:mem"
 
 import "../ldtk"
 
-ImageButton :: proc(text: string, image: dm.TexHandle) -> bool{
-    node := dm.AddNode(text, {.Clickable}, dm.uiCtx.panelStyle, dm.uiCtx.panelLayout)
+ImageButton :: proc(
+        text: string, 
+        image: dm.TexHandle, 
+        maybeSize: Maybe(iv2) = nil, 
+        texSource: Maybe(dm.RectInt) = nil
+    ) -> bool
+{
+    node := dm.AddNode(text, {.Clickable, .DrawBackground}, dm.uiCtx.panelStyle, dm.uiCtx.panelLayout)
+    node.bgColor = {0, 0, 0, 0}
+    node.activeColor = {1, 1, 1, 0.5}
+    node.hotColor = {1, 1, 1, 0.6}
+
     interaction := dm.GetNodeInteraction(node)
 
     dm.PushParent(node)
 
-    dm.UIImage(image)
+    dm.UIImage(image, maybeSize = maybeSize, source = texSource)
     dm.UILabel(text)
 
     dm.PopParent()
@@ -200,7 +210,7 @@ TestUI :: proc() {
             axis: dm.LayoutAxis = .X if switchAxis else .Y
             dm.UILabel("Layout Axis:")
 
-            if dm.BeginLayout(axis)
+            if dm.LayoutBlock(axis)
             {
                 dm.UILabel("Label1")
                 dm.UILabel("Label2")

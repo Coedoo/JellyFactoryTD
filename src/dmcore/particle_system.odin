@@ -12,7 +12,6 @@ ValueKey :: struct($vT: typeid) {
     value: vT,
 }
 
-
 ValueOverLifetime :: struct($vT: typeid) {
     min, max: vT,
     easeFun: EaseFun,
@@ -49,6 +48,7 @@ RandomValue :: struct($vT: typeid) {
 
 RandomFloat :: RandomValue(f32)
 RandomColor :: RandomValue(color)
+RandomColorKeys :: ValueKeys(color)
 
 FloatStartProp :: union {
     f32,
@@ -58,6 +58,7 @@ FloatStartProp :: union {
 ColorStartProp :: union {
     color,
     RandomColor,
+    RandomColorKeys,
 }
 
 EvaluateRandomProp :: proc(value: RandomValue($vT)) -> vT {
@@ -190,9 +191,29 @@ SpawnParticles :: proc(system: ^ParticleSystem, count: int,
         switch s in system.startColor {
             case color: 
                 particle.startColor = s * tint
+            
             case RandomColor:
                 v :=  EvaluateRandomProp(s)
                 particle.startColor = v * tint
+
+            case RandomColorKeys:
+                t := rand.float32()
+                left, right: ValueKey(color)
+
+                particle.color = s.keys[0].value
+                for keyI := 1; keyI < s.keysCount; keyI += 1 {
+                    if t <= s.keys[keyI].time {
+                        // fmt.println(lifePercent, s.keys[keyI].time, s.keys[keyI].time <= lifePercent)
+                        left  = s.keys[keyI - 1]
+                        right = s.keys[keyI]
+                        break
+                    }
+                }
+
+                p := math.unlerp(left.time, right.time, t)
+                // p = math.smoothstep(left.time, right.time, p)
+                // particle.startColor = math.lerp(left.value, right.value, p)
+                particle.startColor = right.value
         }
 
         switch s in system.startSize {
@@ -200,7 +221,7 @@ SpawnParticles :: proc(system: ^ParticleSystem, count: int,
                 particle.startSize = s
             case RandomFloat:
                 v :=  EvaluateRandomProp(s)
-                particle.startSize = v 
+                particle.startSize = v
         }
 
         append(&system.particles, particle)
@@ -265,11 +286,10 @@ UpdateParticleSystem :: proc(system: ^ParticleSystem, deltaTime: f32) {
                 }
             }
 
+            // @TODO: this is a bug
             p := math.unlerp(left.time, right.time, lifePercent)
             p = math.smoothstep(left.time, right.time, p)
-            // fmt.println(p)
             particle.color = math.lerp(left.value, right.value, p)
-            // fmt.println(particle.color)
         }
     }
 }

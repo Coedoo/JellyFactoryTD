@@ -142,9 +142,17 @@ EnergyParticleSystem := dm.ParticleSystem{
     maxParticles = 128,
     lifetime = 3,
 
-    startColor = dm.WHITE,
-    // color = dm.WHITE,
-    color = dm.ColorKeysOverLifetime{
+    // startColor = dm.WHITE,
+    color = dm.WHITE,
+    // color = dm.ColorKeysOverLifetime{
+    //     keysCount = 2,
+    //     keys = {
+    //         0 = {time = 0, value = dm.WHITE},
+    //         1 = {time = 1, value = dm.BLACK},
+    //     },
+    // },
+
+    startColor = dm.ColorKeysOverLifetime{
         keysCount = 2,
         keys = {
             0 = {time = 0, value = dm.WHITE},

@@ -352,27 +352,38 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
             }
 
             building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
-            keys: dm.ColorKeysOverLifetime
-            keys.keysCount = len(EnergyType)
+            keys: dm.RandomColorKeys
             sum: f32
-            for energy, i in building.currentEnergy {
-                idx := i
-                type := EnergyType(i)
-                keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
 
-                sum += energy
+            idx := 1
+            for energy, typeIdx in building.currentEnergy {
+                if energy != 0 {
+                    sum += energy
+
+                    type := EnergyType(typeIdx)
+                    keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
+
+                    idx += 1
+                }
             }
+            keys.keysCount = idx
 
-            // fmt.println(keys)
+            slice.sort_by(
+                keys.keys[0:idx], 
+                proc(a, b: dm.ValueKey(dm.color)) -> bool { 
+                    return a.time < b.time
+                }
+            )
+
             if sum == 0 {
-                keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
+                // keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
             }
             else {
-                building.energyParticles.color = keys
+                building.energyParticles.startColor = keys
             }
 
             // for particle in building.energyParticles.particles {
-            //     fmt.println(particle.position)
+            //     fmt.println(particle.color)
             // }
 
             // building.energyParticlesTimer -= dm.time.deltaTime
@@ -756,7 +767,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     }
 
     // temp UI
-    if dm.muiBeginWindow(dm.mui, "GAME MENU", {10, 10, 110, 450}) {
+    if dm.muiBeginWindow(dm.mui, "GAME MENU", {200, 10, 210, 450}) {
         dm.muiLabel(dm.mui, gameState.selectedTile)
         dm.muiLabel(dm.mui, "Money:", gameState.money)
         dm.muiLabel(dm.mui, "HP:", gameState.hp)
@@ -820,7 +831,7 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     tile := GetTileAtCoord(gameState.selectedTile)
     if tile.building != {} || tile.pipeDir != {} {
         building, buildingData := GetBuilding(tile.building)
-        dm.DrawDebugCircle(dm.renderCtx, building.position, buildingData.range, false, dm.RED)
+        // dm.DrawDebugCircle(dm.renderCtx, building.position, buildingData.range, false, dm.RED)
 
         if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}, {.NO_CLOSE}) {
             dm.muiLabel(dm.mui, tile.pipeDir)
@@ -904,6 +915,57 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     // BuildingsWindow()
     // TestUI()
     // GameMenu()
+
+    if dm.Panel("Main") {
+        style := dm.uiCtx.panelStyle
+        style.fontSize = 40
+        dm.PushStyle(style)
+
+        dm.UILabel("Wave: ", gameState.currentWaveIdx, '/', len(gameState.wavesState), sep = "")
+        
+        style.fontSize = 30
+        dm.PushStyle(style)
+        dm.UILabel("Enemies left:", dm.PoolLen(gameState.enemies))
+
+        dm.PopStyle()
+        dm.PopStyle()
+
+        if dm.UIButton("NextWave") {
+            StartNextWave()
+        }
+    }
+
+    @static showBuildingPanel: bool
+    if dm.UIButton("Build") {
+        showBuildingPanel = !showBuildingPanel
+    }
+
+    if showBuildingPanel do if dm.Panel("Buildings") {
+
+        for idx := 0; idx < len(Buildings); {
+            dm.BeginLayout(axis = .X)
+
+            for _ in 0..<3 {
+                b := Buildings[idx]
+                tex := dm.GetTextureAsset(b.spriteName)
+
+                if ImageButton(b.name, tex, maybeSize = iv2{50, 50}, texSource = b.spriteRect) {
+                    gameState.selectedBuildingIdx = idx
+                    gameState.buildUpMode = .Building
+                }
+
+                idx += 1
+                if idx >= len(Buildings) {
+                    break
+                }
+            }
+
+            dm.EndLayout()
+        }
+
+    }
+
+    // BuildingsWindow()
 }
 
 @(export)
@@ -962,11 +1024,11 @@ GameRender : dm.GameRender : proc(state: rawptr) {
             t = 0.3 + rand.float32_range(-0.1, 0.1)
         }
     }
-    for tile, idx in gameState.level.grid {
-        if tile.isCorner {
-            dm.DrawRectBlank(tile.worldPos, {1, 1}, color = {1, 0, 0, 0.8})
-        }
-    }
+    // for tile, idx in gameState.level.grid {
+    //     if tile.isCorner {
+    //         dm.DrawRectBlank(tile.worldPos, {1, 1}, color = {1, 0, 0, 0.8})
+    //     }
+    // }
 
 
     // Pipe
@@ -1189,8 +1251,8 @@ GameRender : dm.GameRender : proc(state: rawptr) {
 
         posA := CoordToPos(a)
         posB := CoordToPos(b)
-        dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
-        dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+        // dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
+        // dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
     }
 
     // mouseGrid := MousePosGrid()
@@ -1202,21 +1264,21 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     //     dm.DrawBlankSprite(pos, {1, 1}, {0, 1, 0, 0.4} if hit else {1, 0, 0, 0.4})
     // }
 
-    selectedTile := GetTileAtCoord(gameState.selectedTile)
-    if selectedTile != nil {
-        for waypoint in selectedTile.visibleWaypoints {
-            dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
-        }
-    }
+    // selectedTile := GetTileAtCoord(gameState.selectedTile)
+    // if selectedTile != nil {
+    //     for waypoint in selectedTile.visibleWaypoints {
+    //         dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
+    //     }
+    // }
 
-    for k, path in gameState.pathsBetweenBuildings {
-        for i := 0; i < len(path) - 1; i += 1 {
-            a := path[i]
-            b := path[i + 1]
+    // for k, path in gameState.pathsBetweenBuildings {
+    //     for i := 0; i < len(path) - 1; i += 1 {
+    //         a := path[i]
+    //         b := path[i + 1]
 
-            dm.DrawDebugLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
-        }
-    }
+    //         dm.DrawDebugLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
+    //     }
+    // }
 
     dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)
     for &system in gameState.tileEnergyParticles {

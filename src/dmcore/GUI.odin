@@ -937,8 +937,12 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 
         PushParent(slideArea)
 
-        handle := AddNode(fmt.tprint("handle", text), {.DrawBackground, .Clickable, .FloatingX})
+        handleId := fmt.aprintf("handle", text, allocator = uiCtx.transientAllocator)
+        handle := AddNode(handleId, {.DrawBackground, .Clickable, .AnchoredPosition})
         handle.origin = {0.5, 0.5}
+        handle.anchoredPosPercent = {0, 0.5}
+        handle.anchoredPosOffset = {0, 0}
+
         interaction := GetNodeInteraction(handle)
 
         left := slideArea.targetPos.x
@@ -946,11 +950,13 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 
         if value != nil {
             normalizedValue := (value^ - min) / (max - min)
-            handle.targetPos.x = glsl.lerp(left, right, normalizedValue)
+            // handle.targetPos.x = glsl.lerp(left, right, normalizedValue)
+            handle.anchoredPosPercent = {normalizedValue, 0.5}
         }
-        else {
-            handle.targetPos.x = left
-        }
+        // else {
+        //     // handle.targetPos.x = left
+        //     handle.anchorOffset = {0, 0}
+        // }
 
         if interaction.cursorPressed {
             res = input.mouseDelta != {}
@@ -1008,7 +1014,7 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
+    // DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor

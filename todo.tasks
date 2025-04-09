@@ -32,7 +32,11 @@ UI:
   ✔ Anchoring floating panel @done (25-03-17 21:10)
     ✔ API @done (25-03-17 21:10)
   ☐ Scrolls
-  
+  ☐ Node's origin should be probably in Style
+  ☐ Add ability to change nodes orgin
+  ✔ Make changing children aligment easier @done (25-04-09 20:35)
+  ☐ Min Size
+  ☐ NextNodeStyle doesn't seam to work (node disappears)
 
 GAMEPLAY:
   ☐ Better shooting visualisaion

@@ -3,6 +3,7 @@ package dmcore
 import "core:mem"
 
 import "core:math"
+import "core:math/ease"
 import "core:math/linalg/glsl"
 import "core:fmt"
 import mu "vendor:microui"
@@ -101,6 +102,8 @@ UINode :: struct {
     anchoredPosPercent: v2,
     anchoredPosOffset: v2,
 
+    timeSinceHot: f32,
+
     targetPos: v2,
     targetSize: v2,
 
@@ -163,6 +166,11 @@ Style :: struct {
     activeColor: color,
 
     padding: UIRect,
+
+    hotAnimTime: f32,
+    hotAnimEase: ease.Ease,
+    hotScale: f32,
+
 }
 
 Layout :: struct {
@@ -218,6 +226,10 @@ InitUI :: proc(uiCtx: ^UIContext) {
         activeColor = {0.6, 0.6, 0.6, 1},
 
         padding = {3, 3, 3, 3},
+
+        hotAnimTime = 0.1,
+        hotAnimEase = .Cubic_Out,
+        hotScale = 1.3,
     }
 
     uiCtx.defaultLayout = {
@@ -226,7 +238,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
         spacing = 5,
 
-        preferredSize = {.X = {.Fixed, 100, 1},  .Y = {.Fixed,    30, 1}}
+        preferredSize = {.X = {.Fixed, 100, 1},  .Y = {.Fixed,    30, 1}},
     }
 
     uiCtx.panelStyle = uiCtx.defaultStyle
@@ -244,6 +256,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     uiCtx.buttonStyle.bgColor = {1, 0.1, 0.3, 1}
     uiCtx.buttonStyle.hotColor = {1, 0.3, 0.5, 1}
     uiCtx.buttonStyle.activeColor = {1, 0.5, 0.6, 1}
+    uiCtx.buttonStyle.hotScale = 1.3
 
     uiCtx.buttonLayout = uiCtx.defaultLayout
     uiCtx.buttonLayout.preferredSize = {.X = {.Text, 0, 1}, .Y = {.Text, 0, 1}}
@@ -519,6 +532,17 @@ DoLayout :: proc() {
     }
 
     DoLayoutParentPercent(&uiCtx.nodes[0])
+
+    for &node in uiCtx.nodes {
+        if .Clickable not_in node.flags || node.hotAnimTime == 0 {
+            continue
+        }
+
+        t := ease.ease(node.hotAnimEase, node.timeSinceHot / node.hotAnimTime)
+        node.targetSize *= math.lerp(f32(1), node.hotScale, t)
+
+    }
+
     DoLayoutChildren(&uiCtx.nodes[0])
     ResolveLayoutContraints(&uiCtx.nodes[0])
     DoFinalLayout(&uiCtx.nodes[0])
@@ -725,6 +749,15 @@ AddNode :: proc(text: string, flags: NodeFlags,
         parent.childrenCount += 1
     }
 
+    if node.id == uiCtx.hotId {
+        node.timeSinceHot += time.deltaTime
+    }
+    else {
+        node.timeSinceHot -= time.deltaTime
+    }
+
+    node.timeSinceHot = clamp(node.timeSinceHot, 0, node.hotAnimTime)
+
     return node
 }
 
@@ -778,8 +811,12 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
 }
 
 @(deferred_none=EndPanel)
-Panel :: proc(text: string) -> bool {
+Panel :: proc(text: string, aligment: Maybe(Aligment) = nil) -> bool {
     node := AddNode(text, {.DrawBackground}, uiCtx.panelStyle, uiCtx.panelLayout)
+    if al, ok := aligment.?; ok {
+        node.childrenAligment = al
+    }
+
 
     PushParent(node)
 
@@ -884,9 +921,10 @@ UIEndWindow :: proc() {
 
 UIButton :: proc(text: string) -> bool {
     node := AddNode(text, 
-        { .DrawBackground, .Clickable, .DrawText },
-        style = uiCtx.buttonStyle,
-        layout = uiCtx.buttonLayout)
+            { .DrawBackground, .Clickable, .DrawText },
+            style = uiCtx.buttonStyle,
+            layout = uiCtx.buttonLayout
+        )
 
     interaction := GetNodeInteraction(node)
     return bool(interaction.cursorUp)
@@ -1055,13 +1093,13 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     }
 
     if .DrawText in node.flags {
-        pos := node.targetPos + (node.targetSize - node.textSize) / 2
+        pos := node.targetPos + (node.targetSize - node.textSize) / 2 - node.targetSize * node.origin
         DrawText(
             node.text,
             pos,
-            node.font,
-            f32(node.fontSize),
-            color = node.textColor,
+            fontHandle = node.font,
+            fontSize   = f32(node.fontSize),
+            color      = node.textColor,
         )
 
     }

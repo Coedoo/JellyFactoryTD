@@ -262,7 +262,7 @@ main :: proc() {
                 engineData.tickInput.mouseKey[btn] += { .Down, .JustPressed }
 
                 engineData.frameInput.mouseKey[btn] -= { .Up }
-                engineData.frameInput.mouseKey[btn] += { .Down, .JustReleased }
+                engineData.frameInput.mouseKey[btn] += { .Down, .JustPressed }
 
             case .MOUSEBUTTONUP:
                 btnIndex := e.button.button

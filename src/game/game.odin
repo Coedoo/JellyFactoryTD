@@ -22,12 +22,15 @@ GameState :: struct {
     stage: GameStage,
     menuStage: MenuStage,
 
-
     levelArena: mem.Arena,
     levelAllocator: mem.Allocator,
 
     levels: []Level,
     level: ^Level, // currentLevel
+
+    masterVolume: f32,
+    musicVolume: f32,
+    sfxVolume: f32,
 
     using levelState: struct {
         spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
@@ -71,6 +74,8 @@ GameState :: struct {
 
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
+
+    luminary: dm.SoundHandle,
 }
 
 gameState: ^GameState
@@ -107,6 +112,8 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("StarParticle.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
+
+    dm.RegisterAsset("luminary.mp3", dm.SoundAssetDescriptor{})
     
     dm.RegisterAsset("menu/JellyBackground.png", dm.TextureAssetDescriptor{filter = .Bilinear})
     dm.RegisterAsset("menu/JellyShip.png", dm.TextureAssetDescriptor{filter = .Bilinear})
@@ -175,6 +182,10 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerMoveParticles.color = dm.ColorOverLifetime{{1, 1, 1, 1}, {1, 1, 1, 0}, .Exponential_Out}
 
     gameState.stage = STARTING_STAGE
+
+    gameState.luminary = cast(dm.SoundHandle) dm.GetAsset("luminary.mp3")
+    dm.SetVolume(gameState.luminary, 0)
+    dm.PlaySound(gameState.luminary)
 }
 
 @(export)

@@ -229,7 +229,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
         hotAnimTime = 0.1,
         hotAnimEase = .Cubic_Out,
-        hotScale = 1.3,
+        hotScale = 1,
     }
 
     uiCtx.defaultLayout = {
@@ -238,7 +238,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
         spacing = 5,
 
-        preferredSize = {.X = {.Fixed, 100, 1},  .Y = {.Fixed,    30, 1}},
+        preferredSize = {.X = {.Fixed, 100, 1},  .Y = {.Fixed, 30, 1}},
     }
 
     uiCtx.panelStyle = uiCtx.defaultStyle
@@ -256,7 +256,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     uiCtx.buttonStyle.bgColor = {1, 0.1, 0.3, 1}
     uiCtx.buttonStyle.hotColor = {1, 0.3, 0.5, 1}
     uiCtx.buttonStyle.activeColor = {1, 0.5, 0.6, 1}
-    uiCtx.buttonStyle.hotScale = 1.3
+    uiCtx.buttonStyle.hotScale = 1.1
 
     uiCtx.buttonLayout = uiCtx.defaultLayout
     uiCtx.buttonLayout.preferredSize = {.X = {.Text, 0, 1}, .Y = {.Text, 0, 1}}
@@ -966,7 +966,7 @@ UISpacer :: proc(size: int) {
 UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
     if LayoutBlock(axis = .X) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
-        label.preferredSize[.X] = {.Fixed, 200, 0}
+        // label.preferredSize[.X] = {.Fixed, 200, 0}
 
         slideArea := AddNode(fmt.tprint("slide", text), { .DrawBackground })
         slideArea.bgColor = {1, 1, 1, 1}

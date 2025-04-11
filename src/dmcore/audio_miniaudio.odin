@@ -94,6 +94,15 @@ _PlaySound :: proc(audio: ^Audio, handle: SoundHandle) {
     ma.sound_start(&sound.maSound)
 }
 
+_SetVolume :: proc(handle: SoundHandle, volume: f32) {
+    sound, ok := GetElementPtr(audio.sounds, handle)
+    if ok == false {
+        return
+    }
+
+    ma.sound_set_volume(&sound.maSound, sound.volume)
+}
+
 _StopSound :: proc(audio: ^Audio, handle: SoundHandle) {
     sound, ok := GetElementPtr(audio.sounds, handle)
     if ok == false {

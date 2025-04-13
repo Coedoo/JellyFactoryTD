@@ -139,6 +139,9 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
     when ODIN_DEBUG {
         DebugWindow(platform)
+        if platform.gameCode.gameUpdateDebug != nil {
+            platform.gameCode.gameUpdateDebug(platform.gameState)
+        }
     }
 
     if platform.pauseGame {
@@ -169,12 +172,6 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
             platform.time.deltaTime = DELTA
             platform.gameCode.gameUpdate(platform.gameState)
-
-            when ODIN_DEBUG {
-                if platform.gameCode.gameUpdateDebug != nil {
-                    platform.gameCode.gameUpdateDebug(platform.gameState, platform.debugState)
-                }
-            }
 
             platform.tickInput.runesCount = 0
 
@@ -208,10 +205,10 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
     muiEnd(&platform.frameMui)
 
+    DrawUI(platform.renderCtx)
+
     muiRender(&platform.tickMui, platform.renderCtx)
     muiRender(&platform.frameMui, platform.renderCtx)
-
-    DrawUI(platform.renderCtx)
 
     // FlushCommands(platform.renderCtx)
 

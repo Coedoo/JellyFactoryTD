@@ -359,15 +359,6 @@ muiProcessInput :: proc(mui: ^Mui, input: ^dmcore.Input) {
 
 // 
 DebugWindow :: proc(platform: ^Platform) {
-    if GetKeyState(.U) == .JustPressed {
-        platform.debugState = !platform.debugState
-        platform.pauseGame = platform.debugState
-
-        if platform.debugState {
-            muiShowWindow(&platform.frameMui, "Debug")
-        }
-    }
-
     if platform.debugState && 
        muiBeginWindow(&platform.frameMui, "Debug", {0, 0, 100, 240}, nil)
     {

@@ -19,7 +19,7 @@ SHOT_VISUAL_TIMER :: 0.1
 
 START_LEVEL :: "Level_0"
 
-STARTING_STAGE :: GameStage.MainMenu
+STARTING_STAGE :: GameStage.Gameplay
 
 // DEBUG
 DEBUG_TILE_OVERLAY := false

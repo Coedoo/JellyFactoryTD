@@ -571,6 +571,8 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
         return false
     }
 
+
+    // @Hack: activeInConnectionTest
     for y in 0..<building.size.y {
         for x in 0..<building.size.x {
             tile := GetTileAtCoord(gridPos + {x, y})

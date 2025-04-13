@@ -336,7 +336,7 @@ GameplayUpdate :: proc() {
                 continue
             }
 
-            dm.DrawDebugLine(dm.renderCtx, enemy.position, building.position, false)
+            // dm.DrawDebugLine(dm.renderCtx, enemy.position, building.position, false)
 
 
             currentEnergy := BuildingEnergy(building)
@@ -807,8 +807,6 @@ GameplayUpdate :: proc() {
         }
 
     }
-
-    // BuildingsWindow()
 }
 
 GameplayRender :: proc() {
@@ -841,6 +839,11 @@ GameplayRender :: proc() {
                 dm.SpawnParticles(&gameState.tileEnergyParticles[.Cyan], 1, CoordToPos(tile.gridPos))
             }
         }
+
+        // for nextT in tile.visibleWaypoints {
+        //     dm.DrawDebugLine(dm.renderCtx, tile.worldPos, CoordToPos(nextT), false)
+        // }
+
     }
 
     for &t in gameState.particlesTimers {
@@ -849,6 +852,7 @@ GameplayRender :: proc() {
             t = 0.3 + rand.float32_range(-0.1, 0.1)
         }
     }
+    
     // for tile, idx in gameState.level.grid {
     //     if tile.isCorner {
     //         dm.DrawRectBlank(tile.worldPos, {1, 1}, color = {1, 0, 0, 0.8})
@@ -1070,15 +1074,15 @@ GameplayRender :: proc() {
     dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // path
-    for i := 0; i < len(gameState.path) - 1; i += 1 {
-        a := gameState.path[i]
-        b := gameState.path[i + 1]
+    // for i := 0; i < len(gameState.path) - 1; i += 1 {
+    //     a := gameState.path[i]
+    //     b := gameState.path[i + 1]
 
-        posA := CoordToPos(a)
-        posB := CoordToPos(b)
-        // dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
-        // dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
-    }
+    //     posA := CoordToPos(a)
+    //     posB := CoordToPos(b)
+    //     dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
+    //     dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+    // }
 
     // mouseGrid := MousePosGrid()
     // tiles: [dynamic]iv2

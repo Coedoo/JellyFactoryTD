@@ -110,7 +110,8 @@ WorldToClipSpace :: proc(camera: Camera, point: v3) -> v3 {
 
 ScreenToWorldSpace :: proc {
     ScreenToWorldSpaceCtx,
-    ScreenToWorldSpaceImpl
+    ScreenToWorldSpaceImpl,
+    ScreenToWorldSpaceCam,
 }
 
 ScreenToWorldSpaceImpl :: proc(point: iv2) -> v3 {
@@ -126,6 +127,10 @@ ScreenToWorldSpaceCtx :: proc(camera: Camera, point: iv2, screenSize: iv2) -> v3
     p := glsl.inverse(vp) * v4{clip.x, -clip.y, 0, 1}
 
     return v3{p.x, p.y, p.z}
+}
+
+ScreenToWorldSpaceCam :: proc(camera: Camera, point: iv2) -> v3{
+    return ScreenToWorldSpaceCtx(camera, point, renderCtx.frameSize)
 }
 
 GetCameraBounds :: proc(camera: Camera) -> Bounds2D {

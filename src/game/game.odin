@@ -28,6 +28,8 @@ GameState :: struct {
     levels: []Level,
     level: ^Level, // currentLevel
 
+    editorState: EditorState,
+
     masterVolume: f32,
     musicVolume: f32,
     sfxVolume: f32,
@@ -91,8 +93,8 @@ RemoveMoney :: proc(amount: int) -> bool {
 
 //////////////
 
-MousePosGrid :: proc() -> (gridPos: iv2) {
-    mousePos := dm.ScreenToWorldSpace(dm.input.mousePos)
+MousePosGrid :: proc(camera := dm.renderCtx.camera) -> (gridPos: iv2) {
+    mousePos := dm.ScreenToWorldSpace(camera, dm.input.mousePos)
 
     gridPos.x = i32(mousePos.x)
     gridPos.y = i32(mousePos.y)
@@ -112,15 +114,13 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("StarParticle.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
-
-    dm.RegisterAsset("luminary.mp3", dm.SoundAssetDescriptor{})
     
-    dm.RegisterAsset("menu/JellyBackground.png", dm.TextureAssetDescriptor{filter = .Bilinear})
-    dm.RegisterAsset("menu/JellyShip.png", dm.TextureAssetDescriptor{filter = .Bilinear})
-    dm.RegisterAsset("menu/Tower1.png", dm.TextureAssetDescriptor{filter = .Bilinear})
-    dm.RegisterAsset("menu/Tower2.png", dm.TextureAssetDescriptor{filter = .Bilinear})
-    dm.RegisterAsset("menu/BackgroundBullet1.png", dm.TextureAssetDescriptor{filter = .Bilinear})
-    dm.RegisterAsset("menu/Crossfire.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/JellyBackground.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/JellyShip.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/Tower1.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/Tower2.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/BackgroundBullet1.png", dm.TextureAssetDescriptor{filter = .Bilinear})
+    // dm.RegisterAsset("menu/Crossfire.png", dm.TextureAssetDescriptor{filter = .Bilinear})
 
     dm.platform.SetWindowSize(1200, 900)
 }
@@ -182,16 +182,11 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerMoveParticles.color = dm.ColorOverLifetime{{1, 1, 1, 1}, {1, 1, 1, 0}, .Exponential_Out}
 
     gameState.stage = STARTING_STAGE
-
-    gameState.luminary = cast(dm.SoundHandle) dm.GetAsset("luminary.mp3")
-    dm.SetVolume(gameState.luminary, 0)
-    dm.PlaySound(gameState.luminary)
 }
 
 @(export)
 GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     gameState = cast(^GameState) state
-
     switch gameState.stage {
         case .MainMenu: MenuUpdate()
         case .Gameplay: GameplayUpdate()
@@ -199,15 +194,25 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 }
 
 @(export)
-GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr, debug: bool) {
+GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
     gameState = cast(^GameState) state
+    if dm.GetKeyState(.Tilde) == .JustPressed {
+        dm.platform.debugState = !dm.platform.debugState
+        dm.platform.pauseGame = dm.platform.debugState
 
-    if debug {
-        if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}) {
-            dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
-
-            dm.muiEndWindow(dm.mui)
+        if dm.platform.debugState {
+            InitEditor(&gameState.editorState)
         }
+    }
+
+    if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}) {
+        dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
+
+        dm.muiEndWindow(dm.mui)
+    }
+
+    if dm.platform.debugState {
+        EditorUpdate(&gameState.editorState)
     }
 }
 
@@ -217,8 +222,13 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     dm.ClearColor({0.1, 0.1, 0.3, 1})
 
 
-    switch gameState.stage {
-        case .MainMenu: MenuRender()
-        case .Gameplay: GameplayRender()
+    if dm.platform.debugState {
+        EditorRender(gameState.editorState)
+    }
+    else {
+        switch gameState.stage {
+            case .MainMenu: MenuRender()
+            case .Gameplay: GameplayRender()
+        }
     }
 }

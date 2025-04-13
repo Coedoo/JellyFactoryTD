@@ -205,7 +205,7 @@ GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
         }
     }
 
-    if dm.muiBeginWindow(dm.mui, "Config", {10, 200, 150, 100}) {
+    if dm.muiBeginWindow(dm.mui, "Config", {1000, 400, 150, 100}) {
         dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
 
         dm.muiEndWindow(dm.mui)

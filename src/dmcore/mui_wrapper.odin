@@ -360,7 +360,7 @@ muiProcessInput :: proc(mui: ^Mui, input: ^dmcore.Input) {
 // 
 DebugWindow :: proc(platform: ^Platform) {
     if platform.debugState && 
-       muiBeginWindow(&platform.frameMui, "Debug", {0, 0, 100, 240}, nil)
+       muiBeginWindow(&platform.frameMui, "Debug", {1000, 0, 120, 250}, nil)
     {
 
         muiLabel(&platform.frameMui, "Real Time:", platform.time.realTime)

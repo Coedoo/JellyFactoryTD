@@ -32,7 +32,9 @@ Platform :: struct {
     renderCtx: ^RenderContext,
     assets:    Assets,
     audio:     Audio,
-    uiCtx:     UIContext,
+
+    frameUICtx: UIContext,
+    tickUICtx:  UIContext,
 
     gameState: rawptr,
 
@@ -48,7 +50,8 @@ InitPlatform :: proc(platformPtr: ^Platform) {
 
     muiInit(&platformPtr.tickMui, platformPtr.renderCtx)
     muiInit(&platformPtr.frameMui, platformPtr.renderCtx)
-    InitUI(&platformPtr.uiCtx)
+    InitUI(&platformPtr.frameUICtx)
+    InitUI(&platformPtr.tickUICtx)
 
 
     InitAudio(&platformPtr.audio)
@@ -68,7 +71,7 @@ UpdateStatePointers : UpdateStatePointerFunc : proc(platformPtr: ^Platform) {
     audio     = &platformPtr.audio
     // mui       = platformPtr.mui
     assets    = &platformPtr.assets
-    uiCtx     = &platformPtr.uiCtx
+    // uiCtx     = &platformPtr.uiCtx
 }
 
 when ODIN_OS == .Windows {
@@ -109,6 +112,8 @@ DELTA :: 1.0 / 60.0
 CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     mui = &platform.frameMui
     input = &platform.frameInput
+    uiCtx = &platform.frameUICtx
+    UIBegin(int(renderCtx.frameSize.x), int(renderCtx.frameSize.y))
 
     muiProcessInput(&platform.frameMui, &platform.frameInput)
     muiBegin(&platform.frameMui)
@@ -166,6 +171,7 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
             muiProcessInput(&platform.tickMui, &platform.tickInput)
             muiBegin(&platform.tickMui)
 
+            uiCtx = &platform.tickUICtx
             UIBegin(int(renderCtx.frameSize.x), int(renderCtx.frameSize.y))
 
             mui = &platform.tickMui
@@ -183,8 +189,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
                 state -= { .JustPressed, .JustReleased }
             }
 
-            platform.tickInput.scrollX = 0;
-            platform.tickInput.scroll = 0;
+            platform.tickInput.scrollX = 0
+            platform.tickInput.scroll = 0
             platform.tickInput.mouseDelta = {}
 
             UIEnd()
@@ -197,17 +203,23 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
 
     mui = &platform.frameMui
     input = &platform.frameInput
+    uiCtx = &platform.frameUICtx
 
     StartFrame(platform.renderCtx)
 
     platform.time.deltaTime = f32(durr)
     platform.gameCode.gameRender(platform.gameState)
 
+    UIEnd()
+
     muiEnd(&platform.frameMui)
 
-    DrawUI(platform.renderCtx)
+    if platform.debugState == false {
+        DrawUI(platform.tickUICtx,  platform.renderCtx)
+        muiRender(&platform.tickMui, platform.renderCtx)
+    }
 
-    muiRender(&platform.tickMui, platform.renderCtx)
+    DrawUI(platform.frameUICtx, platform.renderCtx)
     muiRender(&platform.frameMui, platform.renderCtx)
 
     // FlushCommands(platform.renderCtx)
@@ -225,8 +237,8 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
         state -= { .JustPressed, .JustReleased }
     }
 
-    platform.frameInput.scrollX = 0;
-    platform.frameInput.scroll = 0;
+    platform.frameInput.scrollX = 0
+    platform.frameInput.scroll = 0
     platform.frameInput.mouseDelta = {}
 
     platform.time.renderFrame += 1

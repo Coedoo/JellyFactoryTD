@@ -31,7 +31,7 @@ ImageButton :: proc(
 
     dm.PopParent()
 
-    return cast(bool) interaction.cursorUp
+    return cast(bool) interaction.cursorReleased
 }
 
 BuildingsWindow :: proc() {
@@ -84,11 +84,11 @@ TestUI :: proc() {
 
     // dm.PushParent(panel)
 
-    if dm.UIContainer("container", .TopCenter, layoutAxis = .Y) {
-        dm.UIImage(gameState.playerSprite.texture, idIdx = 0)
-        dm.UIImage(gameState.arrowSprite.texture)
-        dm.UIImage(gameState.playerSprite.texture, idIdx = 1)
-    }
+    // if dm.UIContainer("container", .TopCenter, layoutAxis = .Y) {
+    //     dm.UIImage(gameState.playerSprite.texture, idIdx = 0)
+    //     dm.UIImage(gameState.arrowSprite.texture)
+    //     dm.UIImage(gameState.playerSprite.texture, idIdx = 1)
+    // }
 
     if dm.UIBeginWindow("Window", &windowOpen) {
         @static toggle: bool = true

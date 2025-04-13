@@ -114,7 +114,7 @@ UINode :: struct {
 UINodeInteraction :: struct {
     cursorDown: b8,
     cursorPressed: b8,
-    cursorUp: b8
+    cursorReleased: b8
 }
 
 /////////
@@ -294,7 +294,7 @@ PushIdBytes :: proc(bytes: []byte) {
     append(&uiCtx.hashStack, id)
 }
 
-PushIdInt :: proc(i: int) {
+PushIdInt :: proc(#any_int i: int) {
     i := i
     PushIdPtr(&i)
 }
@@ -682,14 +682,9 @@ GetNode :: proc(text: string) -> ^UINode {
 
 AddNode :: proc(text: string, flags: NodeFlags, 
     style := uiCtx.defaultStyle,
-    layout := uiCtx.defaultLayout,
-    idIdx: Maybe(int) = nil) -> ^UINode
+    layout := uiCtx.defaultLayout) -> ^UINode
 {
-    specialId, hasId := idIdx.?
-    
-    if hasId do PushId(specialId)
-        node := GetNode(text)
-    if hasId do PopId()
+    node := GetNode(text)
 
     mem.zero_item(&node.PerFrameData)
 
@@ -786,7 +781,7 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
                     uiCtx.activeId = node.id
                 }
                 if lmb == .JustReleased && uiCtx.activeId == node.id {
-                    result.cursorUp = true
+                    result.cursorReleased = true
                     uiCtx.activeId = 0
                 }
             }
@@ -927,7 +922,7 @@ UIButton :: proc(text: string) -> bool {
         )
 
     interaction := GetNodeInteraction(node)
-    return bool(interaction.cursorUp)
+    return bool(interaction.cursorReleased)
 }
 
 UILabel :: proc(params: ..any, sep := " ") {
@@ -939,11 +934,10 @@ UIImage :: proc(
         image: TexHandle, 
         maybeSize: Maybe(iv2) = nil,
         source: Maybe(RectInt) = nil,
-        idIdx: Maybe(int) = nil
-    )
+    ) -> ^UINode
 {
     id := fmt.aprint("Tex", image, allocator = uiCtx.transientAllocator)
-    node := AddNode(id, {.BackgroundTexture}, idIdx = idIdx)
+    node := AddNode(id, {.BackgroundTexture})
 
     node.texture = image
     node.textureSource = source.? or_else {}
@@ -952,6 +946,8 @@ UIImage :: proc(
 
     node.preferredSize[.X] = {.Fixed, f32(size.x), 1}
     node.preferredSize[.Y] = {.Fixed, f32(size.y), 1}
+
+    return node
 }
 
 UISpacer :: proc(size: int) {
@@ -1036,7 +1032,7 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
         PopParent()
 
         interaction := GetNodeInteraction(checkbox)
-        if interaction.cursorUp {
+        if interaction.cursorReleased {
             value^ = !value^
             res = true
         }
@@ -1050,17 +1046,17 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 ///////////////////////////////
 
-DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
+DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
     // DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor
 
-        if node.id == uiCtx.activeId {
+        if node.id == ctx.activeId {
             color = node.hotColor
         }
-        else if node.id == uiCtx.hotId {
+        else if node.id == ctx.hotId {
             color = node.activeColor
         }
 
@@ -1075,10 +1071,10 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     if .BackgroundTexture in node.flags {
         color := node.bgColor
 
-        if node.id == uiCtx.activeId {
+        if node.id == ctx.activeId {
             color = node.hotColor
         }
-        else if node.id == uiCtx.hotId {
+        else if node.id == ctx.hotId {
             color = node.activeColor
         }
 
@@ -1105,15 +1101,16 @@ DrawNode :: proc(renderCtx: ^RenderContext, node: ^UINode) {
     }
 
     for next := node.firstChild; next != nil; next = next.nextSibling {
-        DrawNode(renderCtx, next)
+        DrawNode(ctx, renderCtx, next)
     }
 }
 
-DrawUI :: proc(renderCtx: ^RenderContext) {
+DrawUI :: proc(ctx: UIContext, renderCtx: ^RenderContext) {
     BeginScreenSpace()
 
-    if len(uiCtx.nodes) > 0 {
-        DrawNode(renderCtx, &uiCtx.nodes[0])
+    // fmt.println(len(ctx.nodes))
+    if len(ctx.nodes) > 0 {
+        DrawNode(ctx, renderCtx, &ctx.nodes[0])
     }
 
     EndScreenSpace()

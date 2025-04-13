@@ -188,21 +188,32 @@ GetSpriteSize :: proc(sprite: Sprite) -> v2 {
 
 SpriteAtlas :: struct {
     texture: TexHandle,
-    gridSize: iv2,
+    cellSize: iv2,
+    spacing: iv2,
+    padding: iv2,
+}
+
+GetCellsCount :: proc(atlas: SpriteAtlas) -> iv2 {
+    size := GetTextureSize(atlas.texture)
+    return size / atlas.cellSize
 }
 
 GetSprite :: proc(atlas: SpriteAtlas, cell: iv2, 
     origin := v2{0.5, 0.5}, 
     cellSize := iv2{1, 1}) -> Sprite
 {
-    return Sprite {
-        texture = atlas.texture,
-        origin = origin,
-        texturePos = atlas.gridSize * cell,
-        textureSize = atlas.gridSize * cellSize,
-    }
+    srcRect := GetSpriteRect(atlas, cell, cellSize)
+    return CreateSprite(atlas.texture, srcRect)
 }
 
+GetSpriteRect :: proc(atlas: SpriteAtlas, cell: iv2,
+    cellSize := iv2{1, 1}) -> RectInt
+{
+    pos  := (atlas.cellSize * cell 
+             + atlas.padding 
+             + (atlas.spacing * cell))
 
+    size := atlas.cellSize * cellSize
 
-
+    return {pos.x, pos.y, size.x, size.y}
+}

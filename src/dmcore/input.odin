@@ -25,6 +25,7 @@ Key :: enum {
     Space, Backspace, Return, Tab, Esc,
     LShift, RShift, LCtrl, RCtrl, LAlt, RAlt,
     Left, Right, Up, Down,
+    Tilde
 }
 
 Input :: struct {

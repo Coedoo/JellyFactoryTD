@@ -59,6 +59,8 @@ SDLKeyToKey := #partial #sparse [sdl.Scancode]dm.Key {
     .UP = .Up,
     .RIGHT = .Right,
     .DOWN = .Down,
+
+    .GRAVE = .Tilde
 }
 
 SDLMouseToButton := [?]dm.MouseButton {

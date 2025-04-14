@@ -71,8 +71,8 @@ GameplayUpdate :: proc() {
     camWidth  := camAspect * camHeight
 
     levelSize := v2{
-        f32(gameState.level.sizeX - 1), // -1 to account for level edge
-        f32(gameState.level.sizeY - 1),
+        f32(gameState.loadedLevel.sizeX),
+        f32(gameState.loadedLevel.sizeY),
     }
 
     if gameState.buildUpMode == .None {
@@ -652,8 +652,8 @@ GameplayUpdate :: proc() {
         }
 
         if dm.muiButton(dm.mui, "Reset level") {
-            name := gameState.level.name
-            OpenLevel(name)
+            // name := gameState.level.name
+            // OpenLevel(name)
         }
 
         dm.muiLabel(dm.mui, "LEVELS:")
@@ -672,7 +672,7 @@ GameplayUpdate :: proc() {
     }
 
     tile := GetTileAtCoord(gameState.selectedTile)
-    if tile.building != {} || tile.pipeDir != {} {
+    if tile != nil && (tile.building != {} || tile.pipeDir != {}) {
         building, buildingData := GetBuilding(tile.building)
         // dm.DrawDebugCircle(dm.renderCtx, building.position, buildingData.range, false, dm.RED)
 
@@ -815,7 +815,7 @@ GameplayRender :: proc() {
     }
 
     // Level
-    for tile, idx in gameState.level.grid {
+    for tile, idx in gameState.loadedLevel.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
         if DEBUG_TILE_OVERLAY {
             dm.DrawRectBlank(tile.worldPos, {1, 1}, color = TileTypeColor[tile.type])
@@ -861,7 +861,7 @@ GameplayRender :: proc() {
 
 
     // Pipe
-    for tile, idx in gameState.level.grid {
+    for tile, idx in gameState.loadedLevel.grid {
         for dir in tile.pipeDir {
             dm.DrawRectPos(
                 dm.renderCtx.whiteTexture,

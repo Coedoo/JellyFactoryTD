@@ -26,7 +26,8 @@ GameState :: struct {
     levelAllocator: mem.Allocator,
 
     levels: []Level,
-    level: ^Level, // currentLevel
+
+    loadedLevel: Level, // currentLevel
 
     editorState: EditorState,
 
@@ -106,7 +107,7 @@ MousePosGrid :: proc(camera := dm.renderCtx.camera) -> (gridPos: iv2) {
 PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     // dm.RegisterAsset("testTex.png", dm.TextureAssetDescriptor{})
 
-    dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
+    // dm.RegisterAsset("level1.ldtk", dm.RawFileAssetDescriptor{})
     dm.RegisterAsset("kenney_tilemap.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("buildings.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("turret_test_4.png", dm.TextureAssetDescriptor{})
@@ -146,8 +147,8 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerSprite.scale = 2
     gameState.playerSprite.frames = 3
 
-    gameState.levels = LoadLevels()
-    OpenLevel(START_LEVEL)
+    // gameState.levels = LoadLevels()
+    // OpenLevel(START_LEVEL)
 
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4

@@ -77,156 +77,7 @@ EnergyTileTypes :: []TileType{.BlueEnergy, .RedEnergy, .GreenEnergy, .CyanEnergy
 /////
 
 LoadLevels :: proc() -> (levels: []Level) {
-    tilesHandle := dm.GetTextureAsset("kenney_tilemap.png")
-    // levelAsset := LevelAsset
-
-    ldtkFile := dm.GetAssetData("level1.ldtk")
-    project, ok := ldtk.load_from_memory(ldtkFile.fileData).?
-
-    if ok == false {
-        fmt.eprintln("Failed to load level file")
-        return
-    }
-
-    levels = make([]Level, len(project.levels))
-
-    buildingsNameCache := make(map[string]int, allocator = context.temp_allocator)
-
-    // @TODO: it's kinda error prone
-    PixelsPerTile :: 16
-
-    for loadedLevel, levelIdx in project.levels {
-        levelPxSize := iv2{i32(loadedLevel.px_width), i32(loadedLevel.px_height)}
-        levelSize := dm.ToV2(levelPxSize) / PixelsPerTile
-
-        level := &levels[levelIdx]
-        level.sizeX = i32(levelSize.x)
-        level.sizeY = i32(levelSize.y)
-
-        level.name = strings.clone(loadedLevel.identifier)
-
-        for layer in loadedLevel.layer_instances {
-            yOffset := layer.c_height * layer.grid_size
-
-            if layer.identifier == "Base" {
-                tiles := layer.type == .Tiles ? layer.grid_tiles : layer.auto_layer_tiles
-                level.grid = make([]Tile, layer.c_width * layer.c_height)
-
-                // Setup tile's types
-                for type, gridIdx in layer.int_grid_csv {
-                    coord := iv2{
-                        i32(gridIdx) % level.sizeX,
-                        i32(gridIdx) / level.sizeX,
-                    }
-
-                    coord.y = level.sizeY - coord.y - 1
-                    idx := coord.y * level.sizeX + coord.x
-                    
-                    level.grid[idx] = Tile {
-                        gridPos = iv2{i32(coord.x), i32(coord.y)},
-                        worldPos = CoordToPos(coord),
-                        type = cast(TileType) type,
-                    }
-                    level.grid[idx].type = cast(TileType) type
-                }
-
-                // Tile's sprites
-                for tile in tiles {
-                    sprite := dm.CreateSprite(
-                        tilesHandle,
-                        dm.RectInt{i32(tile.src.x), i32(tile.src.y), PixelsPerTile, PixelsPerTile}
-                    )
-
-                    coord := tile.px / layer.grid_size
-                    // reverse the axis because LDTK Y axis goes down
-                    coord.y = int(level.sizeY) - coord.y - 1
-
-                    idx := coord.y * int(level.sizeX) + coord.x
-                    level.grid[idx].sprite = sprite
-                }
-            }
-            else if layer.identifier == "Entities" {
-                if level.startingState == nil {
-                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
-                }
-
-                for entity in layer.entity_instances {
-                    coord := iv2{i32(entity.grid.x), i32(entity.grid.y)}
-                    coord.y = level.sizeY - coord.y - 1
-
-                    switch entity.identifier {
-                    case "StartPoint": level.startCoord = coord; continue
-                    case "EndPoint": level.endCoord = coord; continue
-                    }
-
-                    buildingIdx, buildingFound := buildingsNameCache[entity.identifier]
-                    if buildingFound == false {
-                        newIdentifier, _ := strings.replace_all(entity.identifier, "_", " ", context.temp_allocator)
-                        for building, i in Buildings {
-                            if building.name == newIdentifier {
-                                buildingsNameCache[entity.identifier] = i
-                                buildingIdx = i
-                                break
-                            }
-                        }
-                    }
-
-                    idx := coord.y * level.sizeX + coord.x
-                    level.startingState[idx].buildingIdx = buildingIdx
-                    level.startingState[idx].hasBuilding = true
-
-                    fmt.println("Adding", entity.identifier, "At:", coord)
-                }
-            }
-            else if layer.identifier == "Pipes" {
-                if level.startingState == nil {
-                    level.startingState = make([]TileStartingValues, layer.c_width * layer.c_height)
-                }
-
-                tilesetID, tilesetFound := layer.tileset_def_uid.?
-                if tilesetFound == false {
-                    fmt.println("Pipes layer doesn't have specified tileset ID!")
-                    continue
-                }
-
-                tileset := FindTilesetDefinition(project, tilesetID)
-                tileIDToDir := make(map[int]DirectionSet)
-                for enumTag in tileset.enum_tags {
-                    dir: DirectionSet
-                    switch enumTag.enum_value_id {
-                    case "NS": dir = { .North, .South }
-                    case "WE": dir = { .West, .East }
-                    case "NE": dir = { .North, .East }
-                    case "NW": dir = { .North, .West }
-                    case "SE": dir = { .South, .East }
-                    case "SW": dir = { .South, .West }
-                    case "NWE": dir = { .North, .West, .East }
-                    case "SWE": dir = { .South, .West, .East }
-                    case "NWS": dir = { .North, .West, .South }
-                    case "NES": dir = { .North, .East, .South }
-                    case "NWSE": dir = { .North, .West, .South, .East }
-                    }
-
-                    for id in enumTag.tile_ids {
-                        tileIDToDir[id] = dir
-                    }
-                }
-
-                for tile, i in layer.grid_tiles {
-                    coord := tile.px / layer.grid_size
-                    // reverse the axis because LDTK Y axis goes down
-                    coord.y = int(level.sizeY) - coord.y - 1
-                    idx := coord.y * int(level.sizeX) + coord.x
-                    level.startingState[idx].pipeDir = tileIDToDir[tile.t]
-                }
-            }
-            else {
-                fmt.eprintln("Unhandled level layer:", layer.identifier)
-            }
-        }
-    }
-
-    return
+    return nil
 }
 
 
@@ -247,16 +98,15 @@ OpenLevel :: proc(name: string) {
     mem.arena_init(&gameState.pathArena, pathMem)
     gameState.pathAllocator = mem.arena_allocator(&gameState.pathArena)
 
-    gameState.level = nil
     for &l in gameState.levels {
         if l.name == name {
-            gameState.level = &l
+            gameState.loadedLevel = l
             break
         }
     }
 
     //@TODO: it would be better to start test level in this case
-    assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
+    // assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
 
     waves: LevelWaves
     for w in Waves {
@@ -279,35 +129,29 @@ OpenLevel :: proc(name: string) {
     gameState.money = START_MONEY
     gameState.hp    = START_HP
 
-    gameState.playerPosition = dm.ToV2(iv2{gameState.level.sizeX, gameState.level.sizeY}) / 2
+    gameState.playerPosition = dm.ToV2(iv2{gameState.loadedLevel.sizeX, gameState.loadedLevel.sizeY}) / 2
 
     // @NOTE: I'm doing this in two passes so TryPlaceBuilding already have
     // pipes to create paths between buildings
-    for &tile, i in gameState.level.grid {
-        if gameState.level.startingState[i].pipeDir != nil {
-            tile.pipeDir = gameState.level.startingState[i].pipeDir
+    for &tile, i in gameState.loadedLevel.grid {
+        if gameState.loadedLevel.startingState[i].pipeDir != nil {
+            tile.pipeDir = gameState.loadedLevel.startingState[i].pipeDir
         }
         tile.isCorner = false
     }
 
-    for &tile, i in gameState.level.grid {
-        if gameState.level.startingState[i].hasBuilding {
-            TryPlaceBuilding(gameState.level.startingState[i].buildingIdx, tile.gridPos)
+    for &tile, i in gameState.loadedLevel.grid {
+        if gameState.loadedLevel.startingState[i].hasBuilding {
+            TryPlaceBuilding(gameState.loadedLevel.startingState[i].buildingIdx, tile.gridPos)
         }
     }
 
     RefreshVisibilityGraph()
     gameState.path = CalculatePathWithCornerTiles(
-        gameState.level.startCoord, 
-        gameState.level.endCoord,
+        gameState.loadedLevel.startCoord, 
+        gameState.loadedLevel.endCoord,
         allocator = gameState.pathAllocator
     )
-
-    // gameState.path = CalculatePathWithCornerTiles(
-    //     gameState.level.startCoord, 
-    //     gameState.level.endCoord,
-    //     allocator = gameState.pathAllocator
-    // )
 
     // @TODO: this will probably need other place
     // Also I don't think I have to completely destroy particles
@@ -342,13 +186,13 @@ RefreshVisibilityGraph :: proc() {
     }
 
     // @TODO: optimisation
-    for &tile in gameState.level.grid {
+    for &tile in gameState.loadedLevel.grid {
         tile.isCorner = false
     }
 
     cornerTiles := make([dynamic]^Tile, allocator = context.temp_allocator)
-    append(&cornerTiles, GetTileAtCoord(gameState.level.startCoord))
-    for &tile in gameState.level.grid {
+    append(&cornerTiles, GetTileAtCoord(gameState.loadedLevel.startCoord))
+    for &tile in gameState.loadedLevel.grid {
         // tile.isCorner = false
 
         foundPatterns := [4]bool{true, true, true, true}
@@ -398,7 +242,7 @@ RefreshVisibilityGraph :: proc() {
             }
         }
     }
-    append(&cornerTiles, GetTileAtCoord(gameState.level.endCoord))
+    append(&cornerTiles, GetTileAtCoord(gameState.loadedLevel.endCoord))
 
     CreateVisiblityGraph(cornerTiles[:])
 }
@@ -423,32 +267,32 @@ CreateVisiblityGraph :: proc(cornerTiles: []^Tile) {
 }
 
 CloseCurrentLevel :: proc() {
-    if gameState.level == nil {
-        return
-    }
+    // if gameState.level == nil {
+    //     return
+    // }
 
-    mem.zero_item(&gameState.levelState)
-    free_all(gameState.levelAllocator)
+    // mem.zero_item(&gameState.levelState)
+    // free_all(gameState.levelAllocator)
 
-    for &tile in gameState.level.grid {
-        tile.building = {}
-        tile.pipeDir = nil
-    }
+    // for &tile in gameState.level.grid {
+    //     tile.building = {}
+    //     tile.pipeDir = nil
+    // }
 
-    gameState.level = nil
+    // gameState.level = nil
 }
 
 
 ///////////
 
 IsInsideGrid :: proc(coord: iv2) -> bool {
-    return coord.x >= 0 && coord.x < gameState.level.sizeX &&
-           coord.y >= 0 && coord.y < gameState.level.sizeY
+    return coord.x >= 0 && coord.x < gameState.loadedLevel.sizeX &&
+           coord.y >= 0 && coord.y < gameState.loadedLevel.sizeY
 }
 
 CoordToIdx :: proc(coord: iv2) -> i32 {
     assert(IsInsideGrid(coord))
-    return coord.y * gameState.level.sizeX + coord.x
+    return coord.y * gameState.loadedLevel.sizeX + coord.x
 }
 
 WorldPosToCoord :: proc(pos: v2) -> iv2 {
@@ -459,8 +303,12 @@ WorldPosToCoord :: proc(pos: v2) -> iv2 {
 }
 
 IsTileFree :: proc(coord: iv2) -> bool {
+    if len(gameState.loadedLevel.grid) == 0 {
+        return false
+    }
+
     idx := CoordToIdx(coord)
-    return gameState.level.grid[idx].building == {}
+    return gameState.loadedLevel.grid[idx].building == {}
 }
 
 GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
@@ -473,7 +321,7 @@ GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
 GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
     if IsInsideGrid(coord) {
         idx := CoordToIdx(coord)
-        return &gameState.level.grid[idx]
+        return &gameState.loadedLevel.grid[idx]
     }
 
     return nil
@@ -581,8 +429,8 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
     }
 
     testPath := CalculatePath (
-        gameState.level.startCoord,
-        gameState.level.endCoord,
+        gameState.loadedLevel.startCoord,
+        gameState.loadedLevel.endCoord,
         TestConnectionPredicate,
         context.temp_allocator
     )
@@ -640,8 +488,8 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     for y in 0..<building.size.y {
         for x in 0..<building.size.x {
             idx := CoordToIdx(gridPos + {x, y})
-            gameState.level.grid[idx].building = handle
-            gameState.level.grid[idx].pipeDir = {}
+            gameState.loadedLevel.grid[idx].building = handle
+            gameState.loadedLevel.grid[idx].pipeDir = {}
         }
     }
 
@@ -683,8 +531,8 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     RefreshVisibilityGraph()
 
     gameState.path = CalculatePathWithCornerTiles(
-        gameState.level.startCoord,
-        gameState.level.endCoord,
+        gameState.loadedLevel.startCoord,
+        gameState.loadedLevel.endCoord,
         allocator = gameState.pathAllocator
     )
 

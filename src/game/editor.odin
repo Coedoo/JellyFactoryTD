@@ -75,8 +75,10 @@ EditorUpdate :: proc(state: ^EditorState) {
             coord := MousePosGrid(state.camera)
             tile := GetTileAtCoord(coord)
 
-            sprite := dm.GetSprite(state.tileSet, state.selectedTilesetTile)
-            tile.sprite = sprite
+            if tile != nil  {
+                sprite := dm.GetSprite(state.tileSet, state.selectedTilesetTile)
+                tile.sprite = sprite
+            }
         }
 
         if dm.Panel("Tiles") {
@@ -107,6 +109,7 @@ EditorUpdate :: proc(state: ^EditorState) {
 
 EditorRender :: proc(state: EditorState) {
     dm.SetCamera(state.camera)
+    dm.ClearColor({0, 0, 0, 1})
 
     GameplayRender()
 

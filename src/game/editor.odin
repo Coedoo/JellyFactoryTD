@@ -16,13 +16,13 @@ EditorState :: struct {
     isDragging: bool,
     prevMousePos: v2,
 
+    editTiles: bool,
     tileSet: dm.SpriteAtlas,
     selectedTilesetTile: iv2,
 }
 
 InitEditor :: proc(state: ^EditorState) {
     state.camera = dm.renderCtx.camera
-    DEBUG_TILE_OVERLAY = true
 
     atlas := dm.GetTextureAsset("kenney_tilemap.png")
     state.tileSet = {
@@ -64,47 +64,43 @@ EditorUpdate :: proc(state: ^EditorState) {
         state.isDragging = false
     }
 
-
-    // for i in 0..=len(TileType) {
-    //     key := dm.Key(int(dm.Key.Num1) + i)
-    //     if dm.GetKeyState(key) == .JustPressed {
-    //         state.paintingTileType = TileType(i)
-    //     }
-    // }
-
-    if dm.GetMouseButton(.Left) == .Down {
-        coord := MousePosGrid(state.camera)
-        tile := GetTileAtCoord(coord)
-
-        sprite := dm.GetSprite(state.tileSet, state.selectedTilesetTile)
-        tile.sprite = sprite
-
-        fmt.println(sprite)
+    if dm.UIButton("Edit Tiles") {
+        state.editTiles = !state.editTiles
     }
 
-    if dm.Panel("Tiles") {
-        count := dm.GetCellsCount(state.tileSet)
+    // Painting
+    if state.editTiles {
+        isOverUI := dm.IsPointOverUI(dm.input.mousePos)
+        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            coord := MousePosGrid(state.camera)
+            tile := GetTileAtCoord(coord)
 
-        for y in 0..<count.y {
-            dm.BeginLayout(axis = .X)
-            for x in 0..<count.x {
-                rect := dm.GetSpriteRect(state.tileSet, {x, y})
+            sprite := dm.GetSprite(state.tileSet, state.selectedTilesetTile)
+            tile.sprite = sprite
+        }
 
-                // dm.PushId(y * count.x + x)
-                // node := dm.UIImage(state.tileSet.texture, maybeSize = iv2{40, 40}, source = rect)
-                // dm.PopId()
+        if dm.Panel("Tiles") {
+            count := dm.GetCellsCount(state.tileSet)
 
-                if ImageButton(
-                    fmt.tprint(x, y),
-                    state.tileSet.texture,
-                    maybeSize = iv2{40, 40},
-                    texSource = rect)
-                {
-                    state.selectedTilesetTile = {x, y}
-                    fmt.println(state.selectedTilesetTile)
+            for y in 0..<count.y {
+                dm.BeginLayout(axis = .X)
+                for x in 0..<count.x {
+                    rect := dm.GetSpriteRect(state.tileSet, {x, y})
+
+                    dm.PushId(y * count.x + x)
+                    // node := dm.UIImage(state.tileSet.texture, maybeSize = iv2{40, 40}, source = rect)
+
+                    if ImageButton(
+                        state.tileSet.texture,
+                        maybeSize = iv2{40, 40},
+                        texSource = rect)
+                    {
+                        state.selectedTilesetTile = {x, y}
+                    }
+                    dm.PopId()
                 }
+                dm.EndLayout()
             }
-            dm.EndLayout()
         }
     }
 }

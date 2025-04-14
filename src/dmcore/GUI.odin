@@ -335,6 +335,29 @@ GetIdBytes :: proc(bytes: []byte) -> Id {
     return prev
 }
 
+IsPointOverUI :: proc(point: iv2) -> bool {
+    for node in uiCtx.nodes {
+        checkFlags := NodeFlags{ .DrawBackground, .DrawText, .BackgroundTexture }
+        // fmt.println(node.flags, checkFlags <= node.flags)
+        if card(checkFlags & node.flags) != 0 {
+            left  := node.targetPos.x
+            top   := node.targetPos.y
+            right := node.targetPos.x + node.targetSize.x
+            bot   := node.targetPos.y + node.targetSize.y
+
+            if f32(point.x) >= left &&
+               f32(point.x) <= right &&
+               f32(point.y) >= top  &&
+               f32(point.y) <= bot
+            {
+                return true
+            }
+        }
+    }
+
+    return false
+}
+
 DoLayoutParentPercent :: proc(node: ^UINode) {
     for axis in LayoutAxis {
         size := node.preferredSize[axis]
@@ -547,6 +570,9 @@ DoLayout :: proc() {
     ResolveLayoutContraints(&uiCtx.nodes[0])
     DoFinalLayout(&uiCtx.nodes[0])
 }
+
+
+// Style and Layout
 
 NextNodeStyle :: proc(style: Style) {
     append(&uiCtx.stylesStack, style)

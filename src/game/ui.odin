@@ -11,13 +11,13 @@ import "core:mem"
 import "../ldtk"
 
 ImageButton :: proc(
-        text: string, 
         image: dm.TexHandle, 
+        text: Maybe(string) = nil, 
         maybeSize: Maybe(iv2) = nil, 
         texSource: Maybe(dm.RectInt) = nil
     ) -> bool
 {
-    node := dm.AddNode(text, {.Clickable, .DrawBackground}, dm.uiCtx.panelStyle, dm.uiCtx.panelLayout)
+    node := dm.AddNode("text", {.Clickable, .DrawBackground}, dm.uiCtx.panelStyle, dm.uiCtx.panelLayout)
     node.bgColor = {0, 0, 0, 0}
     node.activeColor = {1, 1, 1, 0.5}
     node.hotColor = {1, 1, 1, 0.6}
@@ -27,7 +27,9 @@ ImageButton :: proc(
     dm.PushParent(node)
 
     dm.UIImage(image, maybeSize = maybeSize, source = texSource)
-    dm.UILabel(text)
+    if t, ok := text.?; ok {
+        dm.UILabel(text)
+    }
 
     dm.PopParent()
 
@@ -40,7 +42,7 @@ BuildingsWindow :: proc() {
         for b, idx in Buildings {
             tex := dm.GetTextureAsset(b.spriteName)
             // sprite := gameState.buildingSprites[b.sprite]
-            if ImageButton(b.name, tex) {
+            if ImageButton(tex, b.name) {
                 gameState.selectedBuildingIdx = idx + 1
                 gameState.buildUpMode = .Building
                 // fmt.println("AAAAAAA")

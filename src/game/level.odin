@@ -12,6 +12,19 @@ import pq "core:container/priority_queue"
 
 import "../ldtk"
 
+TileFlag :: enum {
+    Walkable,
+    NonBuildable,
+    HasEnergy,
+}
+
+TileFlags :: distinct bit_set[TileFlag]
+
+TileDef :: struct {
+    flags: TileFlags,
+    tilesetCoord: iv2,
+    flip: [2]bool,
+}
 
 Tile :: struct {
     gridPos: iv2,
@@ -38,6 +51,8 @@ TileStartingValues :: struct {
 
 Level  :: struct {
     name: string,
+    startingGrid: []TileDef,
+
     grid: []Tile,
     startingState: []TileStartingValues,
     sizeX, sizeY: i32,

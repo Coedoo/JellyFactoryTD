@@ -1,61 +1,54 @@
-JAM TIME:
-  UI:
+LEVEL EDITOR:
+ ✔ New Level @done (25-04-15 20:13)
+ ✔ TileDef rendering @done (25-04-15 20:13)
+ ☐ Modifying and rendering tile flags
+ ☐ Level resize
+ ☐ Flood fill
+ ☐ Think over how to handle tile types (Don't I just need a single flag `walkable`?)
+ ☐ Do I need a way to specify what type are a tile from the tilset?
+ ☐ Undo/Redo
+ ☐ Save/Load
+
+GAME UI:
     ☐ Buildings info
     ☐ Main Menu
     ☐ Changing target method
 
-  GAMEPLAY:
-    ✔ Better attack effects @done (25-03-30 15:39)
-    ☐ Balance
-    ✔ targeting @done (25-03-30 15:40)
-    ☐ Energy effects
-
-  SYSTEM:
-    ☐ FIX FUCKING WASM VERSION
-
-  ART:
-    ✔ better jelly sprites (diagonals) @done (25-04-02 21:04)
-    ☐ turrets
-    ☐ Tilesets
-    ☐ Ask Kairo for art:
-      ✔ Menu art @done (25-04-02 21:04)
-      ☐ Turrets concepts?
-    ☐ Music and SFX!!
-    ☐ ENEMIES
-
   BUGS:
     ☐ Pathfiding don't update enemies path after recreating it
     ☐ Fix rendering error texture when no texture is set
+    ☐ UI - infinity loop when there is two nodes with the same ID
 
 UI:
+  ☐ Scrolls
+  ☐ Node's origin should be probably in Style
+  ☐ Min Size
+  ☐ Containers should probably have null ID
+  ☐ Input box
   ✔ button with image @done (25-03-17 21:10)
   ✔ Anchoring floating panel @done (25-03-17 21:10)
     ✔ API @done (25-03-17 21:10)
-  ☐ Scrolls
-  ☐ Node's origin should be probably in Style
-  ☐ Add ability to change nodes orgin
+  ✔ Add ability to change nodes orgin @done (25-04-13 22:21)
   ✔ Make changing children aligment easier @done (25-04-09 20:35)
-  ☐ Min Size
-  ☐ NextNodeStyle doesn't seam to work (node disappears)
+  ✔ NextNodeStyle doesn't seam to work (node disappears) @done (25-04-13 22:20)
 
 GAMEPLAY:
   ☐ Better shooting visualisaion
   ☐ Shot Hit effects
   ☐ Jorb as the defending structure
+  ☐ Energy effects
 
   ART:
   ☐ New Tiles in 24x24
-  ✔ Diagonal ship sprites @done (25-04-02 21:05)
   ☐ Pipes sprites
   ☐ New enrgy sprite
+  ✔ Diagonal ship sprites @done (25-04-02 21:05)
 
 FRAMEWORK:
+   ☐ Input rework
+   ☐ Fix wasm version
+   ☐ Make the Resource Pool return a temporary data structure when an invalid handle is passed
   ✘ New sprite API @cancelled (25-03-17 21:45)
   ✔ Update framework version @done (25-03-15 21:35)
-  ☐ Map Editor
-  ☐ Input rework
   ✔ move build script from the other project @done (25-03-16 16:02)
   ✔ new build script still launches the game even when there is an compiler error @done (25-04-02 21:05)
-
-  BUGS:
-    ☐ UI - infinity loop when there is two nodes with the same ID

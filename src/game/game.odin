@@ -183,6 +183,11 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerMoveParticles.color = dm.ColorOverLifetime{{1, 1, 1, 1}, {1, 1, 1, 0}, .Exponential_Out}
 
     gameState.stage = STARTING_STAGE
+
+    dm.platform.debugState = true
+    dm.platform.pauseGame = true
+
+    InitEditor(&gameState.editorState)
 }
 
 @(export)

@@ -985,6 +985,15 @@ UISpacer :: proc(size: int) {
     node := AddNode("", {}, {}, layout)
 }
 
+
+UISliderInt :: proc(text: string, value: ^int, #any_int min, max: int) -> (res: bool) {
+    temp := cast(f32) value^
+    result := UISlider(text, &temp, f32(min), f32(max))
+
+    value^ = cast(int) temp
+    return result
+}
+
 UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
     if LayoutBlock(axis = .X) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)

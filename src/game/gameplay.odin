@@ -817,28 +817,28 @@ GameplayRender :: proc() {
     // Level
     for tile, idx in gameState.loadedLevel.grid {
         dm.DrawSprite(tile.sprite, tile.worldPos)
-        if DEBUG_TILE_OVERLAY {
-            dm.DrawRectBlank(tile.worldPos, {1, 1}, color = TileTypeColor[tile.type])
-        }
+        // if DEBUG_TILE_OVERLAY {
+        //     dm.DrawRectBlank(tile.worldPos, {1, 1}, color = TileTypeColor[tile.type])
+        // }
 
-        #partial switch tile.type {
-            case .BlueEnergy:
-            if gameState.particlesTimers[.Blue] < 0 {
-                dm.SpawnParticles(&gameState.tileEnergyParticles[.Blue], 1, CoordToPos(tile.gridPos))
-            }
-            case .RedEnergy:
-            if gameState.particlesTimers[.Red] < 0 {
-                dm.SpawnParticles(&gameState.tileEnergyParticles[.Red], 1, CoordToPos(tile.gridPos))
-            }
-            case .GreenEnergy:
-            if gameState.particlesTimers[.Green] < 0 {
-                dm.SpawnParticles(&gameState.tileEnergyParticles[.Green], 1, CoordToPos(tile.gridPos))
-            }
-            case .CyanEnergy:
-            if gameState.particlesTimers[.Cyan] < 0 {
-                dm.SpawnParticles(&gameState.tileEnergyParticles[.Cyan], 1, CoordToPos(tile.gridPos))
-            }
-        }
+        // #partial switch tile.type {
+        //     case .BlueEnergy:
+        //     if gameState.particlesTimers[.Blue] < 0 {
+        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Blue], 1, CoordToPos(tile.gridPos))
+        //     }
+        //     case .RedEnergy:
+        //     if gameState.particlesTimers[.Red] < 0 {
+        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Red], 1, CoordToPos(tile.gridPos))
+        //     }
+        //     case .GreenEnergy:
+        //     if gameState.particlesTimers[.Green] < 0 {
+        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Green], 1, CoordToPos(tile.gridPos))
+        //     }
+        //     case .CyanEnergy:
+        //     if gameState.particlesTimers[.Cyan] < 0 {
+        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Cyan], 1, CoordToPos(tile.gridPos))
+        //     }
+        // }
 
         // for nextT in tile.visibleWaypoints {
         //     dm.DrawDebugLine(dm.renderCtx, tile.worldPos, CoordToPos(nextT), false)

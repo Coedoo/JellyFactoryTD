@@ -86,7 +86,7 @@ Buildings := [?]Building {
 
         flags = { .ProduceEnergy, .SendsEnergy },
 
-        restrictedTiles = EnergyTileTypes,
+        // restrictedTiles = EnergyTileTypes,
 
         cost = 100,
 
@@ -132,7 +132,7 @@ Buildings := [?]Building {
 
         flags = { .RequireEnergy, .SendsEnergy },
 
-        restrictedTiles = {},
+        // restrictedTiles = {},
 
         cost = 100,
 

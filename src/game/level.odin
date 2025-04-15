@@ -27,15 +27,16 @@ TileDef :: struct {
 }
 
 Tile :: struct {
+    using def: TileDef,
+
     gridPos: iv2,
     worldPos: v2,
     sprite: dm.Sprite,
 
     building: BuildingHandle,
-
     pipeDir: DirectionSet,
 
-    type: TileType,
+    // type: TileType,
 
     isCorner: bool,
     visibleWaypoints: []iv2,
@@ -63,31 +64,31 @@ Level  :: struct {
 
 // @NOTE: Must be the same values as LDTK
 // @TODO: can I import it as well?
-TileType :: enum {
-    None,
-    // Walls = 1,
-    BuildArea = 2,
-    WalkArea = 3,
-    Edge = 4,
-    BlueEnergy = 5,
-    RedEnergy = 6,
-    GreenEnergy = 7,
-    CyanEnergy = 8,
-}
+// TileType :: enum {
+//     None,
+//     // Walls = 1,
+//     BuildArea = 2,
+//     WalkArea = 3,
+//     Edge = 4,
+//     BlueEnergy = 5,
+//     RedEnergy = 6,
+//     GreenEnergy = 7,
+//     CyanEnergy = 8,
+// }
 
-TileTypeColor := #sparse [TileType]dm.color {
-    .None = {0, 0, 0, 1},
-    // .Walls = {0.73, 0.21, 0.4, 0.5},
-    .BuildArea   = ({0, 153, 219, 128} / 255.0),
-    .WalkArea    = ({234, 212, 170, 128} / 255.0),
-    .Edge        = {0.2, 0.2, 0.2, 0.5},
-    .BlueEnergy  = {0, 0, 1, 0.5},
-    .RedEnergy   = {1, 0, 0, 0.5},
-    .GreenEnergy = {0, 1, 0, 0.5},
-    .CyanEnergy  = {0, 1, 1, 0.5},
-}
+// TileTypeColor := #sparse [TileType]dm.color {
+//     .None = {0, 0, 0, 1},
+//     // .Walls = {0.73, 0.21, 0.4, 0.5},
+//     .BuildArea   = ({0, 153, 219, 128} / 255.0),
+//     .WalkArea    = ({234, 212, 170, 128} / 255.0),
+//     .Edge        = {0.2, 0.2, 0.2, 0.5},
+//     .BlueEnergy  = {0, 0, 1, 0.5},
+//     .RedEnergy   = {1, 0, 0, 0.5},
+//     .GreenEnergy = {0, 1, 0, 0.5},
+//     .CyanEnergy  = {0, 1, 1, 0.5},
+// }
 
-EnergyTileTypes :: []TileType{.BlueEnergy, .RedEnergy, .GreenEnergy, .CyanEnergy}
+// EnergyTileTypes :: []TileType{.BlueEnergy, .RedEnergy, .GreenEnergy, .CyanEnergy}
 
 /////
 
@@ -229,10 +230,15 @@ RefreshVisibilityGraph :: proc() {
                 if neighborTile != nil {
                     found := true
                     if patternElement == 1 {
-                        found = neighborTile.type == .WalkArea && 
+                        // @REWRITE:
+                        found = .Walkable in neighborTile.flags && 
                                 neighborTile.building == {} &&
-                                (tile.type == .BuildArea ||
-                                 tile.building != {})
+                                (.Walkable not_in tile.flags ||
+                                  tile.building != {})
+
+                        // __|__|__
+                        // __|__|__
+                        //   |  |  
                     }
                     // found ||= patternElement == 0 && tile.type == .BuildArea
 
@@ -403,21 +409,21 @@ CanBePlaced :: proc(building: Building, coord: iv2) -> bool {
                 return false
             }
 
-            if len(building.restrictedTiles) != 0 {
-                tile := GetTileAtCoord(pos)
+            // if card(building.restrictedTiles) != 0 {
+            //     tile := GetTileAtCoord(pos)
 
-                found := false
-                for restrictedTile in building.restrictedTiles {
-                    if tile.type == restrictedTile {
-                        found = true
-                        break
-                    }
-                }
+            //     found := false
+            //     for restrictedTile in building.restrictedTiles {
+            //         if tile.type == restrictedTile {
+            //             found = true
+            //             break
+            //         }
+            //     }
 
-                if found == false {
-                    return false
-                }
-            }
+            //     if found == false {
+            //         return false
+            //     }
+            // }
 
             if IsTileFree(pos) == false {
                 return false
@@ -489,12 +495,12 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     // @TODO: handle different building sizes
     if .ProduceEnergy in building.flags {
-        #partial switch buildingTile.type {
-            case .BlueEnergy:  toSpawn.producedEnergyType = .Blue
-            case .RedEnergy:   toSpawn.producedEnergyType = .Red
-            case .GreenEnergy: toSpawn.producedEnergyType = .Green
-            case .CyanEnergy:  toSpawn.producedEnergyType = .Cyan
-        }
+        // #partial switch buildingTile.type {
+        //     case .BlueEnergy:  toSpawn.producedEnergyType = .Blue
+        //     case .RedEnergy:   toSpawn.producedEnergyType = .Red
+        //     case .GreenEnergy: toSpawn.producedEnergyType = .Green
+        //     case .CyanEnergy:  toSpawn.producedEnergyType = .Cyan
+        // }
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
@@ -599,14 +605,14 @@ TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile, goal: iv
 TestConnectionPredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     return neighbor.gridPos == goal || 
         (
-            neighbor.type == .WalkArea && 
+            .Walkable in neighbor.flags && 
             neighbor.building == {} &&
             neighbor.activeInConnectionTest == false
         )
 }
 
 WalkablePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
-    return neighbor.gridPos == goal || (neighbor.type == .WalkArea && neighbor.building == {})
+    return neighbor.gridPos == goal || (.Walkable in neighbor.flags && neighbor.building == {})
 }
 
 PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
@@ -802,7 +808,7 @@ IsEmptyLineBetweenCoords :: proc(coordA, coordB: iv2, checkedTiles: ^[dynamic]iv
 
         if tile.gridPos != coordA &&
            tile.gridPos != coordB &&
-          (tile.type != .WalkArea ||
+          (.Walkable in tile.flags ||
             tile.building != {})
         {
             return false

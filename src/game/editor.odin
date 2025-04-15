@@ -9,9 +9,9 @@ import "core:slice"
 import "core:mem"
 
 EditorState :: struct {
-    camera: dm.Camera,
+    mode: EditorMode,
 
-    paintingTileType: TileType,
+    camera: dm.Camera,
 
     isDragging: bool,
     prevMousePos: v2,
@@ -20,14 +20,36 @@ EditorState :: struct {
 
     editedLevel: Level,
 
-    editTiles: bool,
     tileset: dm.SpriteAtlas,
     selectedTilesetTile: iv2,
     tileFlip: [2]bool,
 
+    selectedFlag: TileFlag,
+
     showNewLevel: bool,
     newLevelWidth:  int,
     newLevelHeight: int,
+}
+
+EditorMode :: enum {
+    None,
+    EditTiles,
+    EditFlags
+}
+
+TileFlagColors := [TileFlag]dm.color {
+    .Walkable     = ({234, 212, 170, 255} / 255.0),
+    .HasEnergy    = ({0, 153, 219, 255} / 255.0),
+    .NonBuildable = {0.6, 0.6, 0.6, 1},
+}
+
+SwitchMode :: proc(state: ^EditorState, newMode: EditorMode) {
+    if state.mode == newMode {
+        state.mode = .None
+    }
+    else {
+        state.mode = newMode
+    }
 }
 
 NewLevel :: proc(state: ^EditorState) {
@@ -112,13 +134,18 @@ EditorUpdate :: proc(state: ^EditorState) {
     }
 
     if dm.UIButton("Edit Tiles") {
-        state.editTiles = !state.editTiles
+        SwitchMode(state, .EditTiles)
+    }
+    if dm.UIButton("Edit Flags") {
+        SwitchMode(state, .EditFlags)
     }
 
     // Painting
-    if state.editTiles {
-        isOverUI := dm.IsPointOverUI(dm.input.mousePos)
+    isOverUI := dm.IsPointOverUI(dm.input.mousePos)
 
+    switch state.mode {
+    case .None:
+    case .EditTiles:
         if dm.GetKeyState(.Q) == .JustPressed {
             state.tileFlip.x = !state.tileFlip.x
         }
@@ -128,13 +155,6 @@ EditorUpdate :: proc(state: ^EditorState) {
         }
 
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
-            // tile := GetTileAtCoord(coord)
-
-            // if tile != nil  {
-            //     sprite := dm.GetSprite(state.tileset, state.selectedTilesetTile)
-            //     tile.sprite = sprite
-            // }
-
             coord := state.pointedCoord
             if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
                coord.y >= 0 && coord.y < state.editedLevel.sizeY
@@ -168,6 +188,27 @@ EditorUpdate :: proc(state: ^EditorState) {
                 dm.EndLayout()
             }
         }
+
+    case .EditFlags:
+        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            coord := state.pointedCoord
+            if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
+               coord.y >= 0 && coord.y < state.editedLevel.sizeY
+           {
+                idx := coord.y * state.editedLevel.sizeX + coord.x
+                state.editedLevel.startingGrid[idx].flags += { state.selectedFlag }
+           }
+        }
+
+        if dm.Panel("Flags", dm.Aligment{.Top, .Left}) {
+            for flag in TileFlag {
+                if dm.UIButton(fmt.tprint(flag)) {
+                    state.selectedFlag = flag
+                }
+            }
+
+            dm.UILabel("Painting flag:", state.selectedFlag)
+        }
     }
 }
 
@@ -190,11 +231,27 @@ EditorRender :: proc(state: EditorState) {
         }
     }
 
-    if state.editTiles {
+    switch state.mode {
+    case .None:
+    case .EditTiles:
         sprite := dm.GetSprite(state.tileset, state.selectedTilesetTile)
         sprite.flipX = state.tileFlip.x
         sprite.flipY = state.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(state.pointedCoord), color = {1, 1, 1, 0.5})
+    
+    case .EditFlags:
+        for y in 0..< state.editedLevel.sizeY {
+            for x in 0..< state.editedLevel.sizeX {
+                idx := y * state.editedLevel.sizeX + x
+                tile := state.editedLevel.startingGrid[idx]
+
+                for flag in tile.flags {
+                    color := TileFlagColors[flag]
+                    color.a = flag == state.selectedFlag ? 0.6 : 0.1
+                    dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = color)
+                }
+            }
+        }
     }
 
     dm.DrawGrid()

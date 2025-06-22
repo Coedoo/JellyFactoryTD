@@ -1,0 +1,20 @@
+// raddbg 0.9.20 project file
+
+recent_file: path: "src/game/gameplay.odin"
+recent_file: path: "src/game/game.odin"
+target:
+{
+  executable: "build/DanMofu.exe"
+  working_directory: build
+  enabled: 1
+}
+breakpoint:
+{
+  source_location: "src/game/gameplay.odin:816:1"
+  hit_count: 1
+}
+breakpoint:
+{
+  source_location: "src/game/gameplay.odin:821:1"
+  hit_count: 1
+}

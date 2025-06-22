@@ -69,7 +69,7 @@ EndFrame :: proc(ctx: ^RenderContext) {
 
 ClearColor :: proc(color: color) {
     gl.ClearColor(color.r, color.g, color.b, color.a)
-    gl.Clear(gl.COLOR_BUFFER_BIT)
+    gl.Clear(cast(u32) gl.COLOR_BUFFER_BIT)
 }
 
 SetCamera :: proc(camera: Camera) {

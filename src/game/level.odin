@@ -20,23 +20,15 @@ TileFlag :: enum {
 
 TileFlags :: distinct bit_set[TileFlag]
 
-TileDef :: struct {
+Tile :: struct {
     flags: TileFlags,
     tilesetCoord: iv2,
-    flip: [2]bool,
-}
-
-Tile :: struct {
-    using def: TileDef,
+    tileFlip: [2]bool,
 
     gridPos: iv2,
-    worldPos: v2,
-    sprite: dm.Sprite,
 
     building: BuildingHandle,
     pipeDir: DirectionSet,
-
-    // type: TileType,
 
     isCorner: bool,
     visibleWaypoints: []iv2,
@@ -52,11 +44,12 @@ TileStartingValues :: struct {
 
 Level  :: struct {
     name: string,
-    startingGrid: []TileDef,
+    sizeX, sizeY: i32,
+
+    tileset: dm.SpriteAtlas,
 
     grid: []Tile,
     startingState: []TileStartingValues,
-    sizeX, sizeY: i32,
 
     startCoord: iv2,
     endCoord: iv2,
@@ -91,6 +84,31 @@ Level  :: struct {
 // EnergyTileTypes :: []TileType{.BlueEnergy, .RedEnergy, .GreenEnergy, .CyanEnergy}
 
 /////
+
+NewLevel :: proc(level: ^Level, width, height: int) {
+    // width := state.newLevelWidth
+    // height := state.newLevelHeight
+
+    level.sizeX = i32(width)
+    level.sizeY = i32(height)
+
+    level.grid = make([]Tile, width * height)
+    for &tile, i in level.grid {
+        x := i % width
+        y := i / width
+
+        tile.gridPos = {i32(x), i32(y)}
+    }
+
+    atlas := dm.GetTextureAsset("kenney_tilemap.png")
+    level.tileset = {
+        texture  = atlas,
+        cellSize = {16, 16},
+        spacing = {1, 1}
+    }
+
+    // state.editedLevel.tileset = state.tileset
+}
 
 LoadLevels :: proc() -> (levels: []Level) {
     return nil
@@ -164,7 +182,7 @@ OpenLevel :: proc(name: string) {
 
     RefreshVisibilityGraph()
     gameState.path = CalculatePathWithCornerTiles(
-        gameState.loadedLevel.startCoord, 
+        gameState.loadedLevel.startCoord,
         gameState.loadedLevel.endCoord,
         allocator = gameState.pathAllocator
     )

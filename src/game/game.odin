@@ -184,10 +184,11 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     gameState.stage = STARTING_STAGE
 
-    dm.platform.debugState = true
-    dm.platform.pauseGame = true
+    // dm.platform.debugState = true
+    // dm.platform.pauseGame = true
 
-    InitEditor(&gameState.editorState)
+    // InitEditor(&gameState.editorState)
+    NewLevel(&gameState.loadedLevel, 32, 32)
 }
 
 @(export)
@@ -209,12 +210,9 @@ GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
         if dm.platform.debugState {
             InitEditor(&gameState.editorState)
         }
-    }
-
-    if dm.muiBeginWindow(dm.mui, "Config", {1000, 400, 150, 100}) {
-        dm.muiToggle(dm.mui, "TILE_OVERLAY", &DEBUG_TILE_OVERLAY)
-
-        dm.muiEndWindow(dm.mui)
+        else {
+            CloseEditor(&gameState.editorState)
+        }
     }
 
     if dm.platform.debugState {

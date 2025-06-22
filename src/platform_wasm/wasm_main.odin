@@ -208,6 +208,7 @@ step :: proc (delta: f32) -> bool {
     for i in 0..<eventBufferOffset {
         e := &eventsBuffer[i]
         // fmt.println(e)
+
         #partial switch e.kind {
             case .Mouse_Down:
                 idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))

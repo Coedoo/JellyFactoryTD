@@ -65,6 +65,9 @@ GameplayUpdate :: proc() {
         gameState.playerMoveParticles.emitRate = 0
     }
 
+    gameState.playerPosition.x = clamp(gameState.playerPosition.x, 0, f32(gameState.loadedLevel.sizeX))
+    gameState.playerPosition.y = clamp(gameState.playerPosition.y, 0, f32(gameState.loadedLevel.sizeY))
+
     // Camera Control
     camAspect := dm.renderCtx.camera.aspect
     camHeight := dm.renderCtx.camera.orthoSize
@@ -81,15 +84,15 @@ GameplayUpdate :: proc() {
         camWidth = camAspect * camHeight
     }
 
-    camHeight = clamp(camHeight, 1, levelSize.x / 2)
-    camWidth  = clamp(camWidth,  1, levelSize.y / 2)
+    camHeight = clamp(camHeight, 0, levelSize.x / 2)
+    camWidth  = clamp(camWidth,  0, levelSize.y / 2)
 
     camSize := min(camHeight, camWidth / camAspect)
     dm.renderCtx.camera.orthoSize = camSize
 
     camPos := gameState.playerPosition
-    camPos.x = clamp(camPos.x, camWidth + 1,  levelSize.x - camWidth)
-    camPos.y = clamp(camPos.y, camHeight + 1, levelSize.y - camHeight)
+    camPos.x = clamp(camPos.x, camWidth,  levelSize.x - camWidth)
+    camPos.y = clamp(camPos.y, camHeight, levelSize.y - camHeight)
     dm.renderCtx.camera.position.xy = cast([2]f32) camPos
 
     // Update Buildings
@@ -816,10 +819,10 @@ GameplayRender :: proc() {
 
     // Level
     for tile, idx in gameState.loadedLevel.grid {
-        dm.DrawSprite(tile.sprite, tile.worldPos)
-        // if DEBUG_TILE_OVERLAY {
-        //     dm.DrawRectBlank(tile.worldPos, {1, 1}, color = TileTypeColor[tile.type])
-        // }
+        sprite := dm.GetSprite(gameState.loadedLevel.tileset, tile.tilesetCoord)
+        sprite.flipX = tile.tileFlip.x
+        sprite.flipY = tile.tileFlip.y
+        dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
 
         // #partial switch tile.type {
         //     case .BlueEnergy:
@@ -841,7 +844,7 @@ GameplayRender :: proc() {
         // }
 
         // for nextT in tile.visibleWaypoints {
-        //     dm.DrawDebugLine(dm.renderCtx, tile.worldPos, CoordToPos(nextT), false)
+        //     dm.DrawDebugLine(dm.renderCtx, tile.gridPos, CoordToPos(nextT), false)
         // }
 
     }
@@ -855,7 +858,7 @@ GameplayRender :: proc() {
     
     // for tile, idx in gameState.level.grid {
     //     if tile.isCorner {
-    //         dm.DrawRectBlank(tile.worldPos, {1, 1}, color = {1, 0, 0, 0.8})
+    //         dm.DrawRectBlank(tile.gridPos, {1, 1}, color = {1, 0, 0, 0.8})
     //     }
     // }
 
@@ -865,7 +868,7 @@ GameplayRender :: proc() {
         for dir in tile.pipeDir {
             dm.DrawRectPos(
                 dm.renderCtx.whiteTexture,
-                tile.worldPos,
+                CoordToPos(tile.gridPos),
                 size = v2{0.5, 0.1},
                 rotation = math.to_radians(DirToRot[dir]),
                 color = {0, 0.1, 0.8, 0.9},
@@ -991,7 +994,7 @@ GameplayRender :: proc() {
         if IsInDistance(gameState.playerPosition, MousePosGrid()) {
             tile := TileUnderCursor()
             if tile.building != {} || tile.pipeDir != nil {
-                dm.DrawRectBlank(tile.worldPos, 1, color = {1, 0, 0, 0.5})
+                dm.DrawRectBlank(CoordToPos(tile.gridPos), 1, color = {1, 0, 0, 0.5})
             }
         }
     }

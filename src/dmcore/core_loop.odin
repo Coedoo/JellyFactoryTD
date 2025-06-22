@@ -141,6 +141,7 @@ CoreUpdateAndRender :: proc(platformPtr: ^Platform) {
     numTicks := int(math.floor(platform.time.accumulator / DELTA))
     platform.time.accumulator -= f64(numTicks) * DELTA
 
+    // fmt.println(numTicks)
 
     when ODIN_DEBUG {
         DebugWindow(platform)

@@ -98,6 +98,8 @@ InitInput :: proc() {
     JsKeyToKey["Numpad8"] = .Num8
     JsKeyToKey["Numpad9"] = .Num9
 
+    JsKeyToKey["Backquote"] = .Tilde
+
     js.add_event_listener("game_viewport", .Mouse_Down, nil, StoreEvent)
     js.add_event_listener("game_viewport", .Mouse_Up, nil,   StoreEvent)
     js.add_event_listener("game_viewport", .Mouse_Move, nil, StoreEvent)

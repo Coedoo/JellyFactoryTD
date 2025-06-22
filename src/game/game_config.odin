@@ -21,9 +21,6 @@ START_LEVEL :: "Level_0"
 
 STARTING_STAGE :: GameStage.Gameplay
 
-// DEBUG
-DEBUG_TILE_OVERLAY := false
-
 // ENEMIES
 
 Enemies := [?]Enemy {

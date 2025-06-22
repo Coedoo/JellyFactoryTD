@@ -52,14 +52,23 @@ SwitchMode :: proc(state: ^EditorState, newMode: EditorMode) {
     }
 }
 
-NewLevel :: proc(state: ^EditorState) {
+NewEditorLevel :: proc(state: ^EditorState) {
     width := state.newLevelWidth
     height := state.newLevelHeight
 
-    state.editedLevel.sizeX = i32(width)
-    state.editedLevel.sizeY = i32(height)
+    // state.editedLevel.sizeX = i32(width)
+    // state.editedLevel.sizeY = i32(height)
 
-    state.editedLevel.startingGrid = make([]TileDef, width * height)
+    // state.editedLevel.grid = make([]Tile, width * height)
+    // for &tile, i in state.editedLevel.grid {
+    //     x := i % width
+    //     y := i / width
+
+    //     tile.gridPos = {i32(x), i32(y)}
+    // }
+
+    NewLevel(&state.editedLevel, width, height)
+    state.editedLevel.tileset = state.tileset
 }
 
 InitEditor :: proc(state: ^EditorState) {
@@ -74,7 +83,11 @@ InitEditor :: proc(state: ^EditorState) {
 
     state.newLevelWidth  = 32
     state.newLevelHeight = 32
-    NewLevel(state)
+    NewEditorLevel(state)
+}
+
+CloseEditor :: proc(state: ^EditorState) {
+    gameState.loadedLevel = state.editedLevel
 }
 
 EditorUpdate :: proc(state: ^EditorState) {
@@ -127,7 +140,7 @@ EditorUpdate :: proc(state: ^EditorState) {
             dm.PopId()
 
             if dm.UIButton("Ok") {
-                NewLevel(state)
+                NewEditorLevel(state)
                 state.showNewLevel = false
             }
         }
@@ -160,8 +173,8 @@ EditorUpdate :: proc(state: ^EditorState) {
                coord.y >= 0 && coord.y < state.editedLevel.sizeY
            {
                 idx := coord.y * state.editedLevel.sizeX + coord.x
-                state.editedLevel.startingGrid[idx].tilesetCoord = state.selectedTilesetTile
-                state.editedLevel.startingGrid[idx].flip = state.tileFlip
+                state.editedLevel.grid[idx].tilesetCoord = state.selectedTilesetTile
+                state.editedLevel.grid[idx].tileFlip = state.tileFlip
            }
         }
 
@@ -196,7 +209,7 @@ EditorUpdate :: proc(state: ^EditorState) {
                coord.y >= 0 && coord.y < state.editedLevel.sizeY
            {
                 idx := coord.y * state.editedLevel.sizeX + coord.x
-                state.editedLevel.startingGrid[idx].flags += { state.selectedFlag }
+                state.editedLevel.grid[idx].flags += { state.selectedFlag }
            }
         }
 
@@ -217,19 +230,25 @@ EditorRender :: proc(state: EditorState) {
     dm.ClearColor({0, 0, 0, 1})
 
     // GameplayRender()
-
-    for y in 0..< state.editedLevel.sizeY {
-        for x in 0..< state.editedLevel.sizeX {
-            idx := y * state.editedLevel.sizeX + x
-
-            tile := state.editedLevel.startingGrid[idx]
-            sprite := dm.GetSprite(state.tileset, tile.tilesetCoord)
-            sprite.flipX = tile.flip.x
-            sprite.flipY = tile.flip.y
-
-            dm.DrawSprite(sprite, CoordToPos({x, y}))
-        }
+    for &tile in state.editedLevel.grid {
+        sprite := dm.GetSprite(state.tileset, tile.tilesetCoord)
+        sprite.flipX = tile.tileFlip.x
+        sprite.flipY = tile.tileFlip.y
+        dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
     }
+
+    // for y in 0..< state.editedLevel.sizeY {
+    //     for x in 0..< state.editedLevel.sizeX {
+    //         idx := y * state.editedLevel.sizeX + x
+
+    //         tile := state.editedLevel.startingGrid[idx]
+    //         sprite := dm.GetSprite(state.tileset, tile.tilesetCoord)
+    //         sprite.flipX = tile.flip.x
+    //         sprite.flipY = tile.flip.y
+
+    //         dm.DrawSprite(sprite, CoordToPos({x, y}))
+    //     }
+    // }
 
     switch state.mode {
     case .None:
@@ -243,7 +262,7 @@ EditorRender :: proc(state: EditorState) {
         for y in 0..< state.editedLevel.sizeY {
             for x in 0..< state.editedLevel.sizeX {
                 idx := y * state.editedLevel.sizeX + x
-                tile := state.editedLevel.startingGrid[idx]
+                tile := state.editedLevel.grid[idx]
 
                 for flag in tile.flags {
                     color := TileFlagColors[flag]

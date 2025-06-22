@@ -99,6 +99,8 @@ DrawGrid :: proc() {
 BeginScreenSpace :: proc() {
     DrawBatch(renderCtx, &renderCtx.defaultBatch)
 
+    renderCtx.inScreenSpace = true
+
     scale := [3]f32{ 2.0 / f32(renderCtx.frameSize.x), -2.0 / f32(renderCtx.frameSize.y), 0}
     mat := glsl.mat4Translate({-1, 1, 0}) * glsl.mat4Scale(scale)
 

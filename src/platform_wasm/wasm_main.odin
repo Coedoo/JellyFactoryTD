@@ -219,8 +219,7 @@ step :: proc (delta: f32) -> bool {
                 engineData.tickInput.mouseKey[btn] += { .Down, .JustPressed }
 
                 engineData.frameInput.mouseKey[btn] -= { .Up }
-                engineData.frameInput.mouseKey[btn] += { .Down, .JustReleased }
-
+                engineData.frameInput.mouseKey[btn] += { .Down, .JustPressed }
 
             case .Mouse_Up:
                 idx := clamp(int(e.mouse.button), 0, len(JsToDMMouseButton))

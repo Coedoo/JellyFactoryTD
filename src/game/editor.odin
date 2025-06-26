@@ -8,6 +8,9 @@ import "core:fmt"
 import "core:slice"
 import "core:mem"
 
+import "core:encoding/json"
+import "core:os"
+
 EditorState :: struct {
     mode: EditorMode,
 
@@ -20,7 +23,7 @@ EditorState :: struct {
 
     editedLevel: Level,
 
-    tileset: dm.SpriteAtlas,
+    // tileset: dm.SpriteAtlas,
     selectedTilesetTile: iv2,
     tileFlip: [2]bool,
 
@@ -34,7 +37,9 @@ EditorState :: struct {
 EditorMode :: enum {
     None,
     EditTiles,
-    EditFlags
+    EditFlags,
+    EditStartPos,
+    EditEndPos,
 }
 
 TileFlagColors := [TileFlag]dm.color {
@@ -53,8 +58,8 @@ SwitchMode :: proc(state: ^EditorState, newMode: EditorMode) {
 }
 
 NewEditorLevel :: proc(state: ^EditorState) {
-    width := state.newLevelWidth
-    height := state.newLevelHeight
+    // width := state.newLevelWidth
+    // height := state.newLevelHeight
 
     // state.editedLevel.sizeX = i32(width)
     // state.editedLevel.sizeY = i32(height)
@@ -67,23 +72,25 @@ NewEditorLevel :: proc(state: ^EditorState) {
     //     tile.gridPos = {i32(x), i32(y)}
     // }
 
-    NewLevel(&state.editedLevel, width, height)
-    state.editedLevel.tileset = state.tileset
+    NewLevel(&state.editedLevel, 32, 32)
+    // state.editedLevel.tileset = state.editedLevel.tileset
 }
 
 InitEditor :: proc(state: ^EditorState) {
     state.camera = dm.renderCtx.camera
 
-    atlas := dm.GetTextureAsset("kenney_tilemap.png")
-    state.tileset = {
-        texture  = atlas,
-        cellSize = {16, 16},
-        spacing = {1, 1}
-    }
+    // atlas := dm.GetTextureAsset("kenney_tilemap.png")
+    // state.editedLevel.tileset = {
+    //     texture  = atlas,
+    //     cellSize = {16, 16},
+    //     spacing = {1, 1}
+    // }
 
-    state.newLevelWidth  = 32
-    state.newLevelHeight = 32
-    NewEditorLevel(state)
+    state.tileFlip = {}
+
+    if state.editedLevel.sizeX == 0 && state.editedLevel.sizeY == 0 {
+        NewEditorLevel(state)
+    }
 }
 
 CloseEditor :: proc(state: ^EditorState) {
@@ -179,18 +186,18 @@ EditorUpdate :: proc(state: ^EditorState) {
         }
 
         if dm.Panel("Tiles") {
-            count := dm.GetCellsCount(state.tileset)
+            count := dm.GetCellsCount(state.editedLevel.tileset)
 
             for y in 0..<count.y {
                 dm.BeginLayout(axis = .X)
                 for x in 0..<count.x {
-                    rect := dm.GetSpriteRect(state.tileset, {x, y})
+                    rect := dm.GetSpriteRect(state.editedLevel.tileset, {x, y})
 
                     dm.PushId(y * count.x + x)
-                    // node := dm.UIImage(state.tileset.texture, maybeSize = iv2{40, 40}, source = rect)
+                    // node := dm.UIImage(state.editedLevel.tileset.texture, maybeSize = iv2{40, 40}, source = rect)
 
                     if ImageButton(
-                        state.tileset.texture,
+                        state.editedLevel.tileset.texture,
                         maybeSize = iv2{40, 40},
                         texSource = rect)
                     {
@@ -200,6 +207,9 @@ EditorUpdate :: proc(state: ^EditorState) {
                 }
                 dm.EndLayout()
             }
+
+            dm.UICheckbox("Flip X", &state.tileFlip.x)
+            dm.UICheckbox("Flip Y", &state.tileFlip.y)
         }
 
     case .EditFlags:
@@ -222,6 +232,47 @@ EditorUpdate :: proc(state: ^EditorState) {
 
             dm.UILabel("Painting flag:", state.selectedFlag)
         }
+    case .EditStartPos:
+        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            state.editedLevel.startCoord = state.pointedCoord
+        }
+
+    case .EditEndPos: 
+        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            state.editedLevel.endCoord = state.pointedCoord
+        }
+    }
+
+    dm.BeginLayout(axis = .X)
+    if dm.UIButton("Start Pos") {
+        SwitchMode(state, .EditStartPos)
+    }
+
+    if dm.UIButton("End Pos") {
+        SwitchMode(state, .EditEndPos)
+    }
+    dm.EndLayout()
+
+    if dm.UIButton("Save") {
+        opt := json.Marshal_Options {
+            spec = .JSON5
+        }
+
+        when ODIN_DEBUG {
+            opt.pretty = true
+        }
+
+        data, ok := json.marshal(state.editedLevel, opt = opt, allocator = context.temp_allocator)
+        // if ok == .None {
+            os.write_entire_file("test_save.json", data)
+        // }
+    }
+
+    if dm.UIButton("Load") {
+        data, ok := os.read_entire_file("test_save.json")
+        err := json.unmarshal(data, &state.editedLevel)
+
+        state.editedLevel.tileset.texture = dm.GetTextureAsset(state.editedLevel.tileset.texAssetPath)
     }
 }
 
@@ -231,7 +282,7 @@ EditorRender :: proc(state: EditorState) {
 
     // GameplayRender()
     for &tile in state.editedLevel.grid {
-        sprite := dm.GetSprite(state.tileset, tile.tilesetCoord)
+        sprite := dm.GetSprite(state.editedLevel.tileset, tile.tilesetCoord)
         sprite.flipX = tile.tileFlip.x
         sprite.flipY = tile.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
@@ -242,7 +293,7 @@ EditorRender :: proc(state: EditorState) {
     //         idx := y * state.editedLevel.sizeX + x
 
     //         tile := state.editedLevel.startingGrid[idx]
-    //         sprite := dm.GetSprite(state.tileset, tile.tilesetCoord)
+    //         sprite := dm.GetSprite(state.editedLevel.tileset, tile.tilesetCoord)
     //         sprite.flipX = tile.flip.x
     //         sprite.flipY = tile.flip.y
 
@@ -253,11 +304,13 @@ EditorRender :: proc(state: EditorState) {
     switch state.mode {
     case .None:
     case .EditTiles:
-        sprite := dm.GetSprite(state.tileset, state.selectedTilesetTile)
+        sprite := dm.GetSprite(state.editedLevel.tileset, state.selectedTilesetTile)
         sprite.flipX = state.tileFlip.x
         sprite.flipY = state.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(state.pointedCoord), color = {1, 1, 1, 0.5})
-    
+
+    case .EditStartPos: fallthrough
+    case .EditEndPos:  fallthrough
     case .EditFlags:
         for y in 0..< state.editedLevel.sizeY {
             for x in 0..< state.editedLevel.sizeX {
@@ -271,6 +324,15 @@ EditorRender :: proc(state: EditorState) {
                 }
             }
         }
+
+        dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
+        dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
+
+    // case .EditStartPos:
+    //     dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
+
+    // case .EditEndPos:
+    //     dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
     }
 
     dm.DrawGrid()

@@ -27,13 +27,13 @@ Tile :: struct {
 
     gridPos: iv2,
 
-    building: BuildingHandle,
-    pipeDir: DirectionSet,
+    building: BuildingHandle `json:"-"`,
+    pipeDir: DirectionSet `json:"-"`,
 
-    isCorner: bool,
-    visibleWaypoints: []iv2,
+    isCorner: bool `json:"-"`,
+    visibleWaypoints: []iv2 `json:"-"`,
 
-    activeInConnectionTest: bool,
+    activeInConnectionTest: bool `json:"-"`,
 }
 
 TileStartingValues :: struct {
@@ -102,6 +102,7 @@ NewLevel :: proc(level: ^Level, width, height: int) {
 
     atlas := dm.GetTextureAsset("kenney_tilemap.png")
     level.tileset = {
+        texAssetPath = "kenney_tilemap.png",
         texture  = atlas,
         cellSize = {16, 16},
         spacing = {1, 1}

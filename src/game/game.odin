@@ -189,6 +189,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     // InitEditor(&gameState.editorState)
     NewLevel(&gameState.loadedLevel, 32, 32)
+    gameState.money = 10000;
 }
 
 @(export)

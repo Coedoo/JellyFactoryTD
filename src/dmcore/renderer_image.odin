@@ -187,7 +187,8 @@ GetSpriteSize :: proc(sprite: Sprite) -> v2 {
 
 
 SpriteAtlas :: struct {
-    texture: TexHandle,
+    texAssetPath: string,
+    texture: TexHandle `json:"-"`,
     cellSize: iv2,
     spacing: iv2,
     padding: iv2,

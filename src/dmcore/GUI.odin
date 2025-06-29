@@ -83,10 +83,6 @@ UINode :: struct {
         touchedThisFrame: bool,
 
         flags: NodeFlags,
-
-        // childrenAxis: LayoutAxis,
-        // childrenAligment: Aligment,
-        // preferredSize: [LayoutAxis]NodePreferredSize,
     },
 
     id: Id,
@@ -461,7 +457,19 @@ ResolveLayoutContraints :: proc(node: ^UINode) {
 DoFinalLayout :: proc(node: ^UINode) {
     nodePos := node.targetPos - node.targetSize * node.origin
     if node.childrenAxis == .X {
-        childPos: f32 = nodePos.x + f32(node.padding.left)
+        childrenSize: f32
+        for next := node.firstChild; next != nil; next = next.nextSibling {
+            childrenSize += next.targetSize.x
+        }
+        childrenSize += f32(node.spacing * (node.childrenCount - 1))
+
+        childPos: f32
+        switch node.childrenAligment.x {
+        case .Left:   childPos = nodePos.x + f32(node.padding.left)
+        case .Middle: childPos = nodePos.x + (node.targetSize.x - childrenSize) / 2
+        case .Right:  childPos = nodePos.x + (node.targetSize.x - childrenSize) - f32(node.padding.right)
+        }
+
         for next := node.firstChild; next != nil; next = next.nextSibling {
             if .AnchoredPosition in next.flags {
                 next.targetPos = 
@@ -492,7 +500,18 @@ DoFinalLayout :: proc(node: ^UINode) {
         }
     }
     else {
-        childPos: f32 = nodePos.y + f32(node.padding.top)
+        childrenSize: f32
+        for next := node.firstChild; next != nil; next = next.nextSibling {
+            childrenSize += next.targetSize.y
+        }
+        childrenSize += f32(node.spacing * (node.childrenCount - 1))
+
+        childPos: f32
+        switch node.childrenAligment.y {
+        case .Top:    childPos = nodePos.y + f32(node.padding.top)
+        case .Middle: childPos = nodePos.y + (node.targetSize.y - childrenSize) / 2
+        case .Bottom: childPos = nodePos.y + (node.targetSize.y - childrenSize) - f32(node.padding.bot)
+        }
 
         for next := node.firstChild; next != nil; next = next.nextSibling {
             if .AnchoredPosition in next.flags {
@@ -837,7 +856,6 @@ Panel :: proc(text: string, aligment: Maybe(Aligment) = nil) -> bool {
     if al, ok := aligment.?; ok {
         node.childrenAligment = al
     }
-
 
     PushParent(node)
 

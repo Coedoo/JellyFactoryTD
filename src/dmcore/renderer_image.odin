@@ -2,7 +2,9 @@ package dmcore
 
 import "core:os"
 import "core:fmt"
-import "core:image/png"
+// import "core:image/png"
+
+import stbi "vendor:stb/image"
 
 TextureFilter :: enum {
     Point,
@@ -58,14 +60,28 @@ LoadTextureFromMemory :: proc(data: []u8, filter := TextureFilter.Point) -> TexH
 
 LoadTextureFromMemoryCtx :: proc(renderCtx: ^RenderContext, data: []u8, filter := TextureFilter.Point) -> TexHandle {
     // @TODO: support different formats
-    image, err := png.load_from_bytes(data, allocator = context.temp_allocator)
-    if err != nil {
-        fmt.eprintf("Failed to load texture from memory. Error:", err)
-        return {}
-    }
+    // image, err := png.load_from_bytes(data, allocator = context.temp_allocator)
+    // if err != nil {
+    //     fmt.eprintf("Failed to load texture from memory. Error:", err)
+    //     return {}
+    // }
+
+    width, height, channels: i32
+    imageData := stbi.load_from_memory(
+        &data[0],
+        cast(i32) len(data),
+        &width,
+        &height,
+        &channels,
+        4,
+    )
+
+    defer stbi.image_free(imageData)
+
 
     tex := CreateElement(&renderCtx.textures)
-    _InitTexture(renderCtx, tex, image.pixels.buf[:], image.width, image.height, image.channels, filter)
+    _InitTexture(renderCtx, tex, imageData[:width * height * 4], int(width), int(height), int(channels), filter)
+    // _InitTexture(renderCtx, tex, image.pixels.buf[:], image.width, image.height, image.channels, filter)
 
     // fmt.println(tex)
 

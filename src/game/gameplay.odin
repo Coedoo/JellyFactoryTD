@@ -795,7 +795,7 @@ GameplayUpdate :: proc() {
                 b := Buildings[idx]
                 tex := dm.GetTextureAsset(b.spriteName)
 
-                if ImageButton(tex, b.name, maybeSize = iv2{50, 50}, texSource = b.spriteRect) {
+                if dm.ImageButton(tex, b.name, maybeSize = iv2{50, 50}, texSource = b.spriteRect) {
                     gameState.selectedBuildingIdx = idx
                     gameState.buildUpMode = .Building
                 }

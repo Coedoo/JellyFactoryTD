@@ -196,20 +196,30 @@ EditorUpdate :: proc(state: ^EditorState) {
                     dm.PushId(y * count.x + x)
                     // node := dm.UIImage(state.editedLevel.tileset.texture, maybeSize = iv2{40, 40}, source = rect)
 
-                    if ImageButton(
+                    inter := dm.ImageButtonI(
                         state.editedLevel.tileset.texture,
                         maybeSize = iv2{40, 40},
                         texSource = rect)
+                    if inter.cursorReleased
                     {
                         state.selectedTilesetTile = {x, y}
                     }
                     dm.PopId()
+
+                    if inter.hovered {
+                        dm.NextNodePosition(dm.ToV2(dm.input.mousePos), {0, 0})
+                        if dm.Panel("Tooltip") {
+                            dm.UILabel(x, y)
+                            dm.UILabel("AYWWAAWWAWAWAWWAAW")
+                            dm.UILabel("WLKJFLSKDJFLKj")
+                        }
+                    }
                 }
                 dm.EndLayout()
             }
 
-            dm.UICheckbox("Flip X", &state.tileFlip.x)
-            dm.UICheckbox("Flip Y", &state.tileFlip.y)
+            // dm.UICheckbox("Flip X", &state.tileFlip.x)
+            // dm.UICheckbox("Flip Y", &state.tileFlip.y)
         }
 
     case .EditFlags:

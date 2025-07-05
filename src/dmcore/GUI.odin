@@ -63,8 +63,7 @@ NodeFlag :: enum {
 
     Clickable,
 
-    FloatingX,
-    FloatingY,
+    Floating,
 
     AnchoredPosition,
 }
@@ -108,9 +107,11 @@ UINode :: struct {
 }
 
 UINodeInteraction :: struct {
-    cursorDown: b8,
-    cursorPressed: b8,
-    cursorReleased: b8
+    cursorDown: bool,
+    cursorPressed: bool,
+    cursorReleased: bool,
+    mouseOver: bool,
+    hovered: bool,
 }
 
 /////////
@@ -221,7 +222,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
         hotColor = {0.4, 0.4, 0.4, 1},
         activeColor = {0.6, 0.6, 0.6, 1},
 
-        padding = {3, 3, 3, 3},
+        // padding = {3, 3, 3, 3},
 
         hotAnimTime = 0.1,
         hotAnimEase = .Cubic_Out,
@@ -239,6 +240,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
     uiCtx.panelStyle = uiCtx.defaultStyle
     uiCtx.panelStyle.bgColor = {0.3, 0.3, 0.3, 0.5}
+    uiCtx.panelStyle.padding = { 3, 3, 3, 3 }
 
     uiCtx.panelLayout = uiCtx.defaultLayout
     uiCtx.panelLayout.childrenAligment = {.Middle, .Middle}
@@ -253,6 +255,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     uiCtx.buttonStyle.hotColor = {1, 0.3, 0.5, 1}
     uiCtx.buttonStyle.activeColor = {1, 0.5, 0.6, 1}
     uiCtx.buttonStyle.hotScale = 1.1
+    uiCtx.buttonStyle.padding = { 3, 3, 3, 3 }
 
     uiCtx.buttonLayout = uiCtx.defaultLayout
     uiCtx.buttonLayout.preferredSize = {.X = {.Text, 0, 1}, .Y = {.Text, 0, 1}}
@@ -382,8 +385,15 @@ DoLayoutChildren :: proc(node: ^UINode) {
         if size.type == .Children {
             node.targetSize[axis] = 0 
             for next := node.firstChild; next != nil; next = next.nextSibling {
+                if .Floating in next.flags {
+                    continue
+                }
+
                 if axis == node.childrenAxis {
                     node.targetSize[axis] += next.targetSize[axis]
+                    if next.nextSibling != nil {
+                        node.targetSize[axis] += f32(node.spacing)
+                    }
                 }
                 else {
                     node.targetSize[axis] = max(node.targetSize[axis], next.targetSize[axis])
@@ -391,9 +401,9 @@ DoLayoutChildren :: proc(node: ^UINode) {
             }
 
             // @NOTE @TODO: I'm sure this can be done better
-            if axis == node.childrenAxis {
-                node.targetSize[axis] += f32(node.childrenCount - 1) * f32(node.spacing)
-            }
+            // if axis == node.childrenAxis {
+            //     node.targetSize[axis] += f32(node.childrenCount - 1) * f32(node.spacing)
+            // }
 
             if axis == .X {
                 node.targetSize.x += f32(node.padding.left + node.padding.right)
@@ -457,13 +467,9 @@ ResolveLayoutContraints :: proc(node: ^UINode) {
 DoFinalLayout :: proc(node: ^UINode) {
     nodePos := node.targetPos - node.targetSize * node.origin
     if node.childrenAxis == .X {
-        childrenSize: f32
-        for next := node.firstChild; next != nil; next = next.nextSibling {
-            childrenSize += next.targetSize.x
-        }
-        childrenSize += f32(node.spacing * (node.childrenCount - 1))
-
+        childrenSize := node.targetSize.x - f32(node.padding.left + node.padding.right)
         childPos: f32
+
         switch node.childrenAligment.x {
         case .Left:   childPos = nodePos.x + f32(node.padding.left)
         case .Middle: childPos = nodePos.x + (node.targetSize.x - childrenSize) / 2
@@ -471,17 +477,19 @@ DoFinalLayout :: proc(node: ^UINode) {
         }
 
         for next := node.firstChild; next != nil; next = next.nextSibling {
+            if .Floating in next.flags {
+                continue
+            }
+
             if .AnchoredPosition in next.flags {
                 next.targetPos = 
                     node.targetPos + node.targetSize * next.anchoredPosPercent + next.anchoredPosOffset
                 continue
             }
 
-            if .FloatingX not_in next.flags {
+            if .Floating not_in next.flags {
                 next.targetPos.x = childPos
-            }
-
-            if .FloatingY not_in next.flags {
+                
                 switch node.childrenAligment.y {
                 case .Top:
                     next.targetPos.y = nodePos.y
@@ -500,12 +508,17 @@ DoFinalLayout :: proc(node: ^UINode) {
         }
     }
     else {
-        childrenSize: f32
-        for next := node.firstChild; next != nil; next = next.nextSibling {
-            childrenSize += next.targetSize.y
-        }
-        childrenSize += f32(node.spacing * (node.childrenCount - 1))
+        // childrenSize: f32
+        // for next := node.firstChild; next != nil; next = next.nextSibling {
+        //     if .FloatingY in next.flags {
+        //         continue
+        //     }
 
+        //     childrenSize += next.targetSize.y
+        // }
+        // childrenSize += f32(node.spacing * (node.childrenCount - 1))
+
+        childrenSize := node.targetSize.y - f32(node.padding.top + node.padding.bot)
         childPos: f32
         switch node.childrenAligment.y {
         case .Top:    childPos = nodePos.y + f32(node.padding.top)
@@ -514,17 +527,19 @@ DoFinalLayout :: proc(node: ^UINode) {
         }
 
         for next := node.firstChild; next != nil; next = next.nextSibling {
+            if .Floating in next.flags {
+                continue
+            }
+
             if .AnchoredPosition in next.flags {
                 next.targetPos = 
                     node.targetPos + node.targetSize * next.anchoredPosPercent + next.anchoredPosOffset
                 continue
             }
 
-            if .FloatingY not_in next.flags {
-                next.targetPos.y = childPos
-            }
+            if .Floating not_in next.flags {
 
-            if .FloatingX not_in next.flags {
+                next.targetPos.y = childPos
                 switch node.childrenAligment.x {
                 case .Left:
                     next.targetPos.x = nodePos.x
@@ -759,7 +774,7 @@ AddNode :: proc(text: string, flags: NodeFlags,
     node.touchedThisFrame = true
 
     if pos, ok := uiCtx.nextNodePos.?; ok {
-        node.flags += { .FloatingX, .FloatingY }
+        node.flags += { .Floating }
         node.targetPos = pos
 
         uiCtx.nextNodePos = nil
@@ -773,6 +788,10 @@ AddNode :: proc(text: string, flags: NodeFlags,
 
     if len(uiCtx.parentStack) != 0 {
         parent := uiCtx.parentStack[len(uiCtx.parentStack) - 1]
+
+        if .Floating in node.flags {
+            parent = &uiCtx.nodes[0]
+        }
 
         if parent.firstChild == nil {
             parent.firstChild = node
@@ -807,7 +826,8 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
             node.targetPos.x - node.targetSize.x * node.origin.x,
             node.targetPos.y - node.targetSize.y * node.origin.y,
             node.targetSize.x,
-            node.targetSize.y}
+            node.targetSize.y
+        }
         isMouseOver := IsPointInsideRect(ToV2(input.mousePos), targetRect)
 
         if uiCtx.activeId == node.id {
@@ -843,6 +863,12 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
                 uiCtx.activeId = 0
                 uiCtx.nextHot = 0
             }
+        }
+
+        result.mouseOver = isMouseOver
+
+        if uiCtx.hotId == node.id && isMouseOver {
+            result.hovered = true
         }
     
     }
@@ -903,7 +929,7 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool = nil) -> bool {
 
     background := AddNode(
         text, 
-        { .DrawBackground, .FloatingX, .FloatingY },
+        { .DrawBackground, .Floating },
         uiCtx.defaultStyle, uiCtx.defaultLayout
     )
     background.bgColor = {0, 0.5, 0.3, 0.8}
@@ -959,6 +985,10 @@ UIEndWindow :: proc() {
 /////////
 
 UIButton :: proc(text: string) -> bool {
+    return cast(bool) UIButtonI(text).cursorReleased 
+}
+
+UIButtonI :: proc(text: string) -> UINodeInteraction {
     node := AddNode(text, 
             { .DrawBackground, .Clickable, .DrawText },
             style = uiCtx.buttonStyle,
@@ -966,7 +996,46 @@ UIButton :: proc(text: string) -> bool {
         )
 
     interaction := GetNodeInteraction(node)
-    return bool(interaction.cursorReleased)
+    return interaction
+}
+
+ImageButton :: proc(
+        image: TexHandle, 
+        text: Maybe(string) = nil, 
+        maybeSize: Maybe(iv2) = nil, 
+        texSource: Maybe(RectInt) = nil
+    ) -> bool
+{
+
+    return cast(bool) ImageButtonI(image, text, maybeSize, texSource).cursorReleased
+}
+
+ImageButtonI :: proc(
+        image: TexHandle, 
+        text: Maybe(string) = nil, 
+        maybeSize: Maybe(iv2) = nil, 
+        texSource: Maybe(RectInt) = nil
+    ) -> UINodeInteraction
+{
+
+    bgText := text.? or_else "btn"
+    node := AddNode(bgText, {.Clickable, .DrawBackground}, uiCtx.panelStyle, uiCtx.panelLayout)
+    node.bgColor = {0, 0, 0, 0}
+    node.activeColor = {1, 1, 1, 0.5}
+    node.hotColor = {1, 1, 1, 0.6}
+
+    interaction := GetNodeInteraction(node)
+
+    PushParent(node)
+
+    UIImage(image, maybeSize = maybeSize, source = texSource)
+    if t, ok := text.?; ok {
+        UILabel(text)
+    }
+
+    PopParent()
+
+    return interaction
 }
 
 UILabel :: proc(params: ..any, sep := " ") {

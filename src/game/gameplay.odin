@@ -789,7 +789,7 @@ GameplayUpdate :: proc() {
     if showBuildingPanel do if dm.Panel("Buildings") {
 
         for idx := 0; idx < len(Buildings); {
-            dm.BeginLayout(axis = .X)
+            dm.BeginLayout("BuildingsX", axis = .X)
 
             for _ in 0..<3 {
                 b := Buildings[idx]

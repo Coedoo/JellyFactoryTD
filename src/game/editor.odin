@@ -189,7 +189,7 @@ EditorUpdate :: proc(state: ^EditorState) {
             count := dm.GetCellsCount(state.editedLevel.tileset)
 
             for y in 0..<count.y {
-                dm.BeginLayout(axis = .X)
+                dm.BeginLayout(fmt.tprint("TilesX", y), axis = .X)
                 for x in 0..<count.x {
                     rect := dm.GetSpriteRect(state.editedLevel.tileset, {x, y})
 
@@ -198,22 +198,13 @@ EditorUpdate :: proc(state: ^EditorState) {
 
                     inter := dm.ImageButtonI(
                         state.editedLevel.tileset.texture,
-                        maybeSize = iv2{40, 40},
+                        size = iv2{40, 40},
                         texSource = rect)
                     if inter.cursorReleased
                     {
                         state.selectedTilesetTile = {x, y}
                     }
                     dm.PopId()
-
-                    if inter.hovered {
-                        dm.NextNodePosition(dm.ToV2(dm.input.mousePos), {0, 0})
-                        if dm.Panel("Tooltip") {
-                            dm.UILabel(x, y)
-                            dm.UILabel("AYWWAAWWAWAWAWWAAW")
-                            dm.UILabel("WLKJFLSKDJFLKj")
-                        }
-                    }
                 }
                 dm.EndLayout()
             }
@@ -253,7 +244,7 @@ EditorUpdate :: proc(state: ^EditorState) {
         }
     }
 
-    dm.BeginLayout(axis = .X)
+    dm.BeginLayout("PosButtons", axis = .X)
     if dm.UIButton("Start Pos") {
         SwitchMode(state, .EditStartPos)
     }

@@ -83,7 +83,7 @@ TestUI :: proc() {
             axis: dm.LayoutAxis = .X if switchAxis else .Y
             dm.UILabel("Layout Axis:")
 
-            if dm.LayoutBlock(axis)
+            if dm.LayoutBlock("Labels", axis)
             {
                 dm.UILabel("Label1")
                 dm.UILabel("Label2")

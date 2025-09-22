@@ -33,7 +33,7 @@ UIContext :: struct {
     // Layout
     popLayoutAfterUse: bool,
     layoutStack: [dynamic]Layout,
-    
+
     defaultLayout: Layout,
     panelLayout: Layout,
     textLayout: Layout,
@@ -50,6 +50,8 @@ UIContext :: struct {
     panelStyle: Style,
     textStyle: Style,
     buttonStyle: Style,
+
+    disabled: bool,
 }
 
 /////////
@@ -101,6 +103,8 @@ UINode :: struct {
 
     targetPos: v2,
     targetSize: v2,
+
+    disabled: bool,
 
     using style: Style,
     using layout: Layout,
@@ -159,6 +163,8 @@ Style :: struct {
     textColor: color,
     bgColor: color,
 
+    disabledBgColor: color,
+
     hotColor: color,
     activeColor: color,
 
@@ -167,7 +173,6 @@ Style :: struct {
     hotAnimTime: f32,
     hotAnimEase: ease.Ease,
     hotScale: f32,
-
 }
 
 Layout :: struct {
@@ -214,10 +219,12 @@ InitUI :: proc(uiCtx: ^UIContext) {
     // font := LoadDefaultFont(renderCtx)
     uiCtx.defaultStyle = {
         // font = font,
-        fontSize = 18,
+        fontSize = 24,
 
         textColor = {1, 1, 1, 1},
         bgColor = {1, 1, 1, 1},
+
+        disabledBgColor = {0.3, 0.3, 0.3, 1},
 
         hotColor = {0.4, 0.4, 0.4, 1},
         activeColor = {0.6, 0.6, 0.6, 1},
@@ -239,7 +246,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     }
 
     uiCtx.panelStyle = uiCtx.defaultStyle
-    uiCtx.panelStyle.bgColor = {0.3, 0.3, 0.3, 0.5}
+    uiCtx.panelStyle.bgColor = {0.2, 0.2, 0.2, 0.9}
     uiCtx.panelStyle.padding = { 3, 3, 3, 3 }
 
     uiCtx.panelLayout = uiCtx.defaultLayout
@@ -251,10 +258,10 @@ InitUI :: proc(uiCtx: ^UIContext) {
     uiCtx.textLayout.preferredSize = {.X = {.Text, 0, 0.2}, .Y = {.Text, 0, 0.2}}
 
     uiCtx.buttonStyle = uiCtx.defaultStyle
-    uiCtx.buttonStyle.bgColor = {1, 0.1, 0.3, 1}
+    uiCtx.buttonStyle.bgColor = {0.05, 0.1, 0.9, 1}
     uiCtx.buttonStyle.hotColor = {1, 0.3, 0.5, 1}
     uiCtx.buttonStyle.activeColor = {1, 0.5, 0.6, 1}
-    uiCtx.buttonStyle.hotScale = 1.1
+    // uiCtx.buttonStyle.hotScale = 1.1
     uiCtx.buttonStyle.padding = { 3, 3, 3, 3 }
 
     uiCtx.buttonLayout = uiCtx.defaultLayout
@@ -627,13 +634,13 @@ PopStyle :: proc() {
 }
 
 BeginLayout :: proc(
+    text: string,
     axis:= LayoutAxis.X,
     aligmentX := AligmentX.Middle,
-    aligmentY := AligmentY.Middle,
-    loc := #caller_location
+    aligmentY := AligmentY.Middle
 )
 {
-    node := AddNode("", {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
+    node := AddNode(text, {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
 
     node.preferredSize[.X] = {.Children, 0, 1}
     node.preferredSize[.Y] = {.Children, 0, 1}
@@ -646,13 +653,13 @@ BeginLayout :: proc(
 
 @(deferred_none=EndLayout)
 LayoutBlock :: proc(
+    text: string,
     axis:= LayoutAxis.X,
     aligmentX := AligmentX.Middle,
-    aligmentY := AligmentY.Middle,
-    loc := #caller_location
+    aligmentY := AligmentY.Middle
 ) -> bool
 {
-    BeginLayout(axis, aligmentX, aligmentY, loc)
+    BeginLayout(text, axis, aligmentX, aligmentY)
     return true
 }
 
@@ -817,11 +824,13 @@ AddNode :: proc(text: string, flags: NodeFlags,
 
     node.timeSinceHot = clamp(node.timeSinceHot, 0, node.hotAnimTime)
 
+    node.disabled = uiCtx.disabled
+
     return node
 }
 
 GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
-    if .Clickable in node.flags {
+    // if .Clickable in node.flags {
         targetRect := Rect{
             node.targetPos.x - node.targetSize.x * node.origin.x,
             node.targetPos.y - node.targetSize.y * node.origin.y,
@@ -843,7 +852,10 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
                 lmb := GetMouseButton(.Left)
                 if lmb == .JustPressed {
                     result.cursorDown = true
-                    uiCtx.activeId = node.id
+
+                    if node.disabled == false {
+                        uiCtx.activeId = node.id
+                    }
                 }
                 if lmb == .JustReleased && uiCtx.activeId == node.id {
                     result.cursorReleased = true
@@ -871,16 +883,32 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
             result.hovered = true
         }
     
-    }
+    // }
 
     return
 }
 
 @(deferred_none=EndPanel)
-Panel :: proc(text: string, aligment: Maybe(Aligment) = nil) -> bool {
-    node := AddNode(text, {.DrawBackground}, uiCtx.panelStyle, uiCtx.panelLayout)
+Panel :: proc(
+    text: string, 
+    aligment: Maybe(Aligment) = nil,
+    size: Maybe(iv2) = nil,
+    texture: TexHandle = {},
+) -> bool
+{
+    node := AddNode(text, { .DrawBackground }, uiCtx.panelStyle, uiCtx.panelLayout)
     if al, ok := aligment.?; ok {
         node.childrenAligment = al
+    }
+
+    if texture != {} {
+        node.flags += { .BackgroundTexture }
+        node.texture =  texture
+    }
+
+    if size, ok := size.?; ok {
+        node.preferredSize[.X] = {.Fixed, f32(size.x), 1}
+        node.preferredSize[.Y] = {.Fixed, f32(size.y), 1}
     }
 
     PushParent(node)
@@ -895,12 +923,17 @@ EndPanel :: proc() {
 @(deferred_none=EndContainer)
 UIContainer :: proc(text: string, anchor: UIAnchor, 
     anchorOffset := v2{0, 0},
-    layoutAxis := LayoutAxis.X) -> bool
+    layoutAxis := LayoutAxis.X,
+    alignment: Maybe(Aligment) = nil) -> bool
 {
     container := AddNode(text, {})
     container.childrenAxis = layoutAxis
     container.preferredSize[.X] = {.Children, 0, 1}
     container.preferredSize[.Y] = {.Children, 0, 1}
+
+    if al, ok := alignment.?; ok {
+        container.childrenAligment = al
+    }
 
     container.flags += { .AnchoredPosition }
 
@@ -1013,12 +1046,12 @@ ImageButton :: proc(
 ImageButtonI :: proc(
         image: TexHandle, 
         text: Maybe(string) = nil, 
-        maybeSize: Maybe(iv2) = nil, 
+        size: Maybe(iv2) = nil, 
         texSource: Maybe(RectInt) = nil
     ) -> UINodeInteraction
 {
 
-    bgText := text.? or_else "btn"
+    bgText := text.? or_else fmt.tprint("btn", image)
     node := AddNode(bgText, {.Clickable, .DrawBackground}, uiCtx.panelStyle, uiCtx.panelLayout)
     node.bgColor = {0, 0, 0, 0}
     node.activeColor = {1, 1, 1, 0.5}
@@ -1028,7 +1061,7 @@ ImageButtonI :: proc(
 
     PushParent(node)
 
-    UIImage(image, maybeSize = maybeSize, source = texSource)
+    UIImage(image, size = size, source = texSource)
     if t, ok := text.?; ok {
         UILabel(text)
     }
@@ -1045,7 +1078,7 @@ UILabel :: proc(params: ..any, sep := " ") {
 
 UIImage :: proc(
         image: TexHandle, 
-        maybeSize: Maybe(iv2) = nil,
+        size: Maybe(iv2) = nil,
         source: Maybe(RectInt) = nil,
     ) -> ^UINode
 {
@@ -1055,10 +1088,10 @@ UIImage :: proc(
     node.texture = image
     node.textureSource = source.? or_else {}
 
-    size := maybeSize.? or_else GetTextureSize(image)
+    s := size.? or_else GetTextureSize(image)
 
-    node.preferredSize[.X] = {.Fixed, f32(size.x), 1}
-    node.preferredSize[.Y] = {.Fixed, f32(size.y), 1}
+    node.preferredSize[.X] = {.Fixed, f32(s.x), 1}
+    node.preferredSize[.Y] = {.Fixed, f32(s.y), 1}
 
     return node
 }
@@ -1082,7 +1115,7 @@ UISliderInt :: proc(text: string, value: ^int, #any_int min, max: int) -> (res: 
 }
 
 UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
-    if LayoutBlock(axis = .X) {
+    if LayoutBlock(text, axis = .X) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
         // label.preferredSize[.X] = {.Fixed, 200, 0}
 
@@ -1093,7 +1126,7 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 
         PushParent(slideArea)
 
-        handleId := fmt.aprintf("handle", text, allocator = uiCtx.transientAllocator)
+        handleId := fmt.aprint("handle", text, allocator = uiCtx.transientAllocator)
         handle := AddNode(handleId, {.DrawBackground, .Clickable, .AnchoredPosition})
         handle.origin = {0.5, 0.5}
         handle.anchoredPosPercent = {0, 0.5}
@@ -1137,7 +1170,7 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
 }
 
 UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
-    if LayoutBlock(axis = .X) {
+    if LayoutBlock(text, axis = .X) {
         checkbox := AddNode(fmt.tprint("X##", text), {.DrawBackground, .Clickable})
         checkbox.preferredSize[.X] = {.Fixed, 25, 1}
         checkbox.preferredSize[.Y] = {.Fixed, 25, 1}
@@ -1182,6 +1215,10 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
             color = node.activeColor
         }
 
+        if node.disabled {
+            color = node.disabledBgColor
+        }
+
         DrawRect(
                 node.targetPos,
                 node.targetSize,
@@ -1198,6 +1235,12 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
         }
         else if node.id == ctx.hotId {
             color = node.activeColor
+        }
+
+        if node.textureSource == {} {
+            s := GetTextureSize(node.texture)
+            node.textureSource.width = s.x
+            node.textureSource.height = s.y
         }
 
         DrawRect(

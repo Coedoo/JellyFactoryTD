@@ -294,7 +294,8 @@ DrawRectPos :: proc(texture: TexHandle, position: v2,
                 source: Maybe(RectInt) = nil,
                 origin := v2{0.5, 0.5},
                 rotation: f32 = 0,
-                color: color = WHITE)
+                color: color = WHITE,
+                shader: ShaderHandle = {})
 {
     texSize := GetTextureSize(texture)
     destSize := size.? or_else ToV2(texSize.xy)
@@ -302,7 +303,7 @@ DrawRectPos :: proc(texture: TexHandle, position: v2,
     src := source.? or_else RectInt{ 0, 0, texSize.x, texSize.y}
     dest := Rect{ position.x, position.y, destSize.x, destSize.y }
 
-    shader := renderCtx.defaultShaders[.Sprite]
+    shader := shader == {} ? renderCtx.defaultShaders[.Sprite] : shader
 
     DrawRectSrcDst(texture, src, dest, shader, origin, rotation, color)
 }
@@ -310,8 +311,9 @@ DrawRectPos :: proc(texture: TexHandle, position: v2,
 DrawRectBlank :: proc(position: v2, size: v2,
                      origin := v2{0.5, 0.5},
                      rotation: f32 = 0,
-                     color: color = WHITE)
+                     color: color = WHITE,
+                     shader: ShaderHandle = {})
 {
     DrawRectPos(renderCtx.whiteTexture, position, size,
-        origin = origin, rotation = rotation, color = color)
+        origin = origin, rotation = rotation, color = color, shader = shader)
 }

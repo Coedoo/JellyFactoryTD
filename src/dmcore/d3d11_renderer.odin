@@ -357,7 +357,7 @@ BeginScreenSpace :: proc() {
     mat := glsl.mat4Translate({-1, 1, 0}) * glsl.mat4Scale(scale)
 
     mapped: d3d11.MAPPED_SUBRESOURCE
-    renderCtx.deviceContext->Map(renderCtx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped);
+    renderCtx.deviceContext->Map(renderCtx.cameraConstBuff, 0, .WRITE_DISCARD, nil, &mapped)
     c := cast(^PerFrameData) mapped.pData
     c.VPMat = mat
     c.invVPMat = glsl.inverse(mat)

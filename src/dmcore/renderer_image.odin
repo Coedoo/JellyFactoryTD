@@ -187,7 +187,15 @@ CreateSpriteFromTexturePosSize :: proc(texture: TexHandle, texturePos: iv2, atla
     }
 }
 
+GetSpriteScale :: proc(sprite: Sprite, pixelsPerUnit: int) -> f32 {
+    return f32(sprite.textureSize.x) / f32(pixelsPerUnit)
+}
+
 AnimateSprite :: proc(sprite: ^Sprite, time: f32, frameTime: f32) {
+    if sprite.frames == 0 {
+        return
+    }
+
     t := cast(i32) (time / frameTime)
     t = t%sprite.frames
 

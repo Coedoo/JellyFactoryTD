@@ -33,12 +33,16 @@ class FilesInterface {
 
     getInterface() {
         return {
-            LoadFile: (pathPtr, pathLen, callback) => {
+            LoadFile: (pathPtr, pathLen, keyPtr, keyLen, callback) => {
                 let path = this.wmi.loadString(pathPtr, pathLen)
                 
                 const req = new XMLHttpRequest();
                 req.open("GET", path);
                 // req.setRequestHeader("Cache-Control", "no-cache, no-store, max-age=0");
+
+                req.setRequestHeader("Cache-Control", "no-cache, no-store, max-age=0");
+                req.setRequestHeader("Expires", "Tue, 01 Jan 1980 1:00:00 GMT");
+                req.setRequestHeader("Pragma", "no-cache");
                 req.responseType = "arraybuffer";
 
                 let that = this;
@@ -51,9 +55,11 @@ class FilesInterface {
                     let dest = new Uint8Array(that.wmi.memory.buffer, ptr, arraybuffer.byteLength);
 
                     // console.log(e)
+                    let key = that.wmi.loadString(keyPtr, keyLen);
+                    console.log(key)
 
                     dest.set(src)
-                    that.wmi.exports.DoFileCallback(ptr, arraybuffer.byteLength, callback, odin_ctx)
+                    that.wmi.exports.DoFileCallback(ptr, arraybuffer.byteLength, keyPtr, keyLen, callback, odin_ctx)
                 };
 
                 req.send(null);

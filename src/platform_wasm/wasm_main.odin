@@ -22,8 +22,8 @@ assetsLoadingState: struct {
     loadedCount: int,
 
     finishedLoading: bool,
-    nowLoading: string,
-    loadingIndex: int,
+    // nowLoading: string,
+    // loadingIndex: int,
 }
 
 foreign import wasmUtilities "utility"
@@ -41,11 +41,11 @@ SetWindowSize :: proc(width, height: int) {
     dm.ResizeFramebuffer(engineData.renderCtx, engineData.renderCtx.ppFramebufferDest)
 }
 
-FileLoadedCallback :: proc(data: []u8) {
+FileLoadedCallback :: proc(data: []u8, key: string) {
     assert(data != nil)
 
-    queueEntry := engineData.assets.loadQueue[assetsLoadingState.loadingIndex]
-    asset := &engineData.assets.assetsMap[queueEntry.key]
+    // queueEntry := engineData.assets.loadQueue[assetsLoadingState.loadingIndex]
+    asset := &engineData.assets.assetsMap[key]
 
     switch desc in asset.descriptor {
     case dm.TextureAssetDescriptor:
@@ -54,7 +54,7 @@ FileLoadedCallback :: proc(data: []u8) {
 
     case dm.ShaderAssetDescriptor:
         str := strings.string_from_ptr(raw_data(data), len(data))
-        asset.handle = cast(dm.Handle) dm.CompileShaderSource(engineData.renderCtx, queueEntry.name, str)
+        asset.handle = cast(dm.Handle) dm.CompileShaderSource(engineData.renderCtx, asset.fileName, str)
         // delete(data)
 
     case dm.FontAssetDescriptor:
@@ -69,39 +69,10 @@ FileLoadedCallback :: proc(data: []u8) {
         // delete(data)
     }
 
-    // assetsLoadingState.nowLoading = assetsLoadingState.nowLoading.next
     assetsLoadingState.loadedCount += 1
-    assetsLoadingState.loadingIndex += 1
-
-    if assetsLoadingState.loadingIndex < assetsLoadingState.maxCount {
-        assetsLoadingState.nowLoading = engineData.assets.loadQueue[assetsLoadingState.loadingIndex].name
-    }
-    else {
-        assetsLoadingState.nowLoading = ""
-    }
-
-    LoadNextAsset()
-}
-
-LoadNextAsset :: proc() {
-    if assetsLoadingState.nowLoading == "" {
+    if(assetsLoadingState.loadedCount >= assetsLoadingState.maxCount) {
         assetsLoadingState.finishedLoading = true
-        fmt.println("Finished Loading Assets")
-        return
     }
-
-    // if assetsLoadingState.nowLoading.descriptor == nil {
-    //     assetsLoadingState.nowLoading = assetsLoadingState.nowLoading.next
-    //     assetsLoadingState.loadedCount += 1
-
-    //     fmt.println("Incorrect descriptor. Skipping")
-    // }
-
-    path := strings.concatenate({dm.ASSETS_ROOT, assetsLoadingState.nowLoading}, context.temp_allocator)
-    LoadFile(path, FileLoadedCallback)
-
-    fmt.println("[", assetsLoadingState.loadedCount + 1, "/", assetsLoadingState.maxCount, "]",
-                 " Loading asset: ", assetsLoadingState.nowLoading, sep = "")
 }
 
 main :: proc() {
@@ -134,9 +105,9 @@ main :: proc() {
     game.PreGameLoad(&engineData.assets)
 
     assetsLoadingState.maxCount = len(engineData.assets.assetsMap)
-    if(assetsLoadingState.maxCount > 0) {
-        assetsLoadingState.nowLoading = engineData.assets.loadQueue[0].name
-    }
+    // if(assetsLoadingState.maxCount > 0) {
+    //     assetsLoadingState.nowLoading = engineData.assets.loadQueue[0].name
+    // }
 
     for &state in engineData.frameInput.key {
         state += {.Up}
@@ -145,17 +116,20 @@ main :: proc() {
         state += {.Up}
     }
 
-    LoadNextAsset()
+    // LoadNextAsset()
+    for asset in engineData.assets.loadQueue {
+        path := strings.concatenate({dm.ASSETS_ROOT, asset.name}, context.temp_allocator)
+        LoadFile(path, asset.key, FileLoadedCallback)
+    }
 }
 
 @(export, link_name="step")
 step :: proc (delta: f32) -> bool {
-    free_all(context.temp_allocator)
     ////////
 
     @static gameLoaded: bool
     if assetsLoadingState.finishedLoading == false {
-        if assetsLoadingState.nowLoading != "" {
+        // if assetsLoadingState.nowLoading != "" {
             dm.ClearColor({0.1, 0.1, 0.1, 1})
             dm.BeginScreenSpace()
 
@@ -163,24 +137,21 @@ step :: proc (delta: f32) -> bool {
             pos.x /= 2
             pos.y -= 80
             dm.DrawTextCentered(
-                fmt.tprintf("Loading: %v [%v/%v]", 
-                    assetsLoadingState.nowLoading, 
-                    assetsLoadingState.loadedCount + 1, 
-                    assetsLoadingState.maxCount
-                ),
+                "Loading...",
                 pos
             )
-
-            pos.y += 40
-            dm.DrawTextCentered(
-                "Made with #NoEngine",
-                pos,
-                fontSize = 30,
-            )
+            // dm.DrawTextCentered(
+            //     fmt.tprintf("Loading: %v [%v/%v]", 
+            //         assetsLoadingState.nowLoading, 
+            //         assetsLoadingState.loadedCount + 1, 
+            //         assetsLoadingState.maxCount
+            //     ),
+            //     pos
+            // )
 
             dm.EndScreenSpace()
             // dm.FlushCommands(engineData.renderCtx)
-        }
+        // }
         return true
     }
     else if gameLoaded == false {
@@ -191,6 +162,7 @@ step :: proc (delta: f32) -> bool {
         game.GameLoad(&engineData)
     }
 
+    free_all(context.temp_allocator)
     dm.TimeUpdate(&engineData)
 
     // for key, state in engineData.input.curr {

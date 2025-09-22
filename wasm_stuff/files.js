@@ -11,6 +11,9 @@ class FilesInterface {
                 
                 const req = new XMLHttpRequest();
                 req.open("GET", path);
+                xhr.setRequestHeader("Cache-Control", "no-cache, no-store, max-age=0");
+                xhr.setRequestHeader("Expires", "Tue, 01 Jan 1980 1:00:00 GMT");
+                xhr.setRequestHeader("Pragma", "no-cache");
                 req.responseType = "arraybuffer";
 
                 let that = this;

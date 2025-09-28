@@ -35,8 +35,21 @@ if %errorlevel%==0 (
     odin build ..\src\game -build-mode=dll -out="Game.dll" %flags%
 )
 
-if "%run%" == "1" if %errorlevel%==0 if %game_running% == false (
-    %exe_name%
+if %errorlevel%==0 if %game_running% == false (
+    if "%debugger%" == "1" (
+        raddbg --project:"../jellyTD" --ipc launch_and_run
+    ) else if "%run%" == "1" (
+        %exe_name%
+    )
+
+    rem if "%ERRORLEVEL%"=="0" (
+    rem     echo "Using running instance"
+    rem     raddbg --project:"../jellyTD" --ipc launch_and_run
+    rem ) else (
+    rem     echo "Creating a new instance"
+        rem raddbg --project:"../jellyTD" --auto_run
+    rem )
+
 )
 
 popd

@@ -57,7 +57,7 @@ Building :: struct {
     turretSpriteOrigin: v2,
 
     flags: BuildignFlags,
-    restrictedTiles: TileFlags,
+    // restrictedTiles: TileFlags,
 
     size: iv2,
 

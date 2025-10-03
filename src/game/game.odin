@@ -10,12 +10,17 @@ import "core:mem"
 
 import "../ldtk"
 
+import "core:os"
+import "core:encoding/json"
+
 v2 :: dm.v2
 iv2 :: dm.iv2
 
 GameStage :: enum {
     MainMenu,
     Gameplay,
+
+    Editor,
 }
 
 GameState :: struct {
@@ -26,8 +31,7 @@ GameState :: struct {
     levelAllocator: mem.Allocator,
 
     levels: []Level,
-
-    loadedLevel: Level, // currentLevel
+    loadedLevel: ^Level, // currentLevel
 
     editorState: EditorState,
 
@@ -52,7 +56,7 @@ GameState :: struct {
         buildingPipeDir: DirectionSet,
 
         currentWaveIdx: int,
-        levelWaves: LevelWaves,
+        // levelWaves: LevelWaves,
         wavesState: []WaveState,
 
         levelFullySpawned: bool,
@@ -77,8 +81,6 @@ GameState :: struct {
 
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
-
-    luminary: dm.SoundHandle,
 }
 
 gameState: ^GameState
@@ -113,6 +115,7 @@ PreGameLoad : dm.PreGameLoad : proc(assets: ^dm.Assets) {
     dm.RegisterAsset("turret_test_4.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("Energy.png", dm.TextureAssetDescriptor{})
     dm.RegisterAsset("StarParticle.png", dm.TextureAssetDescriptor{})
+    dm.RegisterAsset("Jelly_.png", dm.TextureAssetDescriptor{})
 
     dm.RegisterAsset("ship.png", dm.TextureAssetDescriptor{})
     
@@ -188,7 +191,25 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     // dm.platform.pauseGame = true
 
     // InitEditor(&gameState.editorState)
-    NewLevel(&gameState.loadedLevel, 32, 32)
+
+    if gameState.loadedLevel == nil {
+    //     InitNewLevel(gameState.loadedLevel, 32, 32)
+    //     OpenLevel(gameState.loadedLevel)
+        
+        data, ok := os.read_entire_file("test_save.json")
+        if ok {
+            gameState.loadedLevel = new(Level)
+            err := json.unmarshal(data, gameState.loadedLevel)
+
+            if gameState.loadedLevel.sizeX == 0 || gameState.loadedLevel.sizeY == 0 {
+                InitNewLevel(gameState.loadedLevel, 32, 32)
+            }
+
+            gameState.loadedLevel.tileset.texture = dm.GetTextureAsset(gameState.loadedLevel.tileset.texAssetPath)
+            OpenLevel(gameState.loadedLevel)
+        }
+    }
+
     gameState.money = 10000;
 }
 
@@ -198,26 +219,45 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
     switch gameState.stage {
         case .MainMenu: MenuUpdate()
         case .Gameplay: GameplayUpdate()
+
+        case .Editor: EditorUpdate(&gameState.editorState)
     }
+
+    // UpdateSequence(&TestSequence)
 }
 
 @(export)
 GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
     gameState = cast(^GameState) state
-    if dm.GetKeyState(.Tilde) == .JustPressed {
-        dm.platform.debugState = !dm.platform.debugState
-        dm.platform.pauseGame = dm.platform.debugState
+    // if dm.GetKeyState(.Tilde) == .JustPressed {
+    //     dm.platform.debugState = !dm.platform.debugState
+    //     dm.platform.pauseGame = dm.platform.debugState
+    // }
 
-        if dm.platform.debugState {
+    //     if dm.platform.debugState {
+    //         InitEditor(&gameState.editorState)
+    //     }
+    //     else {
+    //         CloseEditor(&gameState.editorState)
+    //     }
+    // }
+
+    // if dm.platform.debugState {
+    //     EditorUpdate(&gameState.editorState)
+    // }
+
+    if dm.GetKeyState(.Tab) == .JustPressed {
+        if gameState.stage == .Gameplay {
             InitEditor(&gameState.editorState)
-        }
-        else {
-            CloseEditor(&gameState.editorState)
-        }
-    }
 
-    if dm.platform.debugState {
-        EditorUpdate(&gameState.editorState)
+            gameState.stage = .Editor
+
+        }
+        else if gameState.stage == .Editor {
+            CloseEditor(&gameState.editorState)
+
+            gameState.stage = .Gameplay
+        }
     }
 }
 
@@ -226,14 +266,12 @@ GameRender : dm.GameRender : proc(state: rawptr) {
     gameState = cast(^GameState) state
     dm.ClearColor({0.1, 0.1, 0.3, 1})
 
+    switch gameState.stage {
+        case .MainMenu: MenuRender()
+        case .Gameplay: GameplayRender()
 
-    if dm.platform.debugState {
-        EditorRender(gameState.editorState)
+        case .Editor: EditorRender(gameState.editorState)
     }
-    else {
-        switch gameState.stage {
-            case .MainMenu: MenuRender()
-            case .Gameplay: GameplayRender()
-        }
-    }
+
+    // DrawSequence(&TestSequence)
 }

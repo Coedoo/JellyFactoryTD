@@ -15,7 +15,6 @@ import "../ldtk"
 TileFlag :: enum {
     Walkable,
     NonBuildable,
-    HasEnergy,
 }
 
 TileFlags :: distinct bit_set[TileFlag]
@@ -24,6 +23,8 @@ Tile :: struct {
     flags: TileFlags,
     tilesetCoord: iv2,
     tileFlip: [2]bool,
+
+    energy: EnergyType,
 
     gridPos: iv2,
 
@@ -53,6 +54,8 @@ Level  :: struct {
 
     startCoord: iv2,
     endCoord: iv2,
+
+    waves: LevelWaves,
 }
 
 // @NOTE: Must be the same values as LDTK
@@ -85,7 +88,7 @@ Level  :: struct {
 
 /////
 
-NewLevel :: proc(level: ^Level, width, height: int) {
+InitNewLevel :: proc(level: ^Level, width, height: int) {
     // width := state.newLevelWidth
     // height := state.newLevelHeight
 
@@ -115,9 +118,22 @@ LoadLevels :: proc() -> (levels: []Level) {
     return nil
 }
 
+OpenLevelByName :: proc(name: string) {
+    for &l in gameState.levels {
+        if l.name == name {
+            // gameState.loadedLevel = &l
+            OpenLevel(&l)
+            break
+        }
+    }
 
-OpenLevel :: proc(name: string) {
+    fmt.println("Can't Open level with name:", name);
+}
+
+OpenLevel :: proc(level: ^Level) {
     CloseCurrentLevel()
+
+    gameState.loadedLevel = level
 
     mem.zero_item(&gameState.levelState)
     free_all(gameState.levelAllocator)
@@ -133,32 +149,26 @@ OpenLevel :: proc(name: string) {
     mem.arena_init(&gameState.pathArena, pathMem)
     gameState.pathAllocator = mem.arena_allocator(&gameState.pathArena)
 
-    for &l in gameState.levels {
-        if l.name == name {
-            gameState.loadedLevel = l
-            break
-        }
-    }
-
     //@TODO: it would be better to start test level in this case
     // assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
 
-    waves: LevelWaves
-    for w in Waves {
-        if w.levelName == name {
-            waves = w
-            break
-        }
-    }
+    // waves: LevelWaves
+    // for w in Waves {
+    //     if w.levelName == name {
+    //         waves = w
+    //         break
+    //     }
+    // }
 
-    if waves.waves == nil {
-        fmt.eprintln("Can't find waves list for level ", name)
-    }
+    // if waves.waves == nil {
+    //     fmt.eprintln("Can't find waves list for level ", name)
+    // }
 
-    gameState.levelWaves = waves
-    gameState.wavesState = make([]WaveState, len(waves.waves), allocator = gameState.levelAllocator)
+    // gameState.levelWaves = waves
+    level.waves = Waves[0]
+    gameState.wavesState = make([]WaveState, len(level.waves.waves), allocator = gameState.levelAllocator)
     for &s, i in gameState.wavesState {
-        s.seriesStates = make([]SeriesState, len(waves.waves[i]), allocator = gameState.levelAllocator)
+        s.seriesStates = make([]SeriesState, len(level.waves.waves[i]), allocator = gameState.levelAllocator)
     }
 
     gameState.money = START_MONEY
@@ -168,18 +178,18 @@ OpenLevel :: proc(name: string) {
 
     // @NOTE: I'm doing this in two passes so TryPlaceBuilding already have
     // pipes to create paths between buildings
-    for &tile, i in gameState.loadedLevel.grid {
-        if gameState.loadedLevel.startingState[i].pipeDir != nil {
-            tile.pipeDir = gameState.loadedLevel.startingState[i].pipeDir
-        }
-        tile.isCorner = false
-    }
+    // for &tile, i in gameState.loadedLevel.grid {
+    //     if gameState.loadedLevel.startingState[i].pipeDir != nil {
+    //         tile.pipeDir = gameState.loadedLevel.startingState[i].pipeDir
+    //     }
+    //     tile.isCorner = false
+    // }
 
-    for &tile, i in gameState.loadedLevel.grid {
-        if gameState.loadedLevel.startingState[i].hasBuilding {
-            TryPlaceBuilding(gameState.loadedLevel.startingState[i].buildingIdx, tile.gridPos)
-        }
-    }
+    // for &tile, i in gameState.loadedLevel.grid {
+    //     if gameState.loadedLevel.startingState[i].hasBuilding {
+    //         TryPlaceBuilding(gameState.loadedLevel.startingState[i].buildingIdx, tile.gridPos)
+    //     }
+    // }
 
     RefreshVisibilityGraph()
     gameState.path = CalculatePathWithCornerTiles(
@@ -514,12 +524,7 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     // @TODO: handle different building sizes
     if .ProduceEnergy in building.flags {
-        // #partial switch buildingTile.type {
-        //     case .BlueEnergy:  toSpawn.producedEnergyType = .Blue
-        //     case .RedEnergy:   toSpawn.producedEnergyType = .Red
-        //     case .GreenEnergy: toSpawn.producedEnergyType = .Green
-        //     case .CyanEnergy:  toSpawn.producedEnergyType = .Cyan
-        // }
+        toSpawn.producedEnergyType = buildingTile.energy
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
@@ -827,7 +832,7 @@ IsEmptyLineBetweenCoords :: proc(coordA, coordB: iv2, checkedTiles: ^[dynamic]iv
 
         if tile.gridPos != coordA &&
            tile.gridPos != coordB &&
-          (.Walkable in tile.flags ||
+          (.Walkable not_in tile.flags ||
             tile.building != {})
         {
             return false

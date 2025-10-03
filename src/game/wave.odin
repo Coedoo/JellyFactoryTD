@@ -25,7 +25,7 @@ SeriesState :: struct {
 }
 
 StartNextWave :: proc() {
-    if gameState.currentWaveIdx < len(gameState.levelWaves.waves) {
+    if gameState.currentWaveIdx < len(gameState.loadedLevel.waves.waves) {
         gameState.currentWaveIdx += 1
     }
 }

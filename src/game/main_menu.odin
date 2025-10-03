@@ -51,7 +51,7 @@ MenuUpdate :: proc() {
         case .LevelSelect:
             for level in gameState.levels {
                 if dm.UIButton(level.name) {
-                    OpenLevel(level.name)
+                    OpenLevelByName(level.name)
                     gameState.stage = .Gameplay
                 }
             }
@@ -65,7 +65,7 @@ MenuUpdate :: proc() {
             dm.UISlider("Sounds",     &gameState.sfxVolume,    0, 1)
 
             if dm.UISlider("Music", &gameState.musicVolume, 0, 1) {
-                dm.SetVolume(gameState.luminary, gameState.musicVolume)
+                // dm.SetVolume(gameState.luminary, gameState.musicVolume)
             }
 
             dm.UISpacer(20)

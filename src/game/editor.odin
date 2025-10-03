@@ -21,13 +21,16 @@ EditorState :: struct {
 
     pointedCoord: iv2,
 
-    editedLevel: Level,
+    editedLevel: ^Level,
 
     // tileset: dm.SpriteAtlas,
     selectedTilesetTile: iv2,
     tileFlip: [2]bool,
 
+    removingFlags: bool,
     selectedFlag: TileFlag,
+
+    selectedEnergy: EnergyType,
 
     showNewLevel: bool,
     newLevelWidth:  int,
@@ -38,13 +41,14 @@ EditorMode :: enum {
     None,
     EditTiles,
     EditFlags,
+    EditEnergy,
     EditStartPos,
     EditEndPos,
 }
 
 TileFlagColors := [TileFlag]dm.color {
     .Walkable     = ({234, 212, 170, 255} / 255.0),
-    .HasEnergy    = ({0, 153, 219, 255} / 255.0),
+    // .HasEnergy    = ({0, 153, 219, 255} / 255.0),
     .NonBuildable = {0.6, 0.6, 0.6, 1},
 }
 
@@ -72,7 +76,7 @@ NewEditorLevel :: proc(state: ^EditorState) {
     //     tile.gridPos = {i32(x), i32(y)}
     // }
 
-    NewLevel(&state.editedLevel, 32, 32)
+    InitNewLevel(state.editedLevel, 32, 32)
     // state.editedLevel.tileset = state.editedLevel.tileset
 }
 
@@ -86,15 +90,20 @@ InitEditor :: proc(state: ^EditorState) {
     //     spacing = {1, 1}
     // }
 
-    state.tileFlip = {}
+    state.editedLevel = gameState.loadedLevel
 
-    if state.editedLevel.sizeX == 0 && state.editedLevel.sizeY == 0 {
-        NewEditorLevel(state)
-    }
+    state.tileFlip = {}
 }
 
 CloseEditor :: proc(state: ^EditorState) {
     gameState.loadedLevel = state.editedLevel
+
+    RefreshVisibilityGraph()
+    gameState.path = CalculatePathWithCornerTiles(
+        gameState.loadedLevel.startCoord,
+        gameState.loadedLevel.endCoord,
+        allocator = gameState.pathAllocator
+    )
 }
 
 EditorUpdate :: proc(state: ^EditorState) {
@@ -139,7 +148,7 @@ EditorUpdate :: proc(state: ^EditorState) {
         if dm.Panel("new level", dm.Aligment{.Top, .Right}) {
             dm.UISliderInt("Width", &state.newLevelWidth, 1, 100)
             dm.UILabel(state.newLevelWidth)
-            
+
             // @HACK: @TODO: Slider doesn't get unique ID for some reason
             dm.PushId(2)
             dm.UISliderInt("Height", &state.newLevelHeight, 1, 100)
@@ -159,7 +168,9 @@ EditorUpdate :: proc(state: ^EditorState) {
     if dm.UIButton("Edit Flags") {
         SwitchMode(state, .EditFlags)
     }
-
+    if dm.UIButton("Edit Energy") {
+        SwitchMode(state, .EditEnergy)
+    }
     // Painting
     isOverUI := dm.IsPointOverUI(dm.input.mousePos)
 
@@ -189,7 +200,7 @@ EditorUpdate :: proc(state: ^EditorState) {
             count := dm.GetCellsCount(state.editedLevel.tileset)
 
             for y in 0..<count.y {
-                dm.BeginLayout(fmt.tprint("TilesX", y), axis = .X)
+                dm.BeginLayout(fmt.aprint("TilesX", y, dm.uiCtx.transientAllocator), axis = .X)
                 for x in 0..<count.x {
                     rect := dm.GetSpriteRect(state.editedLevel.tileset, {x, y})
 
@@ -213,6 +224,28 @@ EditorUpdate :: proc(state: ^EditorState) {
             // dm.UICheckbox("Flip Y", &state.tileFlip.y)
         }
 
+    case .EditEnergy:
+        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            coord := state.pointedCoord
+            if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
+               coord.y >= 0 && coord.y < state.editedLevel.sizeY
+           {
+                idx := coord.y * state.editedLevel.sizeX + coord.x
+                state.editedLevel.grid[idx].energy = state.selectedEnergy
+           }
+        }
+
+        if dm.Panel("Energy", dm.Aligment{.Top, .Left}) {
+            for energy in EnergyType {
+                if dm.UIButton(fmt.aprint(energy, allocator = dm.uiCtx.transientAllocator)) {
+                    state.selectedEnergy = energy
+                }
+            }
+
+            dm.UICheckbox("Remove:", &state.removingFlags)
+            dm.UILabel("Painting:", state.selectedEnergy)
+        }
+
     case .EditFlags:
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             coord := state.pointedCoord
@@ -220,17 +253,23 @@ EditorUpdate :: proc(state: ^EditorState) {
                coord.y >= 0 && coord.y < state.editedLevel.sizeY
            {
                 idx := coord.y * state.editedLevel.sizeX + coord.x
-                state.editedLevel.grid[idx].flags += { state.selectedFlag }
+                if state.removingFlags {
+                    state.editedLevel.grid[idx].flags -= { state.selectedFlag }
+                }
+                else {
+                    state.editedLevel.grid[idx].flags += { state.selectedFlag }
+               }
            }
         }
 
         if dm.Panel("Flags", dm.Aligment{.Top, .Left}) {
             for flag in TileFlag {
-                if dm.UIButton(fmt.tprint(flag)) {
+                if dm.UIButton(fmt.aprint(flag, allocator = dm.uiCtx.transientAllocator)) {
                     state.selectedFlag = flag
                 }
             }
 
+            dm.UICheckbox("Remove:", &state.removingFlags)
             dm.UILabel("Painting flag:", state.selectedFlag)
         }
     case .EditStartPos:
@@ -263,15 +302,20 @@ EditorUpdate :: proc(state: ^EditorState) {
             opt.pretty = true
         }
 
-        data, ok := json.marshal(state.editedLevel, opt = opt, allocator = context.temp_allocator)
-        // if ok == .None {
+        data, ok := json.marshal(state.editedLevel^, opt = opt, allocator = context.temp_allocator)
+        if ok == nil {
             os.write_entire_file("test_save.json", data)
-        // }
+        }
+        else {
+            fmt.println(ok)
+        }
     }
 
     if dm.UIButton("Load") {
         data, ok := os.read_entire_file("test_save.json")
-        err := json.unmarshal(data, &state.editedLevel)
+        err := json.unmarshal(data, state.editedLevel)
+
+        fmt.println(err)
 
         state.editedLevel.tileset.texture = dm.GetTextureAsset(state.editedLevel.tileset.texAssetPath)
     }
@@ -328,6 +372,27 @@ EditorRender :: proc(state: EditorState) {
 
         dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
         dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
+    
+    case .EditEnergy:
+        for y in 0..< state.editedLevel.sizeY {
+            for x in 0..< state.editedLevel.sizeX {
+                idx := y * state.editedLevel.sizeX + x
+                tile := state.editedLevel.grid[idx]
+
+                if tile.energy != .None {
+                    dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = EnergyColor[tile.energy])
+                }
+
+                // for flag in tile.flags {
+                //     color := TileFlagColors[flag]
+                //     color.a = flag == state.selectedFlag ? 0.6 : 0.1
+                //     dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = color)
+                // }
+            }
+        }
+
+        dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
+        dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
 
     // case .EditStartPos:
     //     dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
@@ -335,6 +400,8 @@ EditorRender :: proc(state: EditorState) {
     // case .EditEndPos:
     //     dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
     }
+
+
 
     dm.DrawGrid()
 }

@@ -428,8 +428,8 @@ GameplayUpdate :: proc() {
 
         spawnedCount := 0
         comb := soa_zip(
-            state = gameState.wavesState[i].seriesStates, 
-            series = gameState.levelWaves.waves[i],
+            state = gameState.wavesState[i].seriesStates,
+            series = gameState.loadedLevel.waves.waves[i],
         )
 
         for &v in comb {
@@ -452,7 +452,7 @@ GameplayUpdate :: proc() {
             }
         }
 
-        if spawnedCount >= len(gameState.levelWaves.waves[i]) {
+        if spawnedCount >= len(gameState.loadedLevel.waves.waves[i]) {
             gameState.wavesState[i].fullySpawned = true
             fmt.println("Wave", i, "Fully Spawned");
         }
@@ -649,7 +649,7 @@ GameplayUpdate :: proc() {
         }
 
 
-        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.levelWaves.waves))
+        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.loadedLevel.waves.waves))
         if dm.muiButton(dm.mui, "SpawnWave") {
             StartNextWave()
         }
@@ -662,7 +662,7 @@ GameplayUpdate :: proc() {
         dm.muiLabel(dm.mui, "LEVELS:")
         for l in gameState.levels {
             if dm.muiButton(dm.mui, l.name) {
-                OpenLevel(l.name)
+                OpenLevelByName(l.name)
             }
         }
 
@@ -824,28 +824,15 @@ GameplayRender :: proc() {
         sprite.flipY = tile.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
 
-        // #partial switch tile.type {
-        //     case .BlueEnergy:
-        //     if gameState.particlesTimers[.Blue] < 0 {
-        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Blue], 1, CoordToPos(tile.gridPos))
-        //     }
-        //     case .RedEnergy:
-        //     if gameState.particlesTimers[.Red] < 0 {
-        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Red], 1, CoordToPos(tile.gridPos))
-        //     }
-        //     case .GreenEnergy:
-        //     if gameState.particlesTimers[.Green] < 0 {
-        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Green], 1, CoordToPos(tile.gridPos))
-        //     }
-        //     case .CyanEnergy:
-        //     if gameState.particlesTimers[.Cyan] < 0 {
-        //         dm.SpawnParticles(&gameState.tileEnergyParticles[.Cyan], 1, CoordToPos(tile.gridPos))
-        //     }
-        // }
+        if tile.energy != .None {
+            if gameState.particlesTimers[tile.energy] < 0 {
+                dm.SpawnParticles(&gameState.tileEnergyParticles[tile.energy], 1, CoordToPos(tile.gridPos))
+            }
+        }
 
-        // for nextT in tile.visibleWaypoints {
-        //     dm.DrawDebugLine(dm.renderCtx, tile.gridPos, CoordToPos(nextT), false)
-        // }
+        for nextT in tile.visibleWaypoints {
+            dm.DrawDebugLine(dm.renderCtx, CoordToPos(tile.gridPos), CoordToPos(nextT), false)
+        }
 
     }
 
@@ -855,12 +842,12 @@ GameplayRender :: proc() {
             t = 0.3 + rand.float32_range(-0.1, 0.1)
         }
     }
-    
-    // for tile, idx in gameState.level.grid {
-    //     if tile.isCorner {
-    //         dm.DrawRectBlank(tile.gridPos, {1, 1}, color = {1, 0, 0, 0.8})
-    //     }
-    // }
+
+    for tile, idx in gameState.loadedLevel.grid {
+        if tile.isCorner {
+            dm.DrawRectBlank(CoordToPos(tile.gridPos), {1, 1}, color = {1, 0, 0, 0.8})
+        }
+    }
 
 
     // Pipe
@@ -1074,18 +1061,18 @@ GameplayRender :: proc() {
     // Player
     dm.UpdateAndDrawParticleSystem(&gameState.playerMoveParticles)
     dm.AnimateSprite(&gameState.playerSprite, f32(dm.time.gameTime), 0.1)
-    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+    // dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // path
-    // for i := 0; i < len(gameState.path) - 1; i += 1 {
-    //     a := gameState.path[i]
-    //     b := gameState.path[i + 1]
+    for i := 0; i < len(gameState.path) - 1; i += 1 {
+        a := gameState.path[i]
+        b := gameState.path[i + 1]
 
-    //     posA := CoordToPos(a)
-    //     posB := CoordToPos(b)
-    //     dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
-    //     dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
-    // }
+        posA := CoordToPos(a)
+        posB := CoordToPos(b)
+        dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
+        dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+    }
 
     // mouseGrid := MousePosGrid()
     // tiles: [dynamic]iv2
@@ -1096,12 +1083,12 @@ GameplayRender :: proc() {
     //     dm.DrawBlankSprite(pos, {1, 1}, {0, 1, 0, 0.4} if hit else {1, 0, 0, 0.4})
     // }
 
-    // selectedTile := GetTileAtCoord(gameState.selectedTile)
-    // if selectedTile != nil {
-    //     for waypoint in selectedTile.visibleWaypoints {
-    //         dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
-    //     }
-    // }
+    selectedTile := GetTileAtCoord(gameState.selectedTile)
+    if selectedTile != nil {
+        for waypoint in selectedTile.visibleWaypoints {
+            dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
+        }
+    }
 
     // for k, path in gameState.pathsBetweenBuildings {
     //     for i := 0; i < len(path) - 1; i += 1 {
@@ -1116,6 +1103,8 @@ GameplayRender :: proc() {
     for &system in gameState.tileEnergyParticles {
         dm.UpdateAndDrawParticleSystem(&system)
     }
+
+    dm.DrawGrid()
 
     // dm.DrawText("WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", 
     //     {0, f32(dm.renderCtx.frameSize.y - 30)}, 

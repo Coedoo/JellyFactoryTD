@@ -1,7 +1,17 @@
+
 LEVEL EDITOR:
  ✔ New Level @done (25-04-15 20:13)
  ✔ TileDef rendering @done (25-04-15 20:13)
- ☐ Modifying and rendering tile flags
+ ✔ Modifying and rendering tile flags @done (25-04-15 20:38)
+ ✔ Setting starting point's and finish point @done (25-09-22 21:17)
+ ✔ UI: UISprite, UISpriteButton @done (25-09-24 20:43)
+ ☐ Starting state:
+   ☐ Buildings
+   ☐ Pipes
+ ☐ Setting energy type
+ ☐ Put level data in Level arena
+ ☐ Make edited level playable
+ ☐ Better tile flags color
  ☐ Level resize
  ☐ Flood fill
  ☐ Think over how to handle tile types (Don't I just need a single flag `walkable`?)
@@ -9,12 +19,20 @@ LEVEL EDITOR:
  ☐ Undo/Redo
  ☐ Save/Load
 
+ ☐ Add window for editing enemy waves ??
+
+ ☐ handle trying openning an empty level
+
+ ☐ bug: looks like the visible tiles from corner tiles are kept after being edited
+ 
+
 GAME UI:
     ☐ Buildings info
     ☐ Main Menu
     ☐ Changing target method
 
   BUGS:
+    ☐ When placing a building the function can fail which will take money without actually placing the building. Stuff like that shouldn't happen and calculating path should be run earlier
     ☐ Pathfiding don't update enemies path after recreating it
     ☐ Fix rendering error texture when no texture is set
     ☐ UI - infinity loop when there is two nodes with the same ID

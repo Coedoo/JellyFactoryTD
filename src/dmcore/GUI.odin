@@ -68,6 +68,11 @@ NodeFlag :: enum {
     Floating,
 
     AnchoredPosition,
+
+    ScrollX,
+    ScrollY,
+
+    Clip,
 }
 NodeFlags :: distinct bit_set[NodeFlag]
 
@@ -104,6 +109,8 @@ UINode :: struct {
     targetPos: v2,
     targetSize: v2,
 
+    viewOffset: v2,
+
     disabled: bool,
 
     using style: Style,
@@ -116,6 +123,7 @@ UINodeInteraction :: struct {
     cursorReleased: bool,
     mouseOver: bool,
     hovered: bool,
+    scroll: bool,
 }
 
 /////////
@@ -511,20 +519,11 @@ DoFinalLayout :: proc(node: ^UINode) {
                 }
             }
 
+            next.targetPos += node.viewOffset
             childPos += next.targetSize.x + f32(node.spacing)
         }
     }
     else {
-        // childrenSize: f32
-        // for next := node.firstChild; next != nil; next = next.nextSibling {
-        //     if .FloatingY in next.flags {
-        //         continue
-        //     }
-
-        //     childrenSize += next.targetSize.y
-        // }
-        // childrenSize += f32(node.spacing * (node.childrenCount - 1))
-
         childrenSize := node.targetSize.y - f32(node.padding.top + node.padding.bot)
         childPos: f32
         switch node.childrenAligment.y {
@@ -561,6 +560,7 @@ DoFinalLayout :: proc(node: ^UINode) {
                 }
             }
 
+            next.targetPos += node.viewOffset
             childPos += next.targetSize.y + f32(node.spacing)
         }
     }
@@ -796,23 +796,29 @@ AddNode :: proc(text: string, flags: NodeFlags,
     if len(uiCtx.parentStack) != 0 {
         parent := uiCtx.parentStack[len(uiCtx.parentStack) - 1]
 
-        if .Floating in node.flags {
-            parent = &uiCtx.nodes[0]
+        if parent.lastChild != node {
+            if .Floating in node.flags {
+                // @REWRITE:
+                parent = &uiCtx.nodes[0]
+            }
+
+            if parent.firstChild == nil {
+                parent.firstChild = node
+            }
+
+            node.prevSibling = parent.lastChild
+            if parent.lastChild != nil {
+                parent.lastChild.nextSibling = node
+            }
+
+            parent.lastChild = node
+
+            node.parent = parent
+            parent.childrenCount += 1
         }
-
-        if parent.firstChild == nil {
-            parent.firstChild = node
+        else {
+            fmt.eprintln("Duplicate node:", node.text)
         }
-
-        node.prevSibling = parent.lastChild
-        if parent.lastChild != nil {
-            parent.lastChild.nextSibling = node
-        }
-
-        parent.lastChild = node
-
-        node.parent = parent
-        parent.childrenCount += 1
     }
 
     if node.id == uiCtx.hotId {
@@ -882,6 +888,14 @@ GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
         if uiCtx.hotId == node.id && isMouseOver {
             result.hovered = true
         }
+
+        // if .ScrollX in node.flags {
+        //     fmt.println(isMouseOver, input.scroll)
+        // }
+
+        if isMouseOver && input.scroll != 0 {
+            result.scroll = true
+        }
     
     // }
 
@@ -948,6 +962,91 @@ UIContainer :: proc(text: string, anchor: UIAnchor,
 }
 
 EndContainer :: proc() {
+    PopParent()
+}
+
+Scroll :: proc(text: string, size: v2) {
+    viewportStyle := uiCtx.panelStyle
+    viewportStyle.padding = { 0, 0, 0, 0 }
+
+    viewPort := AddNode(text, { .ScrollX, .ScrollY, .Clip }, style = viewportStyle)
+    viewPort.preferredSize[.X] = {.Fixed, size.x, 1}
+    viewPort.preferredSize[.Y] = {.Fixed, size.y, 1}
+
+    PushParent(viewPort)
+
+    /////
+
+    scrollY := AddNode("ScrollY", { .DrawBackground, .AnchoredPosition })
+    scrollY.preferredSize[.X] = {.Fixed, 10, 1}
+    scrollY.preferredSize[.Y] = {.ParentPercent, 1, 1}
+
+    scrollY.origin = {1, 0.5}
+    scrollY.anchoredPosPercent = {1, 0.5}
+
+    PushParent(scrollY)
+
+    sliderY := AddNode("SliderY", { .DrawBackground, .Clickable, .AnchoredPosition })
+
+    sliderY.preferredSize[.X] = {.ParentPercent, 1, 1}
+    sliderY.preferredSize[.Y] = {.ParentPercent, 0, 1}
+    sliderY.bgColor = {0, 0, 0, 1}
+    sliderY.origin = {0.5, 0.5}
+
+    sliderY.anchoredPosPercent = {-0.5, 0}
+
+    PopParent()
+
+    /////
+
+    // scrollX := AddNode("ScrollX", { .DrawBackground, .AnchoredPosition })
+    // scrollX.preferredSize[.X] = {.ParentPercent, 1, 1}
+    // scrollX.preferredSize[.Y] = {.Fixed, 10, 1}
+
+    // scrollX.origin = {0.5, 1}
+    // scrollX.anchoredPosPercent = {0.5, 1}
+
+    // PushParent(scrollX)
+
+    // sliderX := AddNode("SliderX", { .DrawBackground, .Clickable })
+    // sliderX.preferredSize[.X] = {.ParentPercent, 1, 1}
+    // sliderX.preferredSize[.Y] = {.Fixed, 10, 1}
+
+    // PopParent()
+
+    content := AddNode("content", {}, style = viewportStyle)
+
+    content.preferredSize[.X] = {.Children, 0, 1}
+    content.preferredSize[.Y] = {.Children, 0, 1}
+
+    PushParent(content)
+
+    inter := GetNodeInteraction(viewPort)
+    if inter.scroll {
+        content.viewOffset.y += f32(input.scroll) * 10
+        content.viewOffset.y = clamp(content.viewOffset.y, -content.targetSize.y, 0)
+
+        // fmt.println(content.viewOffset)
+    }
+
+    fillPercent := clamp(viewPort.targetSize.y / content.targetSize.y, 0, 1)
+    sliderY.preferredSize[.Y].value = fillPercent
+    sliderY.anchoredPosPercent.y = math.lerp(
+        f32(-0.5 + fillPercent / 2), 
+        0.5 - fillPercent / 2, 
+        -content.viewOffset.y / content.targetSize.y
+    )
+
+    interY := GetNodeInteraction(sliderY)
+    if interY.cursorPressed {
+        // fmt.println(input.mouseDelta.y)
+        content.viewOffset.y -= f32(input.mouseDelta.y)
+        content.viewOffset.y = clamp(content.viewOffset.y, -content.targetSize.y, 0)
+    }
+}
+
+EndScroll :: proc() {
+    PopParent()
     PopParent()
 }
 
@@ -1148,8 +1247,6 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
         // }
 
         if interaction.cursorPressed {
-            res = input.mouseDelta != {}
-
             handle.targetPos = ToV2(input.mousePos)
             handle.targetPos.x = clamp(handle.targetPos.x, left, right)
 
@@ -1203,7 +1300,7 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    // DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
+    DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
 
     if .DrawBackground in node.flags {
         color := node.bgColor

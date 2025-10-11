@@ -81,6 +81,11 @@ GameState :: struct {
 
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
+
+    // DEBUG
+    debugDrawPathGraph: bool,
+    debugDrawGrid: bool,
+    debugDrawPathsBetweenBuildings: bool,
 }
 
 gameState: ^GameState
@@ -150,9 +155,6 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.playerSprite.scale = 2
     gameState.playerSprite.frames = 3
 
-    // gameState.levels = LoadLevels()
-    // OpenLevel(START_LEVEL)
-
     gameState.arrowSprite = dm.CreateSprite(dm.GetTextureAsset("buildings.png"), dm.RectInt{32 * 2, 0, 32, 32})
     gameState.arrowSprite.scale = 0.4
     gameState.arrowSprite.origin = {0, 0.5}
@@ -187,30 +189,32 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
 
     gameState.stage = STARTING_STAGE
 
-    // dm.platform.debugState = true
-    // dm.platform.pauseGame = true
-
-    // InitEditor(&gameState.editorState)
+    // @TODO @REWRITE
+    Tileset.atlas.texture = dm.GetTextureAsset(Tileset.atlas.texAssetPath)
 
     if gameState.loadedLevel == nil {
-    //     InitNewLevel(gameState.loadedLevel, 32, 32)
-    //     OpenLevel(gameState.loadedLevel)
-        
         data, ok := os.read_entire_file("test_save.json")
+        // @TODO @Allocation
+        gameState.loadedLevel = new(Level)
         if ok {
-            gameState.loadedLevel = new(Level)
             err := json.unmarshal(data, gameState.loadedLevel)
 
+            OpenLevel(gameState.loadedLevel)
+        }
+        else {
             if gameState.loadedLevel.sizeX == 0 || gameState.loadedLevel.sizeY == 0 {
                 InitNewLevel(gameState.loadedLevel, 32, 32)
             }
 
-            gameState.loadedLevel.tileset.texture = dm.GetTextureAsset(gameState.loadedLevel.tileset.texAssetPath)
             OpenLevel(gameState.loadedLevel)
         }
     }
 
-    gameState.money = 10000;
+    gameState.money = 10000
+
+    when ODIN_DEBUG {
+        gameState.debugDrawGrid = true
+    }
 }
 
 @(export)
@@ -222,29 +226,15 @@ GameUpdate : dm.GameUpdate : proc(state: rawptr) {
 
         case .Editor: EditorUpdate(&gameState.editorState)
     }
-
-    // UpdateSequence(&TestSequence)
 }
 
 @(export)
 GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
     gameState = cast(^GameState) state
-    // if dm.GetKeyState(.Tilde) == .JustPressed {
-    //     dm.platform.debugState = !dm.platform.debugState
-    //     dm.platform.pauseGame = dm.platform.debugState
-    // }
-
-    //     if dm.platform.debugState {
-    //         InitEditor(&gameState.editorState)
-    //     }
-    //     else {
-    //         CloseEditor(&gameState.editorState)
-    //     }
-    // }
-
-    // if dm.platform.debugState {
-    //     EditorUpdate(&gameState.editorState)
-    // }
+    if dm.GetKeyState(.Tilde) == .JustPressed {
+        dm.platform.debugState = !dm.platform.debugState
+        dm.platform.pauseGame = dm.platform.debugState
+    }
 
     if dm.GetKeyState(.Tab) == .JustPressed {
         if gameState.stage == .Gameplay {
@@ -257,6 +247,16 @@ GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
             CloseEditor(&gameState.editorState)
 
             gameState.stage = .Gameplay
+        }
+    }
+
+    if dm.platform.debugState {
+        if dm.muiBeginWindow(dm.mui, "Debug menu", {400, 10, 210, 250}) {
+            dm.muiToggle(dm.mui, "Draw grid", &gameState.debugDrawGrid)
+            dm.muiToggle(dm.mui, "Draw path graph", &gameState.debugDrawPathGraph)
+            dm.muiToggle(dm.mui, "Draw energy paths", &gameState.debugDrawPathsBetweenBuildings)
+
+            dm.muiEndWindow(dm.mui)
         }
     }
 }

@@ -16,7 +16,6 @@ BuildUpMode :: enum {
 }
 
 GameplayUpdate :: proc() {
-        // fmt.printf("%p\n", dm.mui)
     cursorOverUI := dm.muiIsCursorOverUI(dm.input.mousePos)
 
     // Move Player
@@ -44,8 +43,6 @@ GameplayUpdate :: proc() {
                 gameState.playerSprite.texturePos.y = 256
             }
             gameState.playerSprite.flipX = moveX == -1 ? true : false
-            // gameState.playerSprite.flipX = moveX == -1 ? true : false
-            // gameState.playerSprite.flipY = moveY == -1 ? false : true
         }
         else if moveY == 1 {
             gameState.playerSprite.texturePos.y = 64
@@ -367,11 +364,6 @@ GameplayUpdate :: proc() {
                 case .Cannon:
                     enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
                     for e in enemies {
-                        // enemyInRange, enemyOk := dm.GetElementPtr(gameState.enemies, e)
-                        // if enemyOk == false {
-                        //     continue
-                        // }
-
                         DamageEnemy(e, buildingData.damage, usedEnergy)
                     }
                 case .None:
@@ -586,13 +578,7 @@ GameplayUpdate :: proc() {
     }
 
     // Building
-    if gameState.buildUpMode == .Building
-    {
-        // if dm.input.scroll != 0 {
-        //     dirSet := NextDir if dm.input.scroll < 0 else PrevDir
-        //     gameState.buildedStructureRotation = dirSet[gameState.buildedStructureRotation]
-        // }
-
+    if gameState.buildUpMode == .Building {
         if dm.GetMouseButton(.Left) == .JustPressed &&
            cursorOverUI == false
         {
@@ -604,7 +590,6 @@ GameplayUpdate :: proc() {
             if IsInDistance(gameState.playerPosition, pos) {
                 if CanBePlaced(building, pos) {
                     if RemoveMoney(building.cost) {
-                        // PlaceBuilding(idx, pos)
                         TryPlaceBuilding(idx, pos)
                     }
                 }
@@ -758,17 +743,13 @@ GameplayUpdate :: proc() {
         }
     }
 
-    // BuildingsWindow()
-    // TestUI()
-    // GameMenu()
-
     if dm.Panel("Main") {
         style := dm.uiCtx.panelStyle
         style.fontSize = 40
         dm.PushStyle(style)
 
         dm.UILabel("Wave: ", gameState.currentWaveIdx, '/', len(gameState.wavesState), sep = "")
-        
+
         style.fontSize = 30
         dm.PushStyle(style)
         dm.UILabel("Enemies left:", dm.PoolLen(gameState.enemies))
@@ -789,6 +770,7 @@ GameplayUpdate :: proc() {
     if showBuildingPanel do if dm.Panel("Buildings") {
 
         for idx := 0; idx < len(Buildings); {
+            dm.PushId(idx)
             dm.BeginLayout("BuildingsX", axis = .X)
 
             for _ in 0..<3 {
@@ -807,8 +789,26 @@ GameplayUpdate :: proc() {
             }
 
             dm.EndLayout()
+            dm.PopId()
         }
+    }
 
+    @static amount := 5
+    if dm.UIContainer("TEEEEEST", .MiddleCenter) {
+        if dm.Panel("KLDFJLSK") {
+            dm.Scroll("tiles scroll", {100, 300})
+            {
+                dm.UILabel("AAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
+                for i in 0..=amount {
+                    dm.UILabel(fmt.tprint("Stuff", i))
+                }
+
+                if dm.UIButton("Add") do amount += 1
+                if dm.UIButton("Remove") do amount -= 1
+            }
+            dm.EndScroll()
+        }
     }
 }
 
@@ -819,7 +819,7 @@ GameplayRender :: proc() {
 
     // Level
     for tile, idx in gameState.loadedLevel.grid {
-        sprite := dm.GetSprite(gameState.loadedLevel.tileset, tile.tilesetCoord)
+        sprite := dm.GetSprite(Tileset.atlas, tile.atlasPos)
         sprite.flipX = tile.tileFlip.x
         sprite.flipY = tile.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
@@ -830,22 +830,12 @@ GameplayRender :: proc() {
             }
         }
 
-        for nextT in tile.visibleWaypoints {
-            dm.DrawDebugLine(dm.renderCtx, CoordToPos(tile.gridPos), CoordToPos(nextT), false)
-        }
-
     }
 
     for &t in gameState.particlesTimers {
         t -= f32(dm.time.deltaTime)
         if t < 0 {
             t = 0.3 + rand.float32_range(-0.1, 0.1)
-        }
-    }
-
-    for tile, idx in gameState.loadedLevel.grid {
-        if tile.isCorner {
-            dm.DrawRectBlank(CoordToPos(tile.gridPos), {1, 1}, color = {1, 0, 0, 0.8})
         }
     }
 
@@ -1083,6 +1073,23 @@ GameplayRender :: proc() {
     //     dm.DrawBlankSprite(pos, {1, 1}, {0, 1, 0, 0.4} if hit else {1, 0, 0, 0.4})
     // }
 
+    if gameState.debugDrawPathsBetweenBuildings {
+        for k, path in gameState.pathsBetweenBuildings {
+            for i := 0; i < len(path) - 1; i += 1 {
+                a := path[i]
+                b := path[i + 1]
+
+                dm.DrawDebugLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
+            }
+        }
+    }
+
+    dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)
+    for &system in gameState.tileEnergyParticles {
+        dm.UpdateAndDrawParticleSystem(&system)
+    }
+
+
     selectedTile := GetTileAtCoord(gameState.selectedTile)
     if selectedTile != nil {
         for waypoint in selectedTile.visibleWaypoints {
@@ -1090,21 +1097,30 @@ GameplayRender :: proc() {
         }
     }
 
-    // for k, path in gameState.pathsBetweenBuildings {
-    //     for i := 0; i < len(path) - 1; i += 1 {
-    //         a := path[i]
-    //         b := path[i + 1]
+    if gameState.debugDrawPathGraph {
+        for tile, idx in gameState.loadedLevel.grid {
+            if tile.isCorner {
+                dm.DrawRectBlank(CoordToPos(tile.gridPos), {1, 1}, color = {1, 0, 0, 0.8})
+            }
 
-    //         dm.DrawDebugLine(dm.renderCtx, dm.ToV2(a) + {0.5, 0.5}, dm.ToV2(b) + {0.5, 0.5}, false, dm.RED)
-    //     }
-    // }
+            for nextT in tile.visibleWaypoints {
+                dm.DrawDebugLine(dm.renderCtx, CoordToPos(tile.gridPos), CoordToPos(nextT), false)
+            }
+        }
 
-    dm.UpdateAndDrawParticleSystem(&gameState.turretFireParticle)
-    for &system in gameState.tileEnergyParticles {
-        dm.UpdateAndDrawParticleSystem(&system)
+
+        // selectedTile := GetTileAtCoord(gameState.selectedTile)
+        // if selectedTile != nil {
+        //     for waypoint in selectedTile.visibleWaypoints {
+        //         dm.DrawDebugLine(dm.renderCtx, CoordToPos(gameState.selectedTile), CoordToPos(waypoint), false)
+        //     }
+        // }
     }
 
-    dm.DrawGrid()
+
+    if gameState.debugDrawGrid {
+        dm.DrawGrid()
+    }
 
     // dm.DrawText("WIP version: 0.0.1 pre-pre-pre-pre-pre-alpha", 
     //     {0, f32(dm.renderCtx.frameSize.y - 30)}, 

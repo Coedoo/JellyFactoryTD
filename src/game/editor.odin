@@ -24,8 +24,10 @@ EditorState :: struct {
     editedLevel: ^Level,
 
     // tileset: dm.SpriteAtlas,
-    selectedTilesetTile: iv2,
+    selectedTileIdx: int,
     tileFlip: [2]bool,
+
+    floodFill: bool,
 
     removingFlags: bool,
     selectedFlag: TileFlag,
@@ -40,8 +42,6 @@ EditorState :: struct {
 EditorMode :: enum {
     None,
     EditTiles,
-    EditFlags,
-    EditEnergy,
     EditStartPos,
     EditEndPos,
 }
@@ -165,12 +165,7 @@ EditorUpdate :: proc(state: ^EditorState) {
     if dm.UIButton("Edit Tiles") {
         SwitchMode(state, .EditTiles)
     }
-    if dm.UIButton("Edit Flags") {
-        SwitchMode(state, .EditFlags)
-    }
-    if dm.UIButton("Edit Energy") {
-        SwitchMode(state, .EditEnergy)
-    }
+
     // Painting
     isOverUI := dm.IsPointOverUI(dm.input.mousePos)
 
@@ -187,91 +182,63 @@ EditorUpdate :: proc(state: ^EditorState) {
 
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             coord := state.pointedCoord
-            if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
+            if coord.x >= 0 && coord.x < state.editedLevel.sizeX && 
                coord.y >= 0 && coord.y < state.editedLevel.sizeY
            {
-                idx := coord.y * state.editedLevel.sizeX + coord.x
-                state.editedLevel.grid[idx].tilesetCoord = state.selectedTilesetTile
-                state.editedLevel.grid[idx].tileFlip = state.tileFlip
+                if state.floodFill {
+                    tiles := GetFloodFilledTiles(state.editedLevel, coord, context.temp_allocator)
+                    for tile in tiles {
+                        tile.defIndex = state.selectedTileIdx
+                        tile.def = &Tileset.tiles[state.selectedTileIdx]
+                        tile.tileFlip = state.tileFlip
+                    }
+                }
+                else {
+                    idx := coord.y * state.editedLevel.sizeX + coord.x
+                    state.editedLevel.grid[idx].defIndex = state.selectedTileIdx
+                    state.editedLevel.grid[idx].def = &Tileset.tiles[state.selectedTileIdx]
+                    state.editedLevel.grid[idx].tileFlip = state.tileFlip
+                }
+
            }
         }
 
         if dm.Panel("Tiles") {
-            count := dm.GetCellsCount(state.editedLevel.tileset)
+        dm.BeginLayout("tiles layout", axis = .Y, aligmentX = .Left)
 
-            for y in 0..<count.y {
-                dm.BeginLayout(fmt.aprint("TilesX", y, dm.uiCtx.transientAllocator), axis = .X)
-                for x in 0..<count.x {
-                    rect := dm.GetSpriteRect(state.editedLevel.tileset, {x, y})
+            for cat in TileCategory {
+                dm.UILabel(cat)
+                dm.BeginLayout(fmt.aprint(cat, dm.uiCtx.transientAllocator), axis = .X, aligmentX = .Left)
 
-                    dm.PushId(y * count.x + x)
-                    // node := dm.UIImage(state.editedLevel.tileset.texture, maybeSize = iv2{40, 40}, source = rect)
+                for &tile, tileIdx in Tileset.tiles {
+                    if tile.category == cat {
+                        rect := dm.GetSpriteRect(Tileset.atlas, tile.atlasPos)
 
-                    inter := dm.ImageButtonI(
-                        state.editedLevel.tileset.texture,
-                        size = iv2{40, 40},
-                        texSource = rect)
-                    if inter.cursorReleased
-                    {
-                        state.selectedTilesetTile = {x, y}
+                        inter := dm.ImageButtonI(
+                            Tileset.atlas.texture,
+                            text = tile.name,
+                            size = iv2{40, 40},
+                            texSource = rect)
+                        if inter.cursorReleased
+                        {
+                            state.selectedTileIdx = tileIdx
+                        }
                     }
-                    dm.PopId()
                 }
+
                 dm.EndLayout()
             }
 
-            // dm.UICheckbox("Flip X", &state.tileFlip.x)
-            // dm.UICheckbox("Flip Y", &state.tileFlip.y)
+
+            dm.UICheckbox("Flip X", &state.tileFlip.x)
+            dm.UICheckbox("Flip Y", &state.tileFlip.y)
+
+            dm.UISpacer(15)
+
+            dm.UICheckbox("Flood Fill", &state.floodFill)
         }
+    dm.EndLayout()
 
-    case .EditEnergy:
-        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
-            coord := state.pointedCoord
-            if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
-               coord.y >= 0 && coord.y < state.editedLevel.sizeY
-           {
-                idx := coord.y * state.editedLevel.sizeX + coord.x
-                state.editedLevel.grid[idx].energy = state.selectedEnergy
-           }
-        }
-
-        if dm.Panel("Energy", dm.Aligment{.Top, .Left}) {
-            for energy in EnergyType {
-                if dm.UIButton(fmt.aprint(energy, allocator = dm.uiCtx.transientAllocator)) {
-                    state.selectedEnergy = energy
-                }
-            }
-
-            dm.UICheckbox("Remove:", &state.removingFlags)
-            dm.UILabel("Painting:", state.selectedEnergy)
-        }
-
-    case .EditFlags:
-        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
-            coord := state.pointedCoord
-            if coord.x >= 0 && coord.x < state.editedLevel.sizeX &&
-               coord.y >= 0 && coord.y < state.editedLevel.sizeY
-           {
-                idx := coord.y * state.editedLevel.sizeX + coord.x
-                if state.removingFlags {
-                    state.editedLevel.grid[idx].flags -= { state.selectedFlag }
-                }
-                else {
-                    state.editedLevel.grid[idx].flags += { state.selectedFlag }
-               }
-           }
-        }
-
-        if dm.Panel("Flags", dm.Aligment{.Top, .Left}) {
-            for flag in TileFlag {
-                if dm.UIButton(fmt.aprint(flag, allocator = dm.uiCtx.transientAllocator)) {
-                    state.selectedFlag = flag
-                }
-            }
-
-            dm.UICheckbox("Remove:", &state.removingFlags)
-            dm.UILabel("Painting flag:", state.selectedFlag)
-        }
     case .EditStartPos:
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             state.editedLevel.startCoord = state.pointedCoord
@@ -316,8 +283,6 @@ EditorUpdate :: proc(state: ^EditorState) {
         err := json.unmarshal(data, state.editedLevel)
 
         fmt.println(err)
-
-        state.editedLevel.tileset.texture = dm.GetTextureAsset(state.editedLevel.tileset.texAssetPath)
     }
 }
 
@@ -327,81 +292,27 @@ EditorRender :: proc(state: EditorState) {
 
     // GameplayRender()
     for &tile in state.editedLevel.grid {
-        sprite := dm.GetSprite(state.editedLevel.tileset, tile.tilesetCoord)
+        sprite := dm.GetSprite(Tileset.atlas, tile.atlasPos)
         sprite.flipX = tile.tileFlip.x
         sprite.flipY = tile.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(tile.gridPos))
     }
 
-    // for y in 0..< state.editedLevel.sizeY {
-    //     for x in 0..< state.editedLevel.sizeX {
-    //         idx := y * state.editedLevel.sizeX + x
-
-    //         tile := state.editedLevel.startingGrid[idx]
-    //         sprite := dm.GetSprite(state.editedLevel.tileset, tile.tilesetCoord)
-    //         sprite.flipX = tile.flip.x
-    //         sprite.flipY = tile.flip.y
-
-    //         dm.DrawSprite(sprite, CoordToPos({x, y}))
-    //     }
-    // }
-
     switch state.mode {
     case .None:
     case .EditTiles:
-        sprite := dm.GetSprite(state.editedLevel.tileset, state.selectedTilesetTile)
+        sprite := dm.GetSprite(Tileset.atlas, Tileset.tiles[state.selectedTileIdx].atlasPos)
         sprite.flipX = state.tileFlip.x
         sprite.flipY = state.tileFlip.y
         dm.DrawSprite(sprite, CoordToPos(state.pointedCoord), color = {1, 1, 1, 0.5})
 
-    case .EditStartPos: fallthrough
-    case .EditEndPos:  fallthrough
-    case .EditFlags:
-        for y in 0..< state.editedLevel.sizeY {
-            for x in 0..< state.editedLevel.sizeX {
-                idx := y * state.editedLevel.sizeX + x
-                tile := state.editedLevel.grid[idx]
+    case .EditStartPos:
+    case .EditEndPos:
 
-                for flag in tile.flags {
-                    color := TileFlagColors[flag]
-                    color.a = flag == state.selectedFlag ? 0.6 : 0.1
-                    dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = color)
-                }
-            }
-        }
-
-        dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
-        dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
-    
-    case .EditEnergy:
-        for y in 0..< state.editedLevel.sizeY {
-            for x in 0..< state.editedLevel.sizeX {
-                idx := y * state.editedLevel.sizeX + x
-                tile := state.editedLevel.grid[idx]
-
-                if tile.energy != .None {
-                    dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = EnergyColor[tile.energy])
-                }
-
-                // for flag in tile.flags {
-                //     color := TileFlagColors[flag]
-                //     color.a = flag == state.selectedFlag ? 0.6 : 0.1
-                //     dm.DrawRectBlank(CoordToPos({x, y}), {1, 1}, color = color)
-                // }
-            }
-        }
-
-        dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
-        dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
-
-    // case .EditStartPos:
-    //     dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
-
-    // case .EditEndPos:
-    //     dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
     }
 
-
+    dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
+    dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
 
     dm.DrawGrid()
 }

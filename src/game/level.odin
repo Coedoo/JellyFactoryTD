@@ -19,12 +19,37 @@ TileFlag :: enum {
 
 TileFlags :: distinct bit_set[TileFlag]
 
-Tile :: struct {
+TileCategory :: enum {
+    Other,
+    Road,
+    BuildSpace,
+    Resources,
+}
+
+TileDefinition :: struct {
+    name: string,
+    category: TileCategory,
+
+    atlasPos: iv2,
     flags: TileFlags,
-    tilesetCoord: iv2,
-    tileFlip: [2]bool,
 
     energy: EnergyType,
+}
+
+TileSet :: struct {
+    atlas: dm.SpriteAtlas,
+    tiles: []TileDefinition,
+}
+
+Tile :: struct {
+    defIndex: int,
+    using def: ^TileDefinition `json:"-"`,
+
+    // flags: TileFlags,
+    // tilesetCoord: iv2,
+    // energy: EnergyType,
+
+    tileFlip: [2]bool,
 
     gridPos: iv2,
 
@@ -46,8 +71,6 @@ TileStartingValues :: struct {
 Level  :: struct {
     name: string,
     sizeX, sizeY: i32,
-
-    tileset: dm.SpriteAtlas,
 
     grid: []Tile,
     startingState: []TileStartingValues,
@@ -101,15 +124,16 @@ InitNewLevel :: proc(level: ^Level, width, height: int) {
         y := i / width
 
         tile.gridPos = {i32(x), i32(y)}
+        tile.def = &Tileset.tiles[0]
     }
 
-    atlas := dm.GetTextureAsset("kenney_tilemap.png")
-    level.tileset = {
-        texAssetPath = "kenney_tilemap.png",
-        texture  = atlas,
-        cellSize = {16, 16},
-        spacing = {1, 1}
-    }
+    // atlas := dm.GetTextureAsset("kenney_tilemap.png")
+    // level.tileset = {
+    //     texAssetPath = "kenney_tilemap.png",
+    //     texture  = atlas,
+    //     cellSize = {16, 16},
+    //     spacing = {1, 1}
+    // }
 
     // state.editedLevel.tileset = state.tileset
 }
@@ -148,6 +172,10 @@ OpenLevel :: proc(level: ^Level) {
     pathMem := make([]byte, PATH_MEMORY)
     mem.arena_init(&gameState.pathArena, pathMem)
     gameState.pathAllocator = mem.arena_allocator(&gameState.pathArena)
+
+    for &tile, i in level.grid {
+        tile.def = &Tileset.tiles[tile.defIndex]
+    }
 
     //@TODO: it would be better to start test level in this case
     // assert(gameState.level != nil, fmt.tprintf("Failed to start level of name:", name))
@@ -335,14 +363,34 @@ CloseCurrentLevel :: proc() {
 
 ///////////
 
-IsInsideGrid :: proc(coord: iv2) -> bool {
+IsInsideGrid :: proc {
+    IsInsideGridLoadedLevel,
+    IsInsideGridLevel,
+}
+
+IsInsideGridLoadedLevel :: proc(coord: iv2) -> bool {
     return coord.x >= 0 && coord.x < gameState.loadedLevel.sizeX &&
            coord.y >= 0 && coord.y < gameState.loadedLevel.sizeY
 }
 
-CoordToIdx :: proc(coord: iv2) -> i32 {
+IsInsideGridLevel :: proc(level: ^Level, coord: iv2) -> bool {
+    return coord.x >= 0 && coord.x < level.sizeX &&
+           coord.y >= 0 && coord.y < level.sizeY
+}
+
+CoordToIdx :: proc {
+    CoordToIdxLoadedLevel,
+    CoordToIdxLevel,
+}
+
+CoordToIdxLoadedLevel :: proc(coord: iv2) -> i32 {
     assert(IsInsideGrid(coord))
     return coord.y * gameState.loadedLevel.sizeX + coord.x
+}
+
+CoordToIdxLevel :: proc(level: ^Level, coord: iv2) -> i32 {
+    assert(IsInsideGrid(coord))
+    return coord.y * level.sizeX + coord.x
 }
 
 WorldPosToCoord :: proc(pos: v2) -> iv2 {
@@ -352,13 +400,28 @@ WorldPosToCoord :: proc(pos: v2) -> iv2 {
     return {x, y}
 }
 
-IsTileFree :: proc(coord: iv2) -> bool {
+IsTileFree :: proc {
+    IsTileFreeLoadedLevel,
+    IsTileFreeLevel,
+}
+
+IsTileFreeLoadedLevel :: proc(coord: iv2) -> bool {
     if len(gameState.loadedLevel.grid) == 0 {
         return false
     }
 
     idx := CoordToIdx(coord)
     return gameState.loadedLevel.grid[idx].building == {}
+}
+
+
+IsTileFreeLevel :: proc(level: ^Level, coord: iv2) -> bool {
+    if len(level.grid) == 0 {
+        return false
+    }
+
+    idx := CoordToIdx(coord)
+    return level.grid[idx].building == {}
 }
 
 GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
@@ -368,7 +431,12 @@ GetTileOnWorldPos :: proc(pos: v2) -> ^Tile {
     return GetTileAtCoord({x, y})
 }
 
-GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
+GetTileAtCoord :: proc {
+    GetTileAtCoordLoadedLevel,
+    GetTileAtCoordLevel,
+}
+
+GetTileAtCoordLoadedLevel :: proc(coord: iv2) -> ^Tile {
     if IsInsideGrid(coord) {
         idx := CoordToIdx(coord)
         return &gameState.loadedLevel.grid[idx]
@@ -377,9 +445,28 @@ GetTileAtCoord :: proc(coord: iv2) -> ^Tile {
     return nil
 }
 
-TileUnderCursor :: proc() -> ^Tile {
+GetTileAtCoordLevel :: proc(level: ^Level, coord: iv2) -> ^Tile {
+    if IsInsideGrid(level, coord) {
+        idx := CoordToIdx(level, coord)
+        return &level.grid[idx]
+    }
+
+    return nil
+}
+
+TileUnderCursor :: proc {
+    TileUnderCursorLoadedLevel,
+    TileUnderCursorLevel,
+}
+
+TileUnderCursorLoadedLevel :: proc() -> ^Tile {
     coord := MousePosGrid()
     return GetTileAtCoord(coord)
+}
+
+TileUnderCursorLevel :: proc(level: ^Level) -> ^Tile {
+    coord := MousePosGrid()
+    return GetTileAtCoord(level, coord)
 }
 
 GetNeighbourCoords :: proc(coord: iv2, allocator := context.allocator) -> []iv2 {
@@ -426,6 +513,56 @@ GetNeighbourTiles :: proc(coord: iv2, allocator := context.allocator) -> []^Tile
 
     return ret[:]
 }
+
+GetNeighbourTilesLevel :: proc(level: ^Level, coord: iv2, allocator := context.allocator) -> []^Tile {
+    ret := make([dynamic]^Tile, 0, 4, allocator = allocator)
+
+    for x := i32(-1); x <= i32(1); x += 1 {
+        for y := i32(-1); y <= i32(1); y += 1 {
+            n := coord + {x, y}
+            if (n.x != coord.x &&
+                n.y != coord.y) ||
+               n == coord
+            {
+                continue
+            }
+
+            if(IsInsideGrid(level, n)) {
+                append(&ret, GetTileAtCoord(level, n))
+            }
+        }
+    }
+
+    return ret[:]
+}
+
+GetFloodFilledTiles :: proc(level: ^Level, coord: iv2, allocator := context.allocator) -> []^Tile {
+    queue := make([dynamic]iv2, 0, 16, allocator = context.temp_allocator)
+
+    result := make([dynamic]^Tile, 0, 16, allocator = allocator)
+
+    firstTile := GetTileAtCoord(level, coord)
+
+    append(&queue, coord)
+    append(&result, firstTile)
+
+    for len(queue) > 0 {
+        tileCoord := pop(&queue)
+
+        neighbours := GetNeighbourTilesLevel(level, tileCoord, context.temp_allocator)
+        for neighbour in neighbours {
+
+            if neighbour.defIndex == firstTile.defIndex && slice.contains(result[:], neighbour) == false
+            {
+                append(&queue, neighbour.gridPos)
+                append(&result, neighbour)
+            }
+        }
+    }
+
+    return result[:]
+}
+
 
 ////////////////////
 

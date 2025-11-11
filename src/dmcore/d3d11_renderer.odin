@@ -95,7 +95,7 @@ CreateRenderContextBackend :: proc(nativeWnd: dxgi.HWND) -> ^RenderContext {
     rasterizerDesc := d3d11.RASTERIZER_DESC{
         FillMode = .SOLID,
         CullMode = .NONE,
-        // ScissorEnable = true,
+        ScissorEnable = true,
         DepthClipEnable = true,
         // MultisampleEnable = true,
         // AntialiasedLineEnable = true,
@@ -183,6 +183,9 @@ StartFrame :: proc(ctx: ^RenderContext) {
     renderTarget := GetElement(ctx.framebuffers, ctx.ppFramebufferSrc)
     ctx.deviceContext->OMSetRenderTargets(1, &renderTarget.renderTargetView, nil)
     ctx.deviceContext->OMSetBlendState(ctx.blendState, nil, ~u32(0))
+
+    scissorsRect := d3d11.RECT{0, 0, max(i32), max(i32)}
+    ctx.deviceContext->RSSetScissorRects(1, &scissorsRect)
 }
 
 EndFrame :: proc(ctx: ^RenderContext) {
@@ -373,6 +376,27 @@ EndScreenSpace :: proc() {
     // TODO: cameras stack or something
     SetCamera(renderCtx.camera)
     renderCtx.inScreenSpace = false
+}
+
+BeginScissors :: proc(left, top, right, bottom: i32) {
+    DrawBatch(renderCtx, &renderCtx.defaultBatch)
+
+    rect := d3d11.RECT {
+        left = left,
+        top = top,
+        right = right,
+        bottom = bottom,
+    }
+
+    // scissorsRect := transmute(d3d11.RECT)rect
+    renderCtx.deviceContext->RSSetScissorRects(1, &rect)
+}
+
+EndScissors :: proc() {
+    DrawBatch(renderCtx, &renderCtx.defaultBatch)
+
+    scissorsRect := d3d11.RECT{0, 0, max(i32), max(i32)}
+    renderCtx.deviceContext->RSSetScissorRects(1, &scissorsRect)
 }
 
 UpdateBufferContent :: proc(buffer: GPUBufferHandle) {

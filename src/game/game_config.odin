@@ -23,9 +23,9 @@ STARTING_STAGE :: GameStage.Gameplay
 
 // ENEMIES
 
-Enemies := [?]Enemy {
-    {
-        name = "Test 1",
+Enemies := [EnemyType]Enemy {
+    .Regular = {
+        name = "Regular",
         speed = 8,
         maxHealth = 100,
         tint = dm.RED,
@@ -33,41 +33,23 @@ Enemies := [?]Enemy {
         damage = 10,
     },
 
-    {
-        name = "Test 2",
+    .Fast = {
+        name = "Fast",
+        speed = 12,
+        maxHealth = 50,
+        tint = dm.CYAN,
+        moneyValue = 30,
+        damage = 10,
+    },
+
+
+    .Big = {
+        name = "Big",
         speed = 5,
         maxHealth = 200,
         tint = dm.GREEN,
         moneyValue = 70,
         damage = 25,
-    },
-}
-
-
-// WAVES/LEVELS
-
-Waves := [?]LevelWaves {
-    {
-        levelName = "Level_0",
-        waves = {
-            {
-                {"Test 1", 20, 0.15},
-                {"Test 2", 10, 0.7},
-            },
-
-            {
-                {"Test 1", 30, 0.15},
-            },
-        },
-    },
-
-    {
-        levelName = "Level_1",
-        waves = {
-            {
-                {"Test 2", 30, 0.15},
-            },
-        },
     },
 }
 

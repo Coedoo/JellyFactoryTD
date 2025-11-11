@@ -1,6 +1,6 @@
 package dmcore
 
-import mu "vendor:microui"
+import mu "../microui"
 
 import "core:reflect"
 import "core:strings"

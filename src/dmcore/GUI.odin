@@ -6,9 +6,10 @@ import "core:math"
 import "core:math/ease"
 import "core:math/linalg/glsl"
 import "core:fmt"
-import mu "vendor:microui"
 
 import "core:strings"
+
+import sa "core:container/small_array"
 
 /////////
 // Context management
@@ -52,6 +53,8 @@ UIContext :: struct {
     buttonStyle: Style,
 
     disabled: bool,
+
+    clippingStack: sa.Small_Array(128, UIRect),
 }
 
 /////////
@@ -94,7 +97,7 @@ UINode :: struct {
     id: Id,
 
     text: string,
-    textSize: v2,
+    // textSize: v2,
 
     texture: TexHandle,
     textureSource: RectInt,
@@ -111,6 +114,7 @@ UINode :: struct {
 
     viewOffset: v2,
 
+    folded: bool,
     disabled: bool,
 
     using style: Style,
@@ -167,6 +171,7 @@ UIRect :: struct {
 Style :: struct {
     font: FontHandle,
     fontSize: int,
+    textAligment: Aligment,
 
     textColor: color,
     bgColor: color,
@@ -228,6 +233,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     uiCtx.defaultStyle = {
         // font = font,
         fontSize = 24,
+        textAligment = {.Middle, .Middle},
 
         textColor = {1, 1, 1, 1},
         bgColor = {1, 1, 1, 1},
@@ -263,7 +269,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
     uiCtx.textStyle = uiCtx.defaultStyle
     uiCtx.textLayout = uiCtx.defaultLayout
-    uiCtx.textLayout.preferredSize = {.X = {.Text, 0, 0.2}, .Y = {.Text, 0, 0.2}}
+    uiCtx.textLayout.preferredSize = {.X = {.Text, 0, 1}, .Y = {.Text, 0, 1}}
 
     uiCtx.buttonStyle = uiCtx.defaultStyle
     uiCtx.buttonStyle.bgColor = {0.05, 0.1, 0.9, 1}
@@ -278,12 +284,26 @@ InitUI :: proc(uiCtx: ^UIContext) {
 
 PushParent :: proc(parent: ^UINode) {
     append(&uiCtx.parentStack, parent)
-    append(&uiCtx.hashStack, parent.id)
+    
+    if parent.id != 0 {
+        append(&uiCtx.hashStack, parent.id)
+    }
+
+    if .Clip in parent.flags {
+        sa.push_back(&uiCtx.clippingStack, NodeRect(parent))
+    }
 }
 
 PopParent :: proc() {
-    pop(&uiCtx.parentStack)
-    pop(&uiCtx.hashStack)
+    parent := pop(&uiCtx.parentStack)
+
+    if parent.id != 0 {
+        pop(&uiCtx.hashStack)
+    }
+
+    if .Clip in parent.flags {
+        sa.pop_back(&uiCtx.clippingStack)
+    }
 }
 
 PushId :: proc {
@@ -349,6 +369,10 @@ GetIdBytes :: proc(bytes: []byte) -> Id {
     return prev
 }
 
+uiFmt :: proc(args: ..any) -> string {
+    return fmt.aprint(..args, allocator = uiCtx.transientAllocator)
+}
+
 IsPointOverUI :: proc(point: iv2) -> bool {
     for node in uiCtx.nodes {
         checkFlags := NodeFlags{ .DrawBackground, .DrawText, .BackgroundTexture }
@@ -376,11 +400,25 @@ DoLayoutParentPercent :: proc(node: ^UINode) {
     for axis in LayoutAxis {
         size := node.preferredSize[axis]
 
-        if size.type == .ParentPercent {
-            parent := node.parent
-            parentPadding := parent.padding.left + parent.padding.right
+        // if size.type == .ParentPercent {
+        //     parent := node.parent
+        //     parentPadding := parent.padding.left + parent.padding.right
 
-            node.targetSize[axis] = parent.targetSize[axis] * size.value - f32(parentPadding)
+        //     node.targetSize[axis] = parent.targetSize[axis] * size.value - f32(parentPadding)
+        // }
+        if size.type == .ParentPercent {
+
+            parent := node.parent
+            for parent != nil {
+                if parent.preferredSize[axis].type != .Children {
+                    parentPadding := parent.padding.left + parent.padding.right
+
+                    node.targetSize[axis] = parent.targetSize[axis] * size.value - f32(parentPadding)
+                    break
+                }
+
+                parent = parent.parent
+            }
         }
     }
 
@@ -520,6 +558,7 @@ DoFinalLayout :: proc(node: ^UINode) {
             }
 
             next.targetPos += node.viewOffset
+
             childPos += next.targetSize.x + f32(node.spacing)
         }
     }
@@ -561,6 +600,7 @@ DoFinalLayout :: proc(node: ^UINode) {
             }
 
             next.targetPos += node.viewOffset
+
             childPos += next.targetSize.y + f32(node.spacing)
         }
     }
@@ -581,7 +621,7 @@ DoLayout :: proc() {
         if node.preferredSize[.X].type == .Text ||
            node.preferredSize[.Y].type == .Text
         {
-            node.textSize = MeasureText(node.text, node.font, f32(node.fontSize))
+            textSize := MeasureText(node.text, node.font, f32(node.fontSize))
             paddedSize := v2 {
                 f32(node.padding.left + node.padding.right),
                 f32(node.padding.top + node.padding.bot),
@@ -589,7 +629,7 @@ DoLayout :: proc() {
 
             for size, i in node.preferredSize {
                 if size.type == .Text {
-                    node.targetSize[i] = f32(node.textSize[i]) + paddedSize[i]
+                    node.targetSize[i] = f32(textSize[i]) + paddedSize[i]
                 }
             }
         }
@@ -634,7 +674,7 @@ PopStyle :: proc() {
 }
 
 BeginLayout :: proc(
-    text: string,
+    text: string = "",
     axis:= LayoutAxis.X,
     aligmentX := AligmentX.Middle,
     aligmentY := AligmentY.Middle
@@ -681,17 +721,21 @@ UIBegin :: proc(screenWidth, screenHeight: int) {
     root := AddNode("root", {}, uiCtx.defaultStyle, uiCtx.defaultLayout)
     root.preferredSize = {.X = {.Fixed, f32(screenWidth), 1}, .Y = {.Fixed, f32(screenHeight), 1}}
 
+    sa.push_back(&uiCtx.clippingStack, UIRect{-max(int), max(int), -max(int), max(int)})
+
     PushParent(root)
 
 }
 
 UIEnd :: proc() {
     PopParent()
+    sa.pop_back(&uiCtx.clippingStack)
 
     uiCtx.hotId = uiCtx.nextHot
 
     assert(len(uiCtx.parentStack) == 0)
     assert(len(uiCtx.hashStack) == 0)
+    assert(uiCtx.clippingStack.len == 0)
 
     DoLayout()
 }
@@ -835,15 +879,39 @@ AddNode :: proc(text: string, flags: NodeFlags,
     return node
 }
 
+
+ClipRect :: proc(rect: ^UIRect, clippinRect: UIRect) {
+    rect.left  = max(rect.left,  clippinRect.left)
+    rect.top   = max(rect.top,   clippinRect.top)
+    rect.right = min(rect.right, clippinRect.right)
+    rect.bot   = min(rect.bot,   clippinRect.bot)
+}
+
+IsPointInsideUIRect :: proc(point: v2, rect: UIRect) -> bool {
+    return int(point.x) > rect.left &&
+           int(point.x) < rect.right &&
+           int(point.y) > rect.top &&
+           int(point.y) < rect.bot
+}
+
 GetNodeInteraction :: proc(node: ^UINode) -> (result: UINodeInteraction) {
     // if .Clickable in node.flags {
-        targetRect := Rect{
-            node.targetPos.x - node.targetSize.x * node.origin.x,
-            node.targetPos.y - node.targetSize.y * node.origin.y,
-            node.targetSize.x,
-            node.targetSize.y
-        }
-        isMouseOver := IsPointInsideRect(ToV2(input.mousePos), targetRect)
+
+        left  := node.targetPos.x - node.targetSize.x * node.origin.x
+        top   := node.targetPos.y - node.targetSize.y * node.origin.y
+        right := left + node.targetSize.x
+        bot   := top + node.targetSize.y
+        targetRect := UIRect {int(left), int(right), int(top), int(bot)}
+
+        // targetRect := Rect{
+        //     node.targetPos.x - node.targetSize.x * node.origin.x,
+        //     node.targetPos.y - node.targetSize.y * node.origin.y,
+        //     node.targetSize.x,
+        //     node.targetSize.y
+        // }
+
+        ClipRect(&targetRect, sa.last(uiCtx.clippingStack))
+        isMouseOver := IsPointInsideUIRect(ToV2(input.mousePos), targetRect)
 
         if uiCtx.activeId == node.id {
             result.cursorPressed = true
@@ -934,6 +1002,38 @@ EndPanel :: proc() {
     PopParent()
 }
 
+@(deferred_none=EndPanel2)
+Panel2 :: proc(
+    size: iv2,
+    aligment: Maybe(Aligment) = nil,
+    texture: TexHandle = {},
+) -> bool
+{
+    node := AddNode("", { .DrawBackground }, uiCtx.panelStyle, uiCtx.panelLayout)
+    if al, ok := aligment.?; ok {
+        node.childrenAligment = al
+    }
+
+    if texture != {} {
+        node.flags += { .BackgroundTexture }
+        node.texture =  texture
+    }
+
+    node.preferredSize[.X] = {.Fixed, f32(size.x), 1}
+    node.preferredSize[.Y] = {.Fixed, f32(size.y), 1}
+
+    PushParent(node)
+
+    Scroll("Scroll")
+
+    return true
+}
+
+EndPanel2 :: proc() {
+    EndScroll()
+    PopParent()
+}
+
 @(deferred_none=EndContainer)
 UIContainer :: proc(text: string, anchor: UIAnchor, 
     anchorOffset := v2{0, 0},
@@ -965,20 +1065,51 @@ EndContainer :: proc() {
     PopParent()
 }
 
-Scroll :: proc(text: string, size: v2) {
+@(deferred_none=EndHeader)
+Header :: proc(text: string) -> bool {
+    header := AddNode(uiFmt(">", text), {.DrawBackground, .DrawText, .Clickable}, style = uiCtx.buttonStyle)
+    header.preferredSize[.X] = {.ParentPercent, 1, 1}
+    header.preferredSize[.Y] = {.Fixed, 40, 1}
+
+    header.textAligment ={ .Middle, .Left }
+
+    inter := GetNodeInteraction(header)
+    if inter.cursorReleased {
+        header.folded = !header.folded
+    }
+
+    content := AddNode("", {})
+    content.layout = content.parent.layout
+    content.preferredSize[.X] = {.Children, 0, 1}
+    content.preferredSize[.Y] = {.Children, 0, 1}
+
+    PushParent(content)
+    PushId(text)
+
+    return header.folded == false
+}
+
+EndHeader :: proc() {
+    PopId()
+    PopParent()
+}
+
+Scroll :: proc(text: string) {
     viewportStyle := uiCtx.panelStyle
     viewportStyle.padding = { 0, 0, 0, 0 }
 
     viewPort := AddNode(text, { .ScrollX, .ScrollY, .Clip }, style = viewportStyle)
-    viewPort.preferredSize[.X] = {.Fixed, size.x, 1}
-    viewPort.preferredSize[.Y] = {.Fixed, size.y, 1}
+    viewPort.preferredSize[.X] = {.ParentPercent, 1, 1}
+    viewPort.preferredSize[.Y] = {.ParentPercent, 1, 1}
 
     PushParent(viewPort)
+
+    SCROLL_SIZE :: 10
 
     /////
 
     scrollY := AddNode("ScrollY", { .DrawBackground, .AnchoredPosition })
-    scrollY.preferredSize[.X] = {.Fixed, 10, 1}
+    scrollY.preferredSize[.X] = {.Fixed, SCROLL_SIZE, 1}
     scrollY.preferredSize[.Y] = {.ParentPercent, 1, 1}
 
     scrollY.origin = {1, 0.5}
@@ -1014,16 +1145,16 @@ Scroll :: proc(text: string, size: v2) {
 
     // PopParent()
 
-    content := AddNode("content", {}, style = viewportStyle)
+    content := AddNode("content", { }, style = viewportStyle)
 
-    content.preferredSize[.X] = {.Children, 0, 1}
+    content.preferredSize[.X] = {.Fixed, viewPort.targetSize.x - SCROLL_SIZE - 2, 1}
     content.preferredSize[.Y] = {.Children, 0, 1}
 
     PushParent(content)
 
     inter := GetNodeInteraction(viewPort)
     if inter.scroll {
-        content.viewOffset.y += f32(input.scroll) * 10
+        content.viewOffset.y += f32(input.scroll) * 20
         content.viewOffset.y = clamp(content.viewOffset.y, -content.targetSize.y, 0)
 
         // fmt.println(content.viewOffset)
@@ -1040,8 +1171,15 @@ Scroll :: proc(text: string, size: v2) {
     interY := GetNodeInteraction(sliderY)
     if interY.cursorPressed {
         // fmt.println(input.mouseDelta.y)
-        content.viewOffset.y -= f32(input.mouseDelta.y)
+        off := f32(input.mouseDelta.y)
+        off = content.targetSize.y * (off / (scrollY.targetSize.y - fillPercent * scrollY.targetSize.y))
+
+        content.viewOffset.y -= off
         content.viewOffset.y = clamp(content.viewOffset.y, -content.targetSize.y, 0)
+    }
+
+    if fillPercent == 1 {
+        content.viewOffset.y = 0
     }
 }
 
@@ -1074,8 +1212,8 @@ UIBeginWindow :: proc(text: string, isOpen: ^bool = nil) -> bool {
     PushParent(background)
 
     header := AddNode("Header", {.Clickable})
-    header.preferredSize[.X] = {.ParentPercent, 1, 1}
-    header.preferredSize[.Y] = {.Children, 0, 1}
+    header.preferredSize[.X] = {.ParentPercent, 1, 0}
+    header.preferredSize[.Y] = {.Fixed, 30, 1}
     header.childrenAxis = .X
     // // header.isFloating = true
 
@@ -1216,11 +1354,11 @@ UISliderInt :: proc(text: string, value: ^int, #any_int min, max: int) -> (res: 
 UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
     if LayoutBlock(text, axis = .X) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
-        // label.preferredSize[.X] = {.Fixed, 200, 0}
+        label.preferredSize[.X] = {.ParentPercent, 0.5, 0}
 
         slideArea := AddNode(fmt.tprint("slide", text), { .DrawBackground })
         slideArea.bgColor = {1, 1, 1, 1}
-        slideArea.preferredSize[.X] = {.Fixed, 250, 0}
+        slideArea.preferredSize[.X] = {.ParentPercent, 0.5, 0}
         slideArea.preferredSize[.Y] = {.Fixed, 5, 1}
 
         PushParent(slideArea)
@@ -1298,18 +1436,38 @@ UICheckbox :: proc(text: string, value: ^bool) -> (res: bool) {
 
 ///////////////////////////////
 
+NodeRect :: proc(node: ^UINode) -> UIRect {
+    left  := int(node.targetPos.x)
+    top   := int(node.targetPos.y)
+    right := int(node.targetPos.x + node.targetSize.x)
+    bot   := int(node.targetPos.y + node.targetSize.y)
+
+    return {left, right, top, bot}
+}
+
 DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
     nodeCenter := node.targetPos + node.targetSize / 2 - node.targetSize * node.origin
-    DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
+    // DrawDebugBox(renderCtx, nodeCenter, node.targetSize, true)
+
+    if .Clip in node.flags {
+        left  := i32(node.targetPos.x)
+        top   := i32(node.targetPos.y)
+        right := i32(node.targetPos.x + node.targetSize.x)
+        bot   := i32(node.targetPos.y + node.targetSize.y)
+
+        BeginScissors(left, top, right, bot)
+    }
 
     if .DrawBackground in node.flags {
         color := node.bgColor
 
-        if node.id == ctx.activeId {
-            color = node.hotColor
-        }
-        else if node.id == ctx.hotId {
-            color = node.activeColor
+        if .Clickable in node.flags {
+            if node.id == ctx.activeId {
+                color = node.hotColor
+            }
+            else if node.id == ctx.hotId {
+                color = node.activeColor
+            }
         }
 
         if node.disabled {
@@ -1351,7 +1509,22 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
     }
 
     if .DrawText in node.flags {
-        pos := node.targetPos + (node.targetSize - node.textSize) / 2 - node.targetSize * node.origin
+        textSize := MeasureText(node.text, node.font, f32(node.fontSize))
+        pos: v2
+
+        switch node.textAligment.x {
+        case .Left:   pos.x = node.targetPos.x
+        case .Middle: pos.x = node.targetPos.x + (node.targetSize.x - textSize.x) / 2 - node.targetSize.x * node.origin.x
+        case .Right: pos.x = node.targetPos.x + (node.targetSize.x - textSize.x) - node.targetSize.x * node.origin.x
+        }
+
+
+        switch node.textAligment.y {
+        case .Top:   pos.y = node.targetPos.y
+        case .Middle: pos.y = node.targetPos.y + (node.targetSize.y - textSize.y) / 2 - node.targetSize.y * node.origin.y
+        case .Bottom: pos.y = node.targetPos.y + (node.targetSize.y - textSize.y) - node.targetSize.y * node.origin.y
+        }
+        // pos := node.targetPos + (node.targetSize - textSize) / 2 - node.targetSize * node.origin
         DrawText(
             node.text,
             pos,
@@ -1364,6 +1537,10 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
 
     for next := node.firstChild; next != nil; next = next.nextSibling {
         DrawNode(ctx, renderCtx, next)
+    }
+
+    if .Clip in node.flags {
+        EndScissors()
     }
 }
 

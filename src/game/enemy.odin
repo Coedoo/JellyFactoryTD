@@ -10,6 +10,12 @@ import dm "../dmcore"
 
 EnemyHandle :: distinct dm.Handle
 
+EnemyType :: enum {
+    Regular,
+    Big,
+    Fast,
+}
+
 Enemy :: struct {
     name: string,
     speed: f32,
@@ -25,7 +31,7 @@ Enemy :: struct {
 EnemyInstance :: struct {
     handle: EnemyHandle,
 
-    statsIdx: int,
+    type: EnemyType,
 
     // position: v2,
     // pathPointIdx: int,
@@ -42,16 +48,11 @@ DamageEffectValues :: struct {
     timeLeft: f32,
 }
 
-SpawnEnemy :: proc {
-    SpawnEnemyByIndex,
-    SpawnEnemyByName,
-}
-
-SpawnEnemyByIndex :: proc(idx: int) -> ^EnemyInstance {
+SpawnEnemy :: proc(type: EnemyType) -> ^EnemyInstance {
     enemy := dm.CreateElement(&gameState.enemies)
 
-    stats := Enemies[idx]
-    enemy.statsIdx = idx
+    stats := Enemies[type]
+    enemy.type = type
     enemy.health = stats.maxHealth
     enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
 
@@ -60,19 +61,9 @@ SpawnEnemyByIndex :: proc(idx: int) -> ^EnemyInstance {
     return enemy
 }
 
-SpawnEnemyByName :: proc(name: string) -> ^EnemyInstance {
-    // @TODO: hashmap for enemy names -> indices
-    for enemy, i in Enemies {
-        if enemy.name == name {
-            return SpawnEnemyByIndex(i)
-        }
-    }
-
-    return nil
-}
 
 UpdateEnemy :: proc(enemy: ^EnemyInstance) {
-    enemyStat := Enemies[enemy.statsIdx]
+    enemyStat := Enemies[enemy.type]
 
     speed := enemyStat.speed
     if enemy.slowValue.timeLeft > 0 {
@@ -100,7 +91,7 @@ DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32, usedEnergy: EnergySet) {
     enemy.health -= damage
 
     if enemy.health <= 0 {
-        gameState.money += Enemies[enemy.statsIdx].moneyValue
+        gameState.money += Enemies[enemy.type].moneyValue
         dm.FreeSlot(&gameState.enemies, enemy.handle)
 
         return

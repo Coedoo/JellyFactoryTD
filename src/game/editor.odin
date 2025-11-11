@@ -11,6 +11,8 @@ import "core:mem"
 import "core:encoding/json"
 import "core:os"
 
+import sa "core:container/small_array"
+
 EditorState :: struct {
     mode: EditorMode,
 
@@ -44,6 +46,7 @@ EditorMode :: enum {
     EditTiles,
     EditStartPos,
     EditEndPos,
+    EditWaves,
 }
 
 TileFlagColors := [TileFlag]dm.color {
@@ -140,6 +143,9 @@ EditorUpdate :: proc(state: ^EditorState) {
     // Logic
     state.pointedCoord = MousePosGrid(state.camera)
 
+    dm.BeginLayout(axis = .X, aligmentX = .Left, aligmentY = .Top)
+
+    dm.BeginLayout(axis = .Y, aligmentX = .Left, aligmentY = .Top)
     if dm.UIButton("New Level") {
         state.showNewLevel = !state.showNewLevel
     }
@@ -166,8 +172,49 @@ EditorUpdate :: proc(state: ^EditorState) {
         SwitchMode(state, .EditTiles)
     }
 
+    if dm.UIButton("Edit Waves") {
+        state.mode = .EditWaves
+    }
+
     // Painting
     isOverUI := dm.IsPointOverUI(dm.input.mousePos)
+
+    dm.BeginLayout("PosButtons", axis = .X)
+    if dm.UIButton("Start Pos") {
+        SwitchMode(state, .EditStartPos)
+    }
+
+    if dm.UIButton("End Pos") {
+        SwitchMode(state, .EditEndPos)
+    }
+    dm.EndLayout()
+
+    if dm.UIButton("Save") {
+        opt := json.Marshal_Options {
+            spec = .JSON5
+        }
+
+        when ODIN_DEBUG {
+            opt.pretty = true
+        }
+
+        data, ok := json.marshal(state.editedLevel^, opt = opt, allocator = context.temp_allocator)
+        if ok == nil {
+            os.write_entire_file("test_save.json", data)
+        }
+        else {
+            fmt.println(ok)
+        }
+    }
+
+    if dm.UIButton("Load") {
+        data, ok := os.read_entire_file("test_save.json")
+        err := json.unmarshal(data, state.editedLevel)
+
+        fmt.println(err)
+    }
+    dm.EndLayout()
+
 
     switch state.mode {
     case .None:
@@ -204,40 +251,40 @@ EditorUpdate :: proc(state: ^EditorState) {
         }
 
         if dm.Panel("Tiles") {
-        dm.BeginLayout("tiles layout", axis = .Y, aligmentX = .Left)
+            dm.BeginLayout("tiles layout", axis = .Y, aligmentX = .Left)
 
-            for cat in TileCategory {
-                dm.UILabel(cat)
-                dm.BeginLayout(fmt.aprint(cat, dm.uiCtx.transientAllocator), axis = .X, aligmentX = .Left)
+                for cat in TileCategory {
+                    dm.UILabel(cat)
+                    dm.BeginLayout(fmt.aprint(cat, dm.uiCtx.transientAllocator), axis = .X, aligmentX = .Left)
 
-                for &tile, tileIdx in Tileset.tiles {
-                    if tile.category == cat {
-                        rect := dm.GetSpriteRect(Tileset.atlas, tile.atlasPos)
+                    for &tile, tileIdx in Tileset.tiles {
+                        if tile.category == cat {
+                            rect := dm.GetSpriteRect(Tileset.atlas, tile.atlasPos)
 
-                        inter := dm.ImageButtonI(
-                            Tileset.atlas.texture,
-                            text = tile.name,
-                            size = iv2{40, 40},
-                            texSource = rect)
-                        if inter.cursorReleased
-                        {
-                            state.selectedTileIdx = tileIdx
+                            inter := dm.ImageButtonI(
+                                Tileset.atlas.texture,
+                                text = tile.name,
+                                size = iv2{40, 40},
+                                texSource = rect)
+                            if inter.cursorReleased
+                            {
+                                state.selectedTileIdx = tileIdx
+                            }
                         }
                     }
+
+                    dm.EndLayout()
                 }
 
-                dm.EndLayout()
-            }
 
+                dm.UICheckbox("Flip X", &state.tileFlip.x)
+                dm.UICheckbox("Flip Y", &state.tileFlip.y)
 
-            dm.UICheckbox("Flip X", &state.tileFlip.x)
-            dm.UICheckbox("Flip Y", &state.tileFlip.y)
+                dm.UISpacer(15)
 
-            dm.UISpacer(15)
-
-            dm.UICheckbox("Flood Fill", &state.floodFill)
+                dm.UICheckbox("Flood Fill", &state.floodFill)
+            dm.EndLayout()
         }
-    dm.EndLayout()
 
     case .EditStartPos:
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
@@ -248,42 +295,43 @@ EditorUpdate :: proc(state: ^EditorState) {
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             state.editedLevel.endCoord = state.pointedCoord
         }
-    }
 
-    dm.BeginLayout("PosButtons", axis = .X)
-    if dm.UIButton("Start Pos") {
-        SwitchMode(state, .EditStartPos)
-    }
+    case .EditWaves: 
+        if dm.Panel2(size = iv2{500, 400} ) {
+            for &wave, i in sa.slice(&state.editedLevel.waves) {
+                dm.PushId(i)
+                // dm.UILabel("Wave:", i)
+                if dm.Header(dm.uiFmt("Wave:", i)) {
+                    for &enemyWave, enemyType in wave.enemies {
+                        // if dm.LayoutBlock(dm.uiFmt(enemyType)) {
+                            // dm.UILabel(enemyType, enemyWave.count)
+                            
+                            // if dm.UIButton("-") {
+                            //     enemyWave.count -= 1
+                            // }
 
-    if dm.UIButton("End Pos") {
-        SwitchMode(state, .EditEndPos)
+                            dm.PushId(int(enemyType))
+                            dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, 1, 100)
+                            dm.UISlider("Time", &enemyWave.spawnTime, 0, 1)
+                            dm.PopId()
+
+                            // if dm.UIButton("+") {
+                            //     enemyWave.count += 1
+                            // }
+                        // }
+                    }
+                }
+
+                dm.PopId()
+            }
+
+            if dm.UIButton("Add") {
+                state.editedLevel.waves.len += 1
+            }
+        }
     }
     dm.EndLayout()
 
-    if dm.UIButton("Save") {
-        opt := json.Marshal_Options {
-            spec = .JSON5
-        }
-
-        when ODIN_DEBUG {
-            opt.pretty = true
-        }
-
-        data, ok := json.marshal(state.editedLevel^, opt = opt, allocator = context.temp_allocator)
-        if ok == nil {
-            os.write_entire_file("test_save.json", data)
-        }
-        else {
-            fmt.println(ok)
-        }
-    }
-
-    if dm.UIButton("Load") {
-        data, ok := os.read_entire_file("test_save.json")
-        err := json.unmarshal(data, state.editedLevel)
-
-        fmt.println(err)
-    }
 }
 
 EditorRender :: proc(state: EditorState) {
@@ -308,6 +356,7 @@ EditorRender :: proc(state: EditorState) {
 
     case .EditStartPos:
     case .EditEndPos:
+    case .EditWaves:
 
     }
 

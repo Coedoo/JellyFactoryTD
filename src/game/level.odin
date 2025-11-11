@@ -8,9 +8,9 @@ import "core:fmt"
 import "core:slice"
 import "core:strings"
 import "core:mem"
-import pq "core:container/priority_queue"
 
-import "../ldtk"
+import sa "core:container/small_array"
+import pq "core:container/priority_queue"
 
 TileFlag :: enum {
     Walkable,
@@ -45,10 +45,6 @@ Tile :: struct {
     defIndex: int,
     using def: ^TileDefinition `json:"-"`,
 
-    // flags: TileFlags,
-    // tilesetCoord: iv2,
-    // energy: EnergyType,
-
     tileFlip: [2]bool,
 
     gridPos: iv2,
@@ -78,7 +74,7 @@ Level  :: struct {
     startCoord: iv2,
     endCoord: iv2,
 
-    waves: LevelWaves,
+    waves: sa.Small_Array(MAX_WAVES, Wave),
 }
 
 // @NOTE: Must be the same values as LDTK
@@ -166,8 +162,8 @@ OpenLevel :: proc(level: ^Level) {
     context.allocator = gameState.levelAllocator
 
     dm.InitResourcePool(&gameState.spawnedBuildings, 128)
-    dm.InitResourcePool(&gameState.enemies, 128)
-    dm.InitResourcePool(&gameState.energyPackets, 1028)
+    dm.InitResourcePool(&gameState.enemies, 1024)
+    dm.InitResourcePool(&gameState.energyPackets, 1024)
 
     pathMem := make([]byte, PATH_MEMORY)
     mem.arena_init(&gameState.pathArena, pathMem)
@@ -193,11 +189,11 @@ OpenLevel :: proc(level: ^Level) {
     // }
 
     // gameState.levelWaves = waves
-    level.waves = Waves[0]
-    gameState.wavesState = make([]WaveState, len(level.waves.waves), allocator = gameState.levelAllocator)
-    for &s, i in gameState.wavesState {
-        s.seriesStates = make([]SeriesState, len(level.waves.waves[i]), allocator = gameState.levelAllocator)
-    }
+    // level.waves = Waves[0]
+    // gameState.wavesState = make([]WaveState, len(level.waves.waves), allocator = gameState.levelAllocator)
+    // for &s, i in gameState.wavesState {
+    //     s.seriesStates = make([]SeriesState, len(level.waves.waves[i]), allocator = gameState.levelAllocator)
+    // }
 
     gameState.money = START_MONEY
     gameState.hp    = START_HP

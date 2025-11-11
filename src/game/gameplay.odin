@@ -8,6 +8,8 @@ import "core:fmt"
 import "core:slice"
 import "core:mem"
 
+import sa "core:container/small_array"
+
 BuildUpMode :: enum {
     None,
     Building,
@@ -411,51 +413,91 @@ GameplayUpdate :: proc() {
     }
 
     // Wave
-    fullySpawnedWavesCount := 0
-    for i := 0; i < gameState.currentWaveIdx; i += 1 {
-        if gameState.wavesState[i].fullySpawned {
-            fullySpawnedWavesCount += 1
+    for &waveState in sa.slice(&gameState.wavesState) {
+        if waveState.fullySpawned {
             continue
         }
 
-        spawnedCount := 0
-        comb := soa_zip(
-            state = gameState.wavesState[i].seriesStates,
-            series = gameState.loadedLevel.waves.waves[i],
-        )
+        wave := &gameState.loadedLevel.waves.data[waveState.waveIdx]
 
-        for &v in comb {
-            if v.state.fullySpawned {
-                spawnedCount += 1
+        atLeastOneNotSpawned := false
+
+        for type in EnemyType {
+            if waveState.enemies[type].fullySpawned {
                 continue
             }
 
-            v.state.timer += f32(dm.time.deltaTime)
+            atLeastOneNotSpawned = true
 
-            if v.state.timer >= v.series.timeBetweenSpawns
-            {
-                SpawnEnemy(v.series.enemyName)
-                v.state.timer = 0
-                v.state.count += 1
+            waveState.enemies[type].timer += dm.time.deltaTime
 
-                if v.state.count >= v.series.count {
-                    v.state.fullySpawned = true
+            spawnTime := max(wave.enemies[type].spawnTime, 0.01)
+            timerRunOut := waveState.enemies[type].timer >= spawnTime
+            hasEnemies := waveState.enemies[type].fullySpawned == false 
+
+            if timerRunOut && hasEnemies {
+                waveState.enemies[type].timer = 0
+                waveState.enemies[type].spawnedCount += 1
+
+                if waveState.enemies[type].spawnedCount >= wave.enemies[type].count {
+                    waveState.enemies[type].fullySpawned = true
                 }
+
+                SpawnEnemy(type)
             }
         }
 
-        if spawnedCount >= len(gameState.loadedLevel.waves.waves[i]) {
-            gameState.wavesState[i].fullySpawned = true
-            fmt.println("Wave", i, "Fully Spawned");
+        if atLeastOneNotSpawned == false {
+            waveState.fullySpawned = true
+            fmt.println("Wave", waveState.waveIdx, "Fully Spawned")
         }
     }
 
-    if gameState.levelFullySpawned == false && 
-       fullySpawnedWavesCount == len(Waves)
-    {
-        fmt.println("All waves Spawned")
-        gameState.levelFullySpawned = true
-    }
+    // fullySpawnedWavesCount := 0
+    // for i := 0; i < gameState.currentWaveIdx; i += 1 {
+    //     if gameState.wavesState[i].fullySpawned {
+    //         fullySpawnedWavesCount += 1
+    //         continue
+    //     }
+
+    //     spawnedCount := 0
+    //     comb := soa_zip(
+    //         state = gameState.wavesState[i].seriesStates,
+    //         series = gameState.loadedLevel.waves.waves[i],
+    //     )
+
+    //     for &v in comb {
+    //         if v.state.fullySpawned {
+    //             spawnedCount += 1
+    //             continue
+    //         }
+
+    //         v.state.timer += f32(dm.time.deltaTime)
+
+    //         if v.state.timer >= v.series.timeBetweenSpawns
+    //         {
+    //             SpawnEnemy(v.series.enemyName)
+    //             v.state.timer = 0
+    //             v.state.count += 1
+
+    //             if v.state.count >= v.series.count {
+    //                 v.state.fullySpawned = true
+    //             }
+    //         }
+    //     }
+
+    //     if spawnedCount >= len(gameState.loadedLevel.waves.waves[i]) {
+    //         gameState.wavesState[i].fullySpawned = true
+    //         fmt.println("Wave", i, "Fully Spawned");
+    //     }
+    // }
+
+    // if gameState.levelFullySpawned == false && 
+    //    fullySpawnedWavesCount == len(Waves)
+    // {
+    //     fmt.println("All waves Spawned")
+    //     gameState.levelFullySpawned = true
+    // }
 
     // Destroy structres
     if gameState.buildUpMode == .Destroy &&
@@ -634,10 +676,10 @@ GameplayUpdate :: proc() {
         }
 
 
-        dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.loadedLevel.waves.waves))
-        if dm.muiButton(dm.mui, "SpawnWave") {
-            StartNextWave()
-        }
+        // dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.loadedLevel.waves.waves))
+        // if dm.muiButton(dm.mui, "SpawnWave") {
+        //     StartNextWave()
+        // }
 
         if dm.muiButton(dm.mui, "Reset level") {
             // name := gameState.level.name
@@ -748,7 +790,7 @@ GameplayUpdate :: proc() {
         style.fontSize = 40
         dm.PushStyle(style)
 
-        dm.UILabel("Wave: ", gameState.currentWaveIdx, '/', len(gameState.wavesState), sep = "")
+        dm.UILabel("Wave: ", gameState.nextWaveIdx, '/', gameState.loadedLevel.waves.len, sep = "")
 
         style.fontSize = 30
         dm.PushStyle(style)
@@ -760,6 +802,33 @@ GameplayUpdate :: proc() {
         if dm.UIButton("NextWave") {
             StartNextWave()
         }
+    }
+
+    dm.NextNodePosition({700, 300})
+    if dm.Panel2(size = iv2{500, 400}) {
+        if dm.Header("AAAAA") {
+            dm.UILabel("Stuff2")
+            dm.UILabel("Stuff")
+        }
+
+        if dm.Header("BBB") {
+            dm.UILabel("Stuff")
+            dm.UILabel("Stuff5")
+            dm.UILabel("Stuff3")
+        }
+
+        if dm.Header("CCCCCC") {
+            dm.UILabel("Stuff")
+            dm.UILabel("Stuff5")
+            dm.UILabel("Stuff3")
+        }
+
+        if dm.Header("DDDDDDDDDDD") {
+            dm.UILabel("Stuff")
+            dm.UILabel("Stuff5")
+            dm.UILabel("Stuff3")
+        }
+
     }
 
     @static showBuildingPanel: bool
@@ -791,25 +860,30 @@ GameplayUpdate :: proc() {
             dm.EndLayout()
             dm.PopId()
         }
-    }
 
-    @static amount := 5
-    if dm.UIContainer("TEEEEEST", .MiddleCenter) {
-        if dm.Panel("KLDFJLSK") {
-            dm.Scroll("tiles scroll", {100, 300})
-            {
-                dm.UILabel("AAAAAAAAAAAAAAAAAAAAAAAAAAA")
-
-                for i in 0..=amount {
-                    dm.UILabel(fmt.tprint("Stuff", i))
-                }
-
-                if dm.UIButton("Add") do amount += 1
-                if dm.UIButton("Remove") do amount -= 1
-            }
-            dm.EndScroll()
+        if dm.UIButton("Quad") {
+            gameState.buildUpMode = .Pipe
+            gameState.buildingPipeDir = DirSplitter
         }
     }
+
+    // @static amount := 5
+    // if dm.UIContainer("TEEEEEST", .MiddleCenter) {
+    //     if dm.Panel("KLDFJLSK") {
+    //         dm.Scroll("tiles scroll", {100, 300})
+    //         {
+    //             // dm.UILabel("AAAAAAAAAAAAAAAAAAAAAAAAAAA")
+
+    //             for i in 0..=amount {
+    //                 dm.UILabel(fmt.tprint("Stuff", i))
+    //             }
+
+    //             if dm.UIButton("Add") do amount += 1
+    //             if dm.UIButton("Remove") do amount -= 1
+    //         }
+    //         dm.EndScroll()
+    //     }
+    // }
 }
 
 GameplayRender :: proc() {
@@ -986,13 +1060,13 @@ GameplayRender :: proc() {
     // draw Enemy
     enemyIt := dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
-        stats := Enemies[enemy.statsIdx]
+        stats := Enemies[enemy.type]
         dm.DrawRect(enemy.position, .4, color = stats.tint)
     }
 
     enemyIt = dm.MakePoolIter(&gameState.enemies)
     for enemy in dm.PoolIterate(&enemyIt) {
-        stats := Enemies[enemy.statsIdx]
+        stats := Enemies[enemy.type]
         p := enemy.health / stats.maxHealth
         color := math.lerp(dm.RED, dm.GREEN, p)
         

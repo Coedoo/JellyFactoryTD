@@ -244,8 +244,10 @@ MeasureTextFont :: proc(str: string, font: Font, fontSize: f32 = 0) -> v2 {
 
         if i + 1 < len(runes) {
             if runes[i + 1] == '\n' {
-                idx := GetCodepointIndex(runes[i + 1])
-                posX += f32(font.glyphData[idx].pixelWidth)
+                // idx := GetCodepointIndex(runes[i + 1])
+                // posX += f32(font.glyphData[idx].pixelWidth)
+
+            
             }
             else {
                 advance := glyphData.advanceX if glyphData.advanceX != 0 else glyphData.pixelWidth

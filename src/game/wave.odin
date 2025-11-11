@@ -1,31 +1,41 @@
 package game
 
 import dm "../dmcore"
+import sa "core:container/small_array"
 
-EnemiesSeries :: struct {
-    enemyName: string,
+MAX_WAVES :: 100
+
+EnemyWave :: struct {
     count: int,
-    timeBetweenSpawns: f32,
+    spawnTime: f32,
 }
 
-LevelWaves :: struct {
-    levelName: string,
-    waves: [][]EnemiesSeries,
+Wave :: struct {
+    enemies: [EnemyType]EnemyWave
+}
+
+EnemyWaveState :: struct {
+    spawnedCount: int,
+    timer: f32,
+
+    fullySpawned: bool
 }
 
 WaveState :: struct {
+    waveIdx: int,
     fullySpawned: bool,
-    seriesStates: []SeriesState,
-}
-
-SeriesState :: struct {
-    timer: f32,
-    count: int,
-    fullySpawned: bool,
+    enemies: [EnemyType]EnemyWaveState
 }
 
 StartNextWave :: proc() {
-    if gameState.currentWaveIdx < len(gameState.loadedLevel.waves.waves) {
-        gameState.currentWaveIdx += 1
+    if gameState.nextWaveIdx >= gameState.loadedLevel.waves.len {
+        return
     }
+
+    state := WaveState {
+        waveIdx = gameState.nextWaveIdx
+    }
+
+    sa.append(&gameState.wavesState, state)
+    gameState.nextWaveIdx += 1
 }

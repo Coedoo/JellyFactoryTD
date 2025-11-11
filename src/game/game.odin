@@ -13,6 +13,8 @@ import "../ldtk"
 import "core:os"
 import "core:encoding/json"
 
+import sa "core:container/small_array"
+
 v2 :: dm.v2
 iv2 :: dm.iv2
 
@@ -55,11 +57,10 @@ GameState :: struct {
         selectedBuildingIdx: int,
         buildingPipeDir: DirectionSet,
 
-        currentWaveIdx: int,
-        // levelWaves: LevelWaves,
-        wavesState: []WaveState,
-
         levelFullySpawned: bool,
+        nextWaveIdx: int,
+        wavesState: sa.Small_Array(MAX_WAVES, WaveState),
+
 
         pathsBetweenBuildings: map[PathKey][]iv2,
 
@@ -139,6 +140,7 @@ GameHotReloaded : dm.GameHotReloaded : proc(gameState: rawptr) {
     gameState := cast(^GameState) gameState
 
     gameState.levelAllocator = mem.arena_allocator(&gameState.levelArena)
+
 }
 
 @(export)
@@ -215,6 +217,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     when ODIN_DEBUG {
         gameState.debugDrawGrid = true
     }
+
 }
 
 @(export)

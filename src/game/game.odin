@@ -83,6 +83,10 @@ GameState :: struct {
     playerSprite: dm.Sprite,
     arrowSprite: dm.Sprite,
 
+    startCoordWasEmpty: bool,
+    prevPrevCoord: iv2,
+    prevCoord: iv2,
+
     // DEBUG
     debugDrawPathGraph: bool,
     debugDrawGrid: bool,

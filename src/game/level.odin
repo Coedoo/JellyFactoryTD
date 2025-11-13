@@ -51,6 +51,7 @@ Tile :: struct {
 
     building: BuildingHandle `json:"-"`,
     pipeDir: DirectionSet `json:"-"`,
+    pipeBridgeDir: DirectionSet `json:"-"`,
 
     isCorner: bool `json:"-"`,
     visibleWaypoints: []iv2 `json:"-"`,

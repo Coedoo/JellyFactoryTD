@@ -93,6 +93,20 @@ RotateByDir :: proc(set: DirectionSet, direction: Direction) -> (ret: DirectionS
     return
 }
 
+RotateDirSet :: proc(set: DirectionSet, quaterRots: int) -> (ret: DirectionSet) {
+    ret = set
+    for i in 0..<quaterRots {
+        new: DirectionSet
+        for dir in ret {
+            new += { NextDir[dir] }
+        }
+
+        ret = new
+    }
+
+    return
+}
+
 CoordToPos :: proc(coord: iv2) -> v2 {
     return dm.ToV2(coord) + {0.5, 0.5}
 }

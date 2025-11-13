@@ -205,7 +205,7 @@ GetConnectedBuildings :: proc(startCoord: iv2, connectionPoints: ^map[BuildingHa
             delta := neighbour.gridPos - coord
             dir := VecToDir(delta)
 
-            canBeAdded := (dir in tile.pipeDir) &&(ReverseDir[dir] in neighbour.pipeDir)
+            canBeAdded := (dir in tile.pipeDir) && (ReverseDir[dir] in neighbour.pipeDir)
             canBeAdded &&= slice.contains(visited[:], neighbour.gridPos) == false
             canBeAdded ||= coord == startCoord
 

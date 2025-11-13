@@ -14,6 +14,7 @@ BuildUpMode :: enum {
     None,
     Building,
     Pipe,
+    Bridge,
     Destroy,
 }
 
@@ -574,31 +575,95 @@ GameplayUpdate :: proc() {
     {
         @static prevCoord: iv2
 
+        coord := MousePosGrid()
         leftBtn := dm.GetMouseButton(.Left)
-        if leftBtn == .Down  {
-            coord := MousePosGrid()
-            if IsInDistance(gameState.playerPosition, coord) {
-                tile := GetTileAtCoord(coord)
+        if leftBtn == .JustPressed {
+            tile := GetTileAtCoord(coord)
+            if tile.pipeDir == {} {
+                tile.pipeDir = gameState.buildingPipeDir
+                gameState.startCoordWasEmpty = true
+            }
 
-                canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
-                canPlace &&= tile.pipeDir != gameState.buildingPipeDir
-                canPlace &&= tile.building == {}
+            gameState.prevCoord = coord
+            gameState.prevPrevCoord = coord
+        }
 
-                if canPlace {
-                    tile.pipeDir = gameState.buildingPipeDir
-                    for dir in gameState.buildingPipeDir {
-                        neighborCoord := coord + DirToVec[dir]
-                        neighbor := GetTileAtCoord(neighborCoord)
-                        if neighbor.building != {} {
-                            neighbor.pipeDir += { ReverseDir[dir] }
-                        }
-                    }
+        if leftBtn == .Down && coord != gameState.prevCoord {
+            prevDelta := gameState.prevCoord - gameState.prevPrevCoord
+            delta := coord - gameState.prevCoord
 
-                    CheckBuildingConnection(tile.gridPos)
+            // fmt.println(prevDelta, delta)
+            // fmt.println("vertical:", gameState.buildingPipeDir == DirVertical)
+            // fmt.println("horizontal:",  gameState.buildingPipeDir == DirHorizontal)
 
-                    prevCoord = coord
+            gameState.buildingPipeDir = glsl.abs(delta) == {1, 0} ? DirHorizontal : DirVertical
+
+
+            dir     := VecToDir(delta)
+            prevDir := prevDelta == {0, 0} ? ReverseDir[dir] : ReverseDir[VecToDir(prevDelta)]
+
+
+            tile := GetTileAtCoord(coord)
+            if tile.pipeDir == {} {
+                tile.pipeDir = gameState.buildingPipeDir
+            }
+            else {
+                tile.pipeDir += { ReverseDir[dir] }
+            }
+
+            prevTile := GetTileAtCoord(gameState.prevCoord)
+            if prevDelta != 0 {
+                // the usual corner case |_
+                if prevTile.pipeDir == RotateDirSet(gameState.buildingPipeDir, 1) {
+                    prevTile.pipeDir = { dir, prevDir }
                 }
             }
+            else {
+                if gameState.startCoordWasEmpty {
+                    prevTile.pipeDir = gameState.buildingPipeDir
+                }
+                else {
+                    // when you want to add a split and you start from 
+                    // already filled tile
+                    prevTile.pipeDir += { dir }
+                }
+            }
+
+            gameState.prevPrevCoord = gameState.prevCoord
+            gameState.prevCoord = coord
+
+            // Add pipe if building nearby
+            neighborCoord := coord + DirToVec[VecToDir(delta)]
+            neighbor := GetTileAtCoord(neighborCoord)
+            if neighbor.building != {} {
+                neighbor.pipeDir += { ReverseDir[VecToDir(delta)] }
+            }
+
+            CheckBuildingConnection(coord)
+
+
+            // if IsInDistance(gameState.playerPosition, coord) {
+            //     tile := GetTileAtCoord(coord)
+
+            //     canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
+            //     canPlace &&= tile.pipeDir != gameState.buildingPipeDir
+            //     canPlace &&= tile.building == {}
+
+            //     if canPlace {
+            //         tile.pipeDir = gameState.buildingPipeDir
+            //         for dir in gameState.buildingPipeDir {
+            //             neighborCoord := coord + DirToVec[dir]
+            //             neighbor := GetTileAtCoord(neighborCoord)
+            //             if neighbor.building != {} {
+            //                 neighbor.pipeDir += { ReverseDir[dir] }
+            //             }
+            //         }
+
+            //         CheckBuildingConnection(tile.gridPos)
+
+            //         prevCoord = coord
+            //     }
+            // }
         }
 
         if dm.input.scroll != 0 {
@@ -608,6 +673,19 @@ GameplayUpdate :: proc() {
                 newSet += { dirSet[dir] }
             }
             gameState.buildingPipeDir = newSet
+        }
+
+        if leftBtn == .JustReleased {
+            gameState.startCoordWasEmpty = false
+        }
+    }
+
+    if gameState.buildUpMode == .Bridge {
+        if cursorOverUI == false && dm.GetMouseButton(.Left) == .JustPressed {
+            tile := GetTileAtCoord(MousePosGrid())
+            if tile.pipeDir == DirVertical || tile.pipeDir == DirHorizontal {
+                tile.pipeBridgeDir = (tile.pipeDir == DirVertical ? DirHorizontal : DirVertical)
+            }
         }
     }
 
@@ -640,66 +718,66 @@ GameplayUpdate :: proc() {
     }
 
     // temp UI
-    if dm.muiBeginWindow(dm.mui, "GAME MENU", {200, 10, 210, 450}) {
-        dm.muiLabel(dm.mui, gameState.selectedTile)
-        dm.muiLabel(dm.mui, "Money:", gameState.money)
-        dm.muiLabel(dm.mui, "HP:", gameState.hp)
+    // if dm.muiBeginWindow(dm.mui, "GAME MENU", {200, 10, 210, 450}) {
+    //     dm.muiLabel(dm.mui, gameState.selectedTile)
+    //     dm.muiLabel(dm.mui, "Money:", gameState.money)
+    //     dm.muiLabel(dm.mui, "HP:", gameState.hp)
 
-        for b, idx in Buildings {
-            if dm.muiButton(dm.mui, b.name) {
-                gameState.selectedBuildingIdx = idx
-                gameState.buildUpMode = .Building
-            }
-        }
+    //     for b, idx in Buildings {
+    //         if dm.muiButton(dm.mui, b.name) {
+    //             gameState.selectedBuildingIdx = idx
+    //             gameState.buildUpMode = .Building
+    //         }
+    //     }
 
-        dm.muiLabel(dm.mui, "Pipes:")
-        if dm.muiButton(dm.mui, "Stright") {
-            gameState.buildUpMode = .Pipe
-            gameState.buildingPipeDir = DirVertical
-        }
-        if dm.muiButton(dm.mui, "Angled") {
-            gameState.buildUpMode = .Pipe
-            gameState.buildingPipeDir = DirNE
-        }
-        if dm.muiButton(dm.mui, "Triple") {
-            gameState.buildUpMode = .Pipe
-            gameState.buildingPipeDir = {.South, .North, .East}
-        }
-        if dm.muiButton(dm.mui, "Quad") {
-            gameState.buildUpMode = .Pipe
-            gameState.buildingPipeDir = DirSplitter
-        }
+    //     dm.muiLabel(dm.mui, "Pipes:")
+    //     if dm.muiButton(dm.mui, "Stright") {
+    //         gameState.buildUpMode = .Pipe
+    //         gameState.buildingPipeDir = DirVertical
+    //     }
+    //     if dm.muiButton(dm.mui, "Angled") {
+    //         gameState.buildUpMode = .Pipe
+    //         gameState.buildingPipeDir = DirNE
+    //     }
+    //     if dm.muiButton(dm.mui, "Triple") {
+    //         gameState.buildUpMode = .Pipe
+    //         gameState.buildingPipeDir = {.South, .North, .East}
+    //     }
+    //     if dm.muiButton(dm.mui, "Quad") {
+    //         gameState.buildUpMode = .Pipe
+    //         gameState.buildingPipeDir = DirSplitter
+    //     }
 
-        dm.muiLabel(dm.mui)
-        if dm.muiButton(dm.mui, "Destroy") {
-            gameState.buildUpMode = .Destroy
-        }
-
-
-        // dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.loadedLevel.waves.waves))
-        // if dm.muiButton(dm.mui, "SpawnWave") {
-        //     StartNextWave()
-        // }
-
-        if dm.muiButton(dm.mui, "Reset level") {
-            // name := gameState.level.name
-            // OpenLevel(name)
-        }
-
-        dm.muiLabel(dm.mui, "LEVELS:")
-        for l in gameState.levels {
-            if dm.muiButton(dm.mui, l.name) {
-                OpenLevelByName(l.name)
-            }
-        }
-
-        dm.muiLabel(dm.mui, "MEMORY")
-        dm.muiLabel(dm.mui, "\tLevel arena HWM:", gameState.levelArena.peak_used / mem.Kilobyte, "kb")
-        dm.muiLabel(dm.mui, "\tLevel arena used:", gameState.levelArena.offset / mem.Kilobyte, "kb")
+    //     dm.muiLabel(dm.mui)
+    //     if dm.muiButton(dm.mui, "Destroy") {
+    //         gameState.buildUpMode = .Destroy
+    //     }
 
 
-        dm.muiEndWindow(dm.mui)
-    }
+    //     // dm.muiLabel(dm.mui, "Wave Idx:", gameState.currentWaveIdx, "/", len(gameState.loadedLevel.waves.waves))
+    //     // if dm.muiButton(dm.mui, "SpawnWave") {
+    //     //     StartNextWave()
+    //     // }
+
+    //     if dm.muiButton(dm.mui, "Reset level") {
+    //         // name := gameState.level.name
+    //         // OpenLevel(name)
+    //     }
+
+    //     dm.muiLabel(dm.mui, "LEVELS:")
+    //     for l in gameState.levels {
+    //         if dm.muiButton(dm.mui, l.name) {
+    //             OpenLevelByName(l.name)
+    //         }
+    //     }
+
+    //     dm.muiLabel(dm.mui, "MEMORY")
+    //     dm.muiLabel(dm.mui, "\tLevel arena HWM:", gameState.levelArena.peak_used / mem.Kilobyte, "kb")
+    //     dm.muiLabel(dm.mui, "\tLevel arena used:", gameState.levelArena.offset / mem.Kilobyte, "kb")
+
+
+    //     dm.muiEndWindow(dm.mui)
+    // }
 
     tile := GetTileAtCoord(gameState.selectedTile)
     if tile != nil && (tile.building != {} || tile.pipeDir != {}) {
@@ -804,33 +882,6 @@ GameplayUpdate :: proc() {
         }
     }
 
-    dm.NextNodePosition({700, 300})
-    if dm.Panel2(size = iv2{500, 400}) {
-        if dm.Header("AAAAA") {
-            dm.UILabel("Stuff2")
-            dm.UILabel("Stuff")
-        }
-
-        if dm.Header("BBB") {
-            dm.UILabel("Stuff")
-            dm.UILabel("Stuff5")
-            dm.UILabel("Stuff3")
-        }
-
-        if dm.Header("CCCCCC") {
-            dm.UILabel("Stuff")
-            dm.UILabel("Stuff5")
-            dm.UILabel("Stuff3")
-        }
-
-        if dm.Header("DDDDDDDDDDD") {
-            dm.UILabel("Stuff")
-            dm.UILabel("Stuff5")
-            dm.UILabel("Stuff3")
-        }
-
-    }
-
     @static showBuildingPanel: bool
     if dm.UIButton("Build") {
         showBuildingPanel = !showBuildingPanel
@@ -861,9 +912,14 @@ GameplayUpdate :: proc() {
             dm.PopId()
         }
 
-        if dm.UIButton("Quad") {
+        if dm.UIButton("Build Pipe") {
             gameState.buildUpMode = .Pipe
-            gameState.buildingPipeDir = DirSplitter
+
+            gameState.buildingPipeDir = DirVertical
+        }
+
+        if dm.UIButton("Build Bridge") {
+            gameState.buildUpMode = .Bridge
         }
     }
 
@@ -923,6 +979,17 @@ GameplayRender :: proc() {
                 size = v2{0.5, 0.1},
                 rotation = math.to_radians(DirToRot[dir]),
                 color = {0, 0.1, 0.8, 0.9},
+                origin = {0, 0.5}
+            )
+        }
+
+        for dir in tile.pipeBridgeDir {
+            dm.DrawRectPos(
+                dm.renderCtx.whiteTexture,
+                CoordToPos(tile.gridPos),
+                size = v2{0.5, 0.1},
+                rotation = math.to_radians(DirToRot[dir]),
+                color = {0.8, 0.1, 0.0, 0.9},
                 origin = {0, 0.5}
             )
         }
@@ -1102,7 +1169,8 @@ GameplayRender :: proc() {
                                            {0, 1, 0, 0.2} :
                                            {1, 0, 0, 0.2})
 
-                    case .Pipe: 
+                    case .Pipe: fallthrough
+                    case .Bridge:
                         tile := GetTileAtCoord(coord)
                         color = (tile.building == {} ?
                                            {0, 0, 1, 0.2} :

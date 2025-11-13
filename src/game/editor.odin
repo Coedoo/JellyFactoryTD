@@ -215,9 +215,7 @@ EditorUpdate :: proc(state: ^EditorState) {
     }
     dm.EndLayout()
 
-
-    switch state.mode {
-    case .None:
+    #partial switch state.mode {
     case .EditTiles:
         if dm.GetKeyState(.Q) == .JustPressed {
             state.tileFlip.x = !state.tileFlip.x
@@ -250,42 +248,6 @@ EditorUpdate :: proc(state: ^EditorState) {
            }
         }
 
-        if dm.Panel("Tiles") {
-            dm.BeginLayout("tiles layout", axis = .Y, aligmentX = .Left)
-
-                for cat in TileCategory {
-                    dm.UILabel(cat)
-                    dm.BeginLayout(fmt.aprint(cat, dm.uiCtx.transientAllocator), axis = .X, aligmentX = .Left)
-
-                    for &tile, tileIdx in Tileset.tiles {
-                        if tile.category == cat {
-                            rect := dm.GetSpriteRect(Tileset.atlas, tile.atlasPos)
-
-                            inter := dm.ImageButtonI(
-                                Tileset.atlas.texture,
-                                text = tile.name,
-                                size = iv2{40, 40},
-                                texSource = rect)
-                            if inter.cursorReleased
-                            {
-                                state.selectedTileIdx = tileIdx
-                            }
-                        }
-                    }
-
-                    dm.EndLayout()
-                }
-
-
-                dm.UICheckbox("Flip X", &state.tileFlip.x)
-                dm.UICheckbox("Flip Y", &state.tileFlip.y)
-
-                dm.UISpacer(15)
-
-                dm.UICheckbox("Flood Fill", &state.floodFill)
-            dm.EndLayout()
-        }
-
     case .EditStartPos:
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             state.editedLevel.startCoord = state.pointedCoord
@@ -295,41 +257,76 @@ EditorUpdate :: proc(state: ^EditorState) {
         if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
             state.editedLevel.endCoord = state.pointedCoord
         }
+    }
 
-    case .EditWaves: 
-        if dm.Panel2(size = iv2{500, 400} ) {
-            for &wave, i in sa.slice(&state.editedLevel.waves) {
-                dm.PushId(i)
-                // dm.UILabel("Wave:", i)
-                if dm.Header(dm.uiFmt("Wave:", i)) {
-                    for &enemyWave, enemyType in wave.enemies {
-                        // if dm.LayoutBlock(dm.uiFmt(enemyType)) {
-                            // dm.UILabel(enemyType, enemyWave.count)
-                            
-                            // if dm.UIButton("-") {
-                            //     enemyWave.count -= 1
-                            // }
+    dm.BeginLayout("Controls", .Y, .Left, .Top)
 
+    if state.mode != .None do if dm.Header(dm.uiFmt(state.mode)) {
+        #partial switch state.mode {
+        case .None:
+        case .EditTiles:
+
+            if dm.Panel("Tiles") {
+                dm.BeginLayout("tiles layout", axis = .Y, aligmentX = .Left)
+
+                    for cat in TileCategory {
+                        dm.UILabel(cat)
+                        dm.BeginLayout(fmt.aprint(cat, dm.uiCtx.transientAllocator), axis = .X, aligmentX = .Left)
+
+                        for &tile, tileIdx in Tileset.tiles {
+                            if tile.category == cat {
+                                rect := dm.GetSpriteRect(Tileset.atlas, tile.atlasPos)
+
+                                inter := dm.ImageButtonI(
+                                    Tileset.atlas.texture,
+                                    text = tile.name,
+                                    size = iv2{40, 40},
+                                    texSource = rect)
+                                if inter.cursorReleased
+                                {
+                                    state.selectedTileIdx = tileIdx
+                                }
+                            }
+                        }
+
+                        dm.EndLayout()
+                    }
+
+
+                    dm.UICheckbox("Flip X", &state.tileFlip.x)
+                    dm.UICheckbox("Flip Y", &state.tileFlip.y)
+
+                    dm.UISpacer(15)
+
+                    dm.UICheckbox("Flood Fill", &state.floodFill)
+                dm.EndLayout()
+            }
+
+        case .EditWaves: 
+            if dm.Panel2(size = iv2{500, 400} ) {
+                for &wave, i in sa.slice(&state.editedLevel.waves) {
+                    dm.PushId(i)
+                    if dm.Header(dm.uiFmt("Wave:", i)) {
+                        for &enemyWave, enemyType in wave.enemies {
                             dm.PushId(int(enemyType))
                             dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, 1, 100)
                             dm.UISlider("Time", &enemyWave.spawnTime, 0, 1)
                             dm.PopId()
-
-                            // if dm.UIButton("+") {
-                            //     enemyWave.count += 1
-                            // }
-                        // }
+                            dm.UISpacer(10)
+                        }
                     }
+
+                    dm.PopId()
                 }
 
-                dm.PopId()
-            }
-
-            if dm.UIButton("Add") {
-                state.editedLevel.waves.len += 1
+                if dm.UIButton("Add") {
+                    state.editedLevel.waves.len += 1
+                }
             }
         }
     }
+
+    dm.EndLayout()
     dm.EndLayout()
 
 }

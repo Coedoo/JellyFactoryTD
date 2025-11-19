@@ -559,7 +559,33 @@ GetFloodFilledTiles :: proc(level: ^Level, coord: iv2, allocator := context.allo
 
     return result[:]
 }
+////////////////////
 
+SetTilePipe :: proc(tile: ^Tile, pipeDir: DirectionSet) {
+    if tile.building != {} {
+        return
+    }
+
+    previous := tile.pipeDir
+    tile.pipeDir = pipeDir
+
+    // Find buildings and add reverse pipes to them
+    for d in pipeDir {
+        neighbor := GetTileAtCoord(tile.gridPos + DirToVec[d])
+        if neighbor.building != {} {
+            neighbor.pipeDir += { ReverseDir[d] }
+        }
+    }
+}
+
+AddTilePipe :: proc(tile: ^Tile, pipeDir: DirectionSet){
+    SetTilePipe(tile, tile.pipeDir + pipeDir)
+}
+
+RemoveMoneyForPipe :: proc(prevDirs: DirectionSet, newDirs: DirectionSet) -> bool {
+    diff := abs(card(prevDirs) - card(newDirs))
+    return RemoveMoney(diff * PIPE_SEGMENT_PRICE)
+}
 
 ////////////////////
 

@@ -1,5 +1,6 @@
 package game
 
+import "base:sanitizer"
 import dm "../dmcore"
 import "core:math"
 import "core:math/rand"
@@ -569,115 +570,212 @@ GameplayUpdate :: proc() {
         gameState.buildUpMode = .None
     }
 
-    // Pipe
+    // Pipe - build
     if gameState.buildUpMode == .Pipe &&
        cursorOverUI == false
     {
-        @static prevCoord: iv2
+        @static prevCoord: iv2 = {-1, -1}
 
         coord := MousePosGrid()
+        tile := GetTileAtCoord(coord)
+
+        // Find possible directions
+        if prevCoord != coord {
+            sa.clear(&gameState.buildingPipeDirs)
+            if gameState.buildingPipeDir != DirHorizontal && gameState.buildingPipeDir != DirVertical {
+                delta := coord - prevCoord
+                dir := VecToDir(delta)
+
+                gameState.buildingPipeDir = {dir, ReverseDir[dir]}
+            }
+
+            for d in Direction {
+                nextTile := GetTileAtCoord(coord + DirToVec[d])
+                if nextTile == nil {
+                    continue
+                }
+
+                if ReverseDir[d] in nextTile.pipeDir {
+                    toCheck := [?]Direction{NextDir[d], PrevDir[d]}
+                    for check in toCheck {
+                        if idx, found := slice.linear_search(sa.slice(&gameState.buildingPipeDirs), DirectionSet{d, check}); found {
+                            continue
+                        }
+
+                        neighbor := GetTileAtCoord(coord + DirToVec[check])
+                        if ReverseDir[check] in neighbor.pipeDir {
+                            sa.append(&gameState.buildingPipeDirs, DirectionSet{d, check})
+                            gameState.buildingPipeDir = {d, check}
+                        }
+                    }
+                }
+            }
+
+            sa.append(&gameState.buildingPipeDirs, DirVertical)
+            sa.append(&gameState.buildingPipeDirs, DirHorizontal)
+        }
+
+
+        // Scroll through possible combinations of directions
+        if dm.input.scroll != 0 {
+            idx, found := slice.linear_search(sa.slice(&gameState.buildingPipeDirs), gameState.buildingPipeDir)
+            if found == false {
+                idx = 0
+            }
+
+            idx += dm.input.scroll < 0 ? -1 : 1
+            if idx >= gameState.buildingPipeDirs.len {
+                idx = 0
+            }
+            else if idx < 0 {
+                idx = gameState.buildingPipeDirs.len - 1
+            }
+
+            gameState.buildingPipeDir = sa.get(gameState.buildingPipeDirs, idx)
+        }
+
+        // Handle Initial press
         leftBtn := dm.GetMouseButton(.Left)
         if leftBtn == .JustPressed {
-            tile := GetTileAtCoord(coord)
-            if tile.pipeDir == {} {
-                tile.pipeDir = gameState.buildingPipeDir
-                gameState.startCoordWasEmpty = true
-            }
-
-            gameState.prevCoord = coord
-            gameState.prevPrevCoord = coord
-        }
-
-        if leftBtn == .Down && coord != gameState.prevCoord {
-            prevDelta := gameState.prevCoord - gameState.prevPrevCoord
-            delta := coord - gameState.prevCoord
-
-            // fmt.println(prevDelta, delta)
-            // fmt.println("vertical:", gameState.buildingPipeDir == DirVertical)
-            // fmt.println("horizontal:",  gameState.buildingPipeDir == DirHorizontal)
-
-            gameState.buildingPipeDir = glsl.abs(delta) == {1, 0} ? DirHorizontal : DirVertical
-
-
-            dir     := VecToDir(delta)
-            prevDir := prevDelta == {0, 0} ? ReverseDir[dir] : ReverseDir[VecToDir(prevDelta)]
-
-
-            tile := GetTileAtCoord(coord)
-            if tile.pipeDir == {} {
-                tile.pipeDir = gameState.buildingPipeDir
-            }
-            else {
-                tile.pipeDir += { ReverseDir[dir] }
-            }
-
-            prevTile := GetTileAtCoord(gameState.prevCoord)
-            if prevDelta != 0 {
-                // the usual corner case |_
-                if prevTile.pipeDir == RotateDirSet(gameState.buildingPipeDir, 1) {
-                    prevTile.pipeDir = { dir, prevDir }
-                }
-            }
-            else {
-                if gameState.startCoordWasEmpty {
-                    prevTile.pipeDir = gameState.buildingPipeDir
+            if tile.building == {} && RemoveMoneyForPipe(tile.pipeDir, gameState.buildingPipeDir) {
+                if tile.pipeDir == {} {
+                    SetTilePipe(tile, gameState.buildingPipeDir)
+                    gameState.startCoordWasEmpty = true
                 }
                 else {
-                    // when you want to add a split and you start from 
-                    // already filled tile
-                    prevTile.pipeDir += { dir }
+                    gameState.startCoordWasEmpty = false
+                }
+
+                // Find starting neighbors
+                gameState.startCoordNeighbords = {}
+                for d in gameState.buildingPipeDir {
+                    neighbor := GetTileAtCoord(coord + DirToVec[d])
+
+                    if ReverseDir[d] in neighbor.pipeDir {
+                        gameState.startCoordNeighbords += { d }
+                    }
+                }
+
+                gameState.prevCoord = coord
+                gameState.prevPrevCoord = coord
+
+                CheckBuildingConnection(coord)
+            }
+        }
+
+        // Handle replacing pipe when not dragging
+        if leftBtn == .JustReleased {
+            if (
+                gameState.prevPrevCoord == coord &&
+                tile.pipeDir != gameState.buildingPipeDir &&
+                tile.building == {}
+                )
+            {
+                if RemoveMoneyForPipe(tile.pipeDir, gameState.buildingPipeDir) {
+                    SetTilePipe(tile, gameState.buildingPipeDir)
+                    CheckBuildingConnection(coord)
                 }
             }
+        }
 
-            gameState.prevPrevCoord = gameState.prevCoord
-            gameState.prevCoord = coord
+        // Handle dragging
+        if leftBtn == .Down && coord != gameState.prevCoord {
+            target := coord
+            coord = gameState.prevCoord
+            for coord != target {
+                currentDelta := target - coord
+                absDelta := glsl.abs(currentDelta)
 
-            // Add pipe if building nearby
-            neighborCoord := coord + DirToVec[VecToDir(delta)]
-            neighbor := GetTileAtCoord(neighborCoord)
-            if neighbor.building != {} {
-                neighbor.pipeDir += { ReverseDir[VecToDir(delta)] }
+                delta := absDelta.x >= absDelta.y ? iv2{glsl.sign(currentDelta.x), 0} : iv2{0, glsl.sign(currentDelta.y)}
+                coord += delta
+
+                tile = GetTileAtCoord(coord)
+
+                // set currently building pipe dir to the drag direction
+                gameState.buildingPipeDir = glsl.abs(delta) == {1, 0} ? DirHorizontal : DirVertical
+
+                dir := VecToDir(delta)
+
+                // Handle Previous Tile change
+                prevTile := GetTileAtCoord(gameState.prevCoord)
+                prevDelta := gameState.prevCoord - gameState.prevPrevCoord
+
+                newPipeDir := prevTile.pipeDir
+                if prevDelta != 0 {
+                    // when prevTile pipe is perpendicular to the current building direction
+                    // then set the dir to the created corner
+                    if prevTile.pipeDir == RotateDirSet(gameState.buildingPipeDir, 1) {
+                        dirToNeighbors: DirectionSet
+                        for d in prevTile.pipeDir {
+                            neighbor := GetTileAtCoord(prevTile.gridPos + DirToVec[d])
+                            if ReverseDir[d] in neighbor.pipeDir {
+                                dirToNeighbors += { d }
+                            }
+                        }
+
+                        // newPipeDir = { dir, ReverseDir[VecToDir(prevDelta)] }
+                        newPipeDir = dirToNeighbors + {dir}
+                    }
+                    else {
+                        newPipeDir += { dir }
+                    }
+                }
+                else {
+                    if gameState.startCoordWasEmpty {
+                        if gameState.startCoordNeighbords == {} {
+                            // adjust the start tile pipe dir to the drag move
+                            newPipeDir = gameState.buildingPipeDir
+                        }
+                        else {
+                            // make connections to the neitghbor pipes
+                            newPipeDir = gameState.startCoordNeighbords + { dir }
+                        }
+                    }
+                    else {
+                        // when you want to add a split and you start from 
+                        // already filled tile
+                        newPipeDir += { dir }
+                    }
+                }
+
+                if card(newPipeDir) == 1 {
+                    fmt.println(newPipeDir)
+                }
+
+                if prevTile.building == {} && RemoveMoneyForPipe(prevTile.pipeDir, newPipeDir) {
+                    SetTilePipe(prevTile, newPipeDir)
+                }
+                else {
+                    break
+                }
+
+                /////
+                newPipeDir = tile.pipeDir
+                if tile.pipeDir == {} {
+                    newPipeDir = gameState.buildingPipeDir
+                }
+                else {
+                    // if the tile isn't empty, add a connection wire to it
+                    newPipeDir += { ReverseDir[dir] }
+                }
+
+                if tile.building == {} && RemoveMoneyForPipe(tile.pipeDir, newPipeDir) {
+                    SetTilePipe(tile, newPipeDir)
+                }
+                else {
+                    break
+                }
+
+
+                gameState.prevPrevCoord = gameState.prevCoord
+                gameState.prevCoord = coord
             }
+
 
             CheckBuildingConnection(coord)
-
-
-            // if IsInDistance(gameState.playerPosition, coord) {
-            //     tile := GetTileAtCoord(coord)
-
-            //     canPlace :=  (prevCoord != coord || tile.pipeDir != gameState.buildingPipeDir)
-            //     canPlace &&= tile.pipeDir != gameState.buildingPipeDir
-            //     canPlace &&= tile.building == {}
-
-            //     if canPlace {
-            //         tile.pipeDir = gameState.buildingPipeDir
-            //         for dir in gameState.buildingPipeDir {
-            //             neighborCoord := coord + DirToVec[dir]
-            //             neighbor := GetTileAtCoord(neighborCoord)
-            //             if neighbor.building != {} {
-            //                 neighbor.pipeDir += { ReverseDir[dir] }
-            //             }
-            //         }
-
-            //         CheckBuildingConnection(tile.gridPos)
-
-            //         prevCoord = coord
-            //     }
-            // }
         }
 
-        if dm.input.scroll != 0 {
-            dirSet := NextDir if dm.input.scroll < 0 else PrevDir
-            newSet: DirectionSet
-            for dir in gameState.buildingPipeDir {
-                newSet += { dirSet[dir] }
-            }
-            gameState.buildingPipeDir = newSet
-        }
-
-        if leftBtn == .JustReleased {
-            gameState.startCoordWasEmpty = false
-        }
+        prevCoord = coord
     }
 
     if gameState.buildUpMode == .Bridge {
@@ -873,6 +971,7 @@ GameplayUpdate :: proc() {
         style.fontSize = 30
         dm.PushStyle(style)
         dm.UILabel("Enemies left:", dm.PoolLen(gameState.enemies))
+        dm.UILabel("Money:", gameState.money)
 
         dm.PopStyle()
         dm.PopStyle()
@@ -920,6 +1019,10 @@ GameplayUpdate :: proc() {
 
         if dm.UIButton("Build Bridge") {
             gameState.buildUpMode = .Bridge
+        }
+
+        if dm.UIButton("Destroy") {
+            gameState.buildUpMode = .Destroy
         }
     }
 
@@ -1190,7 +1293,7 @@ GameplayRender :: proc() {
         dm.DrawGrid()
     }
 
-    // Player
+    // Draw Player
     dm.UpdateAndDrawParticleSystem(&gameState.playerMoveParticles)
     dm.AnimateSprite(&gameState.playerSprite, f32(dm.time.gameTime), 0.1)
     // dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)

@@ -55,7 +55,9 @@ GameState :: struct {
 
         buildUpMode: BuildUpMode,
         selectedBuildingIdx: int,
+
         buildingPipeDir: DirectionSet,
+        buildingPipeDirs: sa.Small_Array(6, DirectionSet),
 
         levelFullySpawned: bool,
         nextWaveIdx: int,
@@ -84,6 +86,8 @@ GameState :: struct {
     arrowSprite: dm.Sprite,
 
     startCoordWasEmpty: bool,
+    startCoordNeighbords: DirectionSet,
+    // startCoordHadBuildingNearby: bool,
     prevPrevCoord: iv2,
     prevCoord: iv2,
 

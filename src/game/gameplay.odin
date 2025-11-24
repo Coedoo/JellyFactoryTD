@@ -1236,11 +1236,12 @@ GameplayRender :: proc() {
     //     dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
     // }
 
-    for tile in gameState.cornerTiles {
-        if IsEmptyLineBetweenCoords(MousePosGrid(), tile) {
-            dm.DrawDebugLine(dm.renderCtx, CoordToPos(MousePosGrid()), CoordToPos(tile), false, dm.GREEN)
-        }
-    }
+    // Draw lines to corner tiles form tile under cursor
+    // for tile in gameState.cornerTiles {
+    //     if IsEmptyLineBetweenCoords(MousePosGrid(), tile) {
+    //         dm.DrawDebugLine(dm.renderCtx, CoordToPos(MousePosGrid()), CoordToPos(tile), false, dm.GREEN)
+    //     }
+    // }
 
     // mouseGrid := MousePosGrid()
     // tiles: [dynamic]iv2

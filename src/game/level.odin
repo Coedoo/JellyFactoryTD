@@ -744,6 +744,7 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     free_all(gameState.pathAllocator)
 
+    // recalculate path
     gameState.path = CalculatePathWithCornerTiles(
         gameState.loadedLevel.startCoord,
         gameState.loadedLevel.endCoord,
@@ -910,6 +911,14 @@ CalculatePath :: proc(start, goal: iv2, traversalPredicate: TileTraversalPredica
 }
 
 CalculatePathWithCornerTiles :: proc(start, goal: iv2, allocator := context.allocator) -> []iv2 {
+    if start == goal {
+        ret := make([]iv2, 2, allocator = allocator)
+        ret[0] = start
+        ret[1] = goal
+
+        return ret
+    }
+
     openCoords: pq.Priority_Queue(iv2)
 
     // @TODO: I can probably make gScore and fScore as 2d array so 

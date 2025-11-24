@@ -226,7 +226,7 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     gameState.money = 10000
 
     when ODIN_DEBUG {
-        gameState.debugDrawGrid = true
+        // gameState.debugDrawGrid = true
     }
 
 }

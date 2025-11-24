@@ -232,7 +232,7 @@ InitUI :: proc(uiCtx: ^UIContext) {
     // font := LoadDefaultFont(renderCtx)
     uiCtx.defaultStyle = {
         // font = font,
-        fontSize = 24,
+        fontSize = 18,
         textAligment = {.Middle, .Middle},
 
         textColor = {1, 1, 1, 1},
@@ -735,6 +735,8 @@ UIEnd :: proc() {
 
     assert(len(uiCtx.parentStack) == 0)
     assert(len(uiCtx.hashStack) == 0)
+    assert(len(uiCtx.stylesStack) == 0)
+    assert(len(uiCtx.layoutStack) == 0)
     assert(uiCtx.clippingStack.len == 0)
 
     DoLayout()

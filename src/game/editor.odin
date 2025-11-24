@@ -309,7 +309,7 @@ EditorUpdate :: proc(state: ^EditorState) {
                     if dm.Header(dm.uiFmt("Wave:", i)) {
                         for &enemyWave, enemyType in wave.enemies {
                             dm.PushId(int(enemyType))
-                            dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, 1, 100)
+                            dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, -1, 100)
                             dm.UISlider("Time", &enemyWave.spawnTime, 0, 1)
                             dm.PopId()
                             dm.UISpacer(10)

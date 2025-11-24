@@ -91,7 +91,10 @@ GameState :: struct {
     prevPrevCoord: iv2,
     prevCoord: iv2,
 
+    gamePaused: bool,
+
     // DEBUG
+    debugDrawPath: bool,
     debugDrawPathGraph: bool,
     debugDrawGrid: bool,
     debugDrawPathsBetweenBuildings: bool,
@@ -264,6 +267,7 @@ GameUpdateDebug : dm.GameUpdateDebug : proc(state: rawptr) {
     if dm.platform.debugState {
         if dm.muiBeginWindow(dm.mui, "Debug menu", {400, 10, 210, 250}) {
             dm.muiToggle(dm.mui, "Draw grid", &gameState.debugDrawGrid)
+            dm.muiToggle(dm.mui, "Draw enemy Paths", &gameState.debugDrawPath)
             dm.muiToggle(dm.mui, "Draw path graph", &gameState.debugDrawPathGraph)
             dm.muiToggle(dm.mui, "Draw energy paths", &gameState.debugDrawPathsBetweenBuildings)
 

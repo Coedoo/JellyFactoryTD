@@ -194,25 +194,25 @@ GetConnectedBuildings :: proc(startCoord: iv2, connectionPoints: ^map[BuildingHa
     buildingsInNetwork := make([dynamic]BuildingHandle, 0, 16, allocator = allocator)
 
     append(&queue, startCoord)
-    append(&visited, startCoord)
 
     for len(queue) > 0 {
         coord := pop(&queue)
         tile := GetTileAtCoord(coord)
+
+        append(&visited, coord)
 
         neighbours := GetNeighbourTiles(coord, context.temp_allocator)
         for neighbour in neighbours {
             delta := neighbour.gridPos - coord
             dir := VecToDir(delta)
 
-            canBeAdded := (dir in tile.pipeDir) && (ReverseDir[dir] in neighbour.pipeDir)
+            canBeAdded := dir in tile.pipeDir && (ReverseDir[dir] in neighbour.pipeDir || ReverseDir[dir] in neighbour.pipeBridgeDir)
+            canBeAdded ||= dir in tile.pipeBridgeDir && (ReverseDir[dir] in neighbour.pipeDir || ReverseDir[dir] in neighbour.pipeBridgeDir)
             canBeAdded &&= slice.contains(visited[:], neighbour.gridPos) == false
-            canBeAdded ||= coord == startCoord
 
             if canBeAdded
             {
                 append(&queue, neighbour.gridPos)
-                append(&visited, coord)
             }
 
             if (dir in tile.pipeDir) &&

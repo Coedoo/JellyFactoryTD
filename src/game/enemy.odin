@@ -81,6 +81,7 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
         enemy.finishedPath = false
 
         enemy.nextPointIdx = 0
+        enemy.path = gameState.path
         enemy.position = CoordToPos(enemy.path[0])
 
         gameState.hp -= enemyStat.damage

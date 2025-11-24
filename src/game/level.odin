@@ -320,6 +320,11 @@ RefreshVisibilityGraph :: proc() {
     append(&cornerTiles, GetTileAtCoord(gameState.loadedLevel.endCoord))
 
     CreateVisiblityGraph(cornerTiles[:])
+
+    gameState.cornerTiles = make([]iv2, len(cornerTiles), gameState.pathAllocator)
+    for t, i in cornerTiles {
+        gameState.cornerTiles[i] = t.gridPos
+    }
 }
 
 CreateVisiblityGraph :: proc(cornerTiles: []^Tile) {
@@ -733,7 +738,11 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     }
 
     CheckBuildingConnection(gridPos)
+
+
     RefreshVisibilityGraph()
+
+    free_all(gameState.pathAllocator)
 
     gameState.path = CalculatePathWithCornerTiles(
         gameState.loadedLevel.startCoord,
@@ -741,6 +750,23 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         allocator = gameState.pathAllocator
     )
 
+    it := dm.MakePoolIter(&gameState.enemies)
+    idx := 0
+    for enemy in dm.PoolIterate(&it) {
+        path := CalculatePathWithCornerTiles(
+            dm.ToIv2(enemy.position),
+            gameState.loadedLevel.endCoord,
+            allocator = gameState.pathAllocator
+        )
+
+        enemy.path = path[1:]
+        if len(enemy.path) == 0 {
+            fmt.println(idx)
+            idx += 1
+        }
+
+        enemy.nextPointIdx = 0
+    }
 }
 
 
@@ -804,8 +830,8 @@ PipePredicate :: proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool {
     dir := VecToDir(delta)
     reverse := ReverseDir[dir]
 
-    return (dir in currentTile.pipeDir && 
-            reverse in neighbor.pipeDir) && 
+    return ((dir in currentTile.pipeDir && (reverse in neighbor.pipeDir || reverse in neighbor.pipeBridgeDir)) ||
+            (dir in currentTile.pipeBridgeDir && (reverse in neighbor.pipeDir || reverse in neighbor.pipeBridgeDir))) &&
            (neighbor.building == {} ||
             neighbor.gridPos == goal ||
             HasFlagHandle(neighbor.building, .EnergyModifier))
@@ -929,8 +955,21 @@ CalculatePathWithCornerTiles :: proc(start, goal: iv2, allocator := context.allo
         currentTile := GetTileAtCoord(current)
 
         pq.pop(&openCoords)
-        // neighboursCoords := GetNeighbourCoords(current, allocator = context.temp_allocator)
-        for neighborCoord in currentTile.visibleWaypoints {
+
+        waypoints := currentTile.visibleWaypoints
+        if len(waypoints) == 0 {
+            temp := make([dynamic]iv2, context.temp_allocator)
+            for tile in gameState.cornerTiles {
+                if IsEmptyLineBetweenCoords(currentTile.gridPos, tile) {
+                    append(&temp, tile)
+                }
+            }
+
+            waypoints = temp[:]
+            // fmt.println(waypoints)
+        }
+
+        for neighborCoord in waypoints {
             neighbourTile := GetTileAtCoord(neighborCoord)
 
             // if traversalPredicate(currentTile^, neighbourTile^, goal) == false {

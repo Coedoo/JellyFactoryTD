@@ -21,6 +21,11 @@ PathFollower :: struct {
     enteredNewSegment: bool,
 }
 
+SpawnPath :: struct {
+    spawnCoord: iv2,
+    path: []iv2,
+}
+
 UpdateFollower :: proc(follower: ^PathFollower, speed: f32) {
     if follower.finishedPath {
         return

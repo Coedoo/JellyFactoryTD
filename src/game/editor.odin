@@ -29,6 +29,9 @@ EditorState :: struct {
     selectedTileIdx: int,
     tileFlip: [2]bool,
 
+    editingStartPos: bool,
+    editedStartIdx: int,
+
     floodFill: bool,
 
     removingFlags: bool,
@@ -101,12 +104,7 @@ InitEditor :: proc(state: ^EditorState) {
 CloseEditor :: proc(state: ^EditorState) {
     gameState.loadedLevel = state.editedLevel
 
-    RefreshVisibilityGraph()
-    gameState.path = CalculatePathWithCornerTiles(
-        gameState.loadedLevel.startCoord,
-        gameState.loadedLevel.endCoord,
-        allocator = gameState.pathAllocator
-    )
+    RefreshAllPaths()
 }
 
 EditorUpdate :: proc(state: ^EditorState) {
@@ -249,8 +247,10 @@ EditorUpdate :: proc(state: ^EditorState) {
         }
 
     case .EditStartPos:
-        if isOverUI == false && dm.GetMouseButton(.Left) == .Down {
-            state.editedLevel.startCoord = state.pointedCoord
+        if state.editingStartPos && isOverUI == false && dm.GetMouseButton(.Left) == .Down {
+            // state.editedLevel.startCoord = state.pointedCoord
+            spawnPoint := &state.editedLevel.spawnPoints.data[state.editedStartIdx]
+            spawnPoint.coord = state.pointedCoord
         }
 
     case .EditEndPos: 
@@ -307,6 +307,13 @@ EditorUpdate :: proc(state: ^EditorState) {
                 for &wave, i in sa.slice(&state.editedLevel.waves) {
                     dm.PushId(i)
                     if dm.Header(dm.uiFmt("Wave:", i)) {
+                        if dm.LayoutBlock("lskdjf") {
+                            // dm.UILabel("Spawn: ")
+                            color := state.editedLevel.spawnPoints.data[wave.spawnPointIdx].color
+                            dm.UIImage(dm.renderCtx.whiteTexture, size = 18, tint = color)
+                            dm.UISliderInt("Spawn", &wave.spawnPointIdx, 0, state.editedLevel.spawnPoints.len)
+                        }
+
                         for &enemyWave, enemyType in wave.enemies {
                             dm.PushId(int(enemyType))
                             dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, -1, 100)
@@ -321,6 +328,41 @@ EditorUpdate :: proc(state: ^EditorState) {
 
                 if dm.UIButton("Add") {
                     state.editedLevel.waves.len += 1
+                }
+            }
+
+        case .EditStartPos:
+            if dm.Panel("StartPos") {
+
+                toRemove := -1 
+                for &spawnPoint, i in sa.slice(&state.editedLevel.spawnPoints) {
+
+                    if dm.LayoutBlock(dm.uiFmt(i), axis = .X) {
+                        dm.UIImage(dm.renderCtx.whiteTexture, size = 18, tint = spawnPoint.color)
+                        dm.UILabel(spawnPoint.coord)
+                        if dm.UIButton("Change") {
+                            state.editingStartPos = true
+                            state.editedStartIdx = i
+                        }
+
+                        if dm.UIButton("New Color") {
+                            spawnPoint.color = dm.ColorRandom()
+                        }
+
+                        dm.UISpacer(15)
+
+                        if dm.UIButton("Remove") {
+                            toRemove = i
+                        }
+                    }
+                }
+
+                if toRemove != -1 {
+                    sa.ordered_remove(&state.editedLevel.spawnPoints, toRemove)
+                }
+
+                if dm.UIButton("Add") {
+                    sa.push_back(&state.editedLevel.spawnPoints, SpawnPoint{})
                 }
             }
         }
@@ -357,7 +399,12 @@ EditorRender :: proc(state: EditorState) {
 
     }
 
-    dm.DrawRectBlank(CoordToPos(state.editedLevel.startCoord), {1, 1}, color = dm.GREEN)
+    for &spawnPoint in sa.slice(&state.editedLevel.spawnPoints) {
+        color := spawnPoint.color
+        color.a = 1
+        dm.DrawRectBlank(CoordToPos(spawnPoint.coord), {1, 1}, color = color)
+    }
+
     dm.DrawRectBlank(CoordToPos(state.editedLevel.endCoord), {1, 1}, color = dm.RED)
 
     dm.DrawGrid()

@@ -11,6 +11,7 @@ EnemyWave :: struct {
 }
 
 Wave :: struct {
+    spawnPointIdx: int,
     enemies: [EnemyType]EnemyWave
 }
 

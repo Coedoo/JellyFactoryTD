@@ -65,6 +65,11 @@ TileStartingValues :: struct {
     pipeDir: DirectionSet,
 }
 
+SpawnPoint :: struct {
+    coord: iv2,
+    color: dm.color,
+}
+
 Level  :: struct {
     name: string,
     sizeX, sizeY: i32,
@@ -72,7 +77,8 @@ Level  :: struct {
     grid: []Tile,
     startingState: []TileStartingValues,
 
-    startCoord: iv2,
+    // startCoord: iv2,
+    spawnPoints: sa.Small_Array(16, SpawnPoint),
     endCoord: iv2,
 
     waves: sa.Small_Array(MAX_WAVES, Wave),
@@ -133,6 +139,14 @@ InitNewLevel :: proc(level: ^Level, width, height: int) {
     // }
 
     // state.editedLevel.tileset = state.tileset
+}
+
+GetPath :: proc(spawnCoord: iv2) -> []iv2 {
+    for &spawnPath in gameState.paths {
+        return spawnPath.path
+    }
+
+    return nil
 }
 
 LoadLevels :: proc() -> (levels: []Level) {
@@ -216,12 +230,7 @@ OpenLevel :: proc(level: ^Level) {
     //     }
     // }
 
-    RefreshVisibilityGraph()
-    gameState.path = CalculatePathWithCornerTiles(
-        gameState.loadedLevel.startCoord,
-        gameState.loadedLevel.endCoord,
-        allocator = gameState.pathAllocator
-    )
+    RefreshAllPaths()
 
     // @TODO: this will probably need other place
     // Also I don't think I have to completely destroy particles
@@ -261,7 +270,12 @@ RefreshVisibilityGraph :: proc() {
     }
 
     cornerTiles := make([dynamic]^Tile, allocator = context.temp_allocator)
-    append(&cornerTiles, GetTileAtCoord(gameState.loadedLevel.startCoord))
+    // append(&cornerTiles, GetTileAtCoord(gameState.loadedLevel.startCoord))
+
+    for &spawnPoint in sa.slice(&gameState.loadedLevel.spawnPoints) {
+        append(&cornerTiles, GetTileAtCoord(spawnPoint.coord))
+    }
+
     for &tile in gameState.loadedLevel.grid {
         // tile.isCorner = false
 
@@ -643,12 +657,20 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
         }
     }
 
-    testPath := CalculatePath (
-        gameState.loadedLevel.startCoord,
-        gameState.loadedLevel.endCoord,
-        TestConnectionPredicate,
-        context.temp_allocator
-    )
+    atLeastOneBlocked := false
+    for &spawnPoint in sa.slice(&gameState.loadedLevel.spawnPoints) {
+        testPath := CalculatePath (
+            spawnPoint.coord,
+            gameState.loadedLevel.endCoord,
+            TestConnectionPredicate,
+            context.temp_allocator
+        )
+
+        if testPath == nil {
+            atLeastOneBlocked = true
+            break
+        }
+    }
 
     for y in 0..<building.size.y {
         for x in 0..<building.size.x {
@@ -659,7 +681,7 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
 
     // fmt.println(testPath)
 
-    if testPath == nil {
+    if atLeastOneBlocked {
         return false
     }
 
@@ -740,16 +762,18 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     CheckBuildingConnection(gridPos)
 
 
-    RefreshVisibilityGraph()
+    // RefreshVisibilityGraph()
 
-    free_all(gameState.pathAllocator)
+    // free_all(gameState.pathAllocator)
 
     // recalculate path
-    gameState.path = CalculatePathWithCornerTiles(
-        gameState.loadedLevel.startCoord,
-        gameState.loadedLevel.endCoord,
-        allocator = gameState.pathAllocator
-    )
+    // gameState.path = CalculatePathWithCornerTiles(
+    //     gameState.loadedLevel.startCoord,
+    //     gameState.loadedLevel.endCoord,
+    //     allocator = gameState.pathAllocator
+    // )
+
+    RefreshAllPaths()
 
     it := dm.MakePoolIter(&gameState.enemies)
     idx := 0
@@ -809,6 +833,24 @@ RemoveBuilding :: proc(building: BuildingHandle) {
     }
 
     dm.FreeSlot(&gameState.spawnedBuildings, building)
+}
+
+////////////////////
+
+RefreshAllPaths :: proc() {
+    free_all(gameState.pathAllocator)
+
+    RefreshVisibilityGraph()
+    gameState.paths = make([]SpawnPath, gameState.loadedLevel.spawnPoints.len, gameState.pathAllocator)
+
+    for &spawnPoint, i in sa.slice(&gameState.loadedLevel.spawnPoints) {
+        gameState.paths[i].spawnCoord = spawnPoint.coord
+        gameState.paths[i].path = CalculatePathWithCornerTiles(
+            spawnPoint.coord,
+            gameState.loadedLevel.endCoord,
+            allocator = gameState.pathAllocator
+        )
+    }
 }
 
 TileTraversalPredicate :: #type proc(currentTile: Tile, neighbor: Tile, goal: iv2) -> bool

@@ -101,6 +101,7 @@ UINode :: struct {
 
     texture: TexHandle,
     textureSource: RectInt,
+    tint: Maybe(color),
 
     origin: v2,
 
@@ -1319,6 +1320,7 @@ UIImage :: proc(
         image: TexHandle, 
         size: Maybe(iv2) = nil,
         source: Maybe(RectInt) = nil,
+        tint: Maybe(color) = nil,
     ) -> ^UINode
 {
     id := fmt.aprint("Tex", image, allocator = uiCtx.transientAllocator)
@@ -1331,6 +1333,8 @@ UIImage :: proc(
 
     node.preferredSize[.X] = {.Fixed, f32(s.x), 1}
     node.preferredSize[.Y] = {.Fixed, f32(s.y), 1}
+
+    node.tint = tint
 
     return node
 }
@@ -1476,6 +1480,10 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
             color = node.disabledBgColor
         }
 
+        if tint, ok := node.tint.?; ok {
+            color *= tint
+        }
+
         DrawRect(
                 node.targetPos,
                 node.targetSize,
@@ -1498,6 +1506,10 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
             s := GetTextureSize(node.texture)
             node.textureSource.width = s.x
             node.textureSource.height = s.y
+        }
+
+        if tint, ok := node.tint.?; ok {
+            color *= tint
         }
 
         DrawRect(
@@ -1527,6 +1539,12 @@ DrawNode :: proc(ctx: UIContext, renderCtx: ^RenderContext, node: ^UINode) {
         case .Bottom: pos.y = node.targetPos.y + (node.targetSize.y - textSize.y) - node.targetSize.y * node.origin.y
         }
         // pos := node.targetPos + (node.targetSize - textSize) / 2 - node.targetSize * node.origin
+
+        color := node.textColor
+        if tint, ok := node.tint.?; ok {
+            color *= tint
+        }
+
         DrawText(
             node.text,
             pos,

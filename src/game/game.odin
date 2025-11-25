@@ -74,7 +74,7 @@ GameState :: struct {
         pathAllocator: mem.Allocator,
 
         cornerTiles: []iv2,
-        path: []iv2,
+        paths: []SpawnPath,
     },
 
     particlesTimers: [EnergyType]f32,

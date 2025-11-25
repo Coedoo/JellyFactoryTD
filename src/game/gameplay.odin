@@ -449,7 +449,7 @@ GameplayUpdate :: proc() {
 
                     waveState.enemies[type].timer = 0
                     waveState.enemies[type].spawnedCount += 1
-                    SpawnEnemy(type)
+                    SpawnEnemy(type, wave.spawnPointIdx)
                 }
             }
 
@@ -1210,14 +1210,26 @@ GameplayRender :: proc() {
 
     // draw path -debug
     if gameState.debugDrawPath {
-        for i := 0; i < len(gameState.path) - 1; i += 1 {
-            a := gameState.path[i]
-            b := gameState.path[i + 1]
+        for &spawnPath in gameState.paths {
+            color := dm.BLUE
 
-            posA := CoordToPos(a)
-            posB := CoordToPos(b)
-            dm.DrawDebugLine(dm.renderCtx, posA, posB, false, dm.BLUE)
-            dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, dm.BLUE)
+            for spawn in sa.slice(&gameState.loadedLevel.spawnPoints) {
+                if spawn.coord == spawnPath.spawnCoord {
+                    color = spawn.color
+                    break
+                }
+            }
+
+            path := spawnPath.path
+            for i := 0; i < len(path) - 1; i += 1 {
+                a := path[i]
+                b := path[i + 1]
+
+                posA := CoordToPos(a)
+                posB := CoordToPos(b)
+                dm.DrawDebugLine(dm.renderCtx, posA, posB, false, color)
+                dm.DrawDebugCircle(dm.renderCtx, posA, 0.1, false, color)
+            }
         }
 
         it := dm.MakePoolIter(&gameState.enemies)

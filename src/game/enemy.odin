@@ -35,6 +35,7 @@ EnemyInstance :: struct {
 
     // position: v2,
     // pathPointIdx: int,
+    spawnPointCoord: iv2,
     using pathFollower: PathFollower,
 
     poisonValue: DamageEffectValues,
@@ -48,15 +49,20 @@ DamageEffectValues :: struct {
     timeLeft: f32,
 }
 
-SpawnEnemy :: proc(type: EnemyType) -> ^EnemyInstance {
+SpawnEnemy :: proc(type: EnemyType, spawnPointIdx: int) -> ^EnemyInstance {
     enemy := dm.CreateElement(&gameState.enemies)
 
     stats := Enemies[type]
     enemy.type = type
     enemy.health = stats.maxHealth
-    enemy.position = dm.ToV2(gameState.path[0]) + {0.5, 0.5}
 
-    enemy.path = gameState.path
+    spawnPoint := gameState.loadedLevel.spawnPoints.data[spawnPointIdx]
+    path := GetPath(spawnPoint.coord)
+
+
+    enemy.position = CoordToPos(path[0])
+    enemy.spawnPointCoord = spawnPoint.coord
+    enemy.path = path
 
     return enemy
 }
@@ -81,7 +87,7 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
         enemy.finishedPath = false
 
         enemy.nextPointIdx = 0
-        enemy.path = gameState.path
+        enemy.path = GetPath(enemy.spawnPointCoord)
         enemy.position = CoordToPos(enemy.path[0])
 
         gameState.hp -= enemyStat.damage

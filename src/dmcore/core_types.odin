@@ -3,6 +3,7 @@ package dmcore
 import math "core:math/linalg/glsl"
 
 import "core:time"
+import "core:math/rand"
 
 // Math types
 v2  :: math.vec2
@@ -108,6 +109,17 @@ SpriteBounds :: proc(sprite: Sprite, position: v2) -> Bounds2D {
     bounds := CreateBounds(position, spriteSize, anchor)
 
     return bounds
+}
+
+/////////////
+
+ColorRandom :: proc() -> (ret: color) {
+    ret.r = rand.float32()
+    ret.g = rand.float32()
+    ret.b = rand.float32()
+    ret.a = 1
+
+    return
 }
 
 ///////////

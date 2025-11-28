@@ -24,6 +24,7 @@ STARTING_STAGE :: GameStage.Gameplay
 
 // ENEMIES
 
+@rodata
 Enemies := [EnemyType]Enemy {
     .Regular = {
         name = "Regular",
@@ -55,7 +56,7 @@ Enemies := [EnemyType]Enemy {
 }
 
 // BUILDINGS
-
+// @TODO: @rodata - can't be used with unions
 Buildings := [?]Building {
     {
         name = "Factory 1",

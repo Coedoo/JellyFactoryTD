@@ -307,26 +307,95 @@ EditorUpdate :: proc(state: ^EditorState) {
                 for &wave, i in sa.slice(&state.editedLevel.waves) {
                     dm.PushId(i)
                     if dm.Header(dm.uiFmt("Wave:", i)) {
-                        if dm.LayoutBlock("lskdjf") {
-                            // dm.UILabel("Spawn: ")
-                            color := state.editedLevel.spawnPoints.data[wave.spawnPointIdx].color
-                            dm.UIImage(dm.renderCtx.whiteTexture, size = 18, tint = color)
-                            dm.UISliderInt("Spawn", &wave.spawnPointIdx, 0, state.editedLevel.spawnPoints.len)
+
+                    for &spawnPointWave, spawnIdx in sa.slice(&wave.spawnWaves) {
+                        dm.PushId(spawnIdx)
+
+                        spawnPointIdx: int = -1
+                        spawnPoint: SpawnPoint
+                        for p, pIdx in sa.slice(&state.editedLevel.spawnPoints) {
+                            if p.coord == spawnPointWave.spawnCoord {
+                                spawnPointIdx = pIdx
+                                spawnPoint = p
+                                break
+                            }
                         }
 
-                        for &enemyWave, enemyType in wave.enemies {
-                            dm.PushId(int(enemyType))
-                            dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, -1, 100)
-                            dm.UISlider("Time", &enemyWave.spawnTime, 0, 1)
-                            dm.PopId()
-                            dm.UISpacer(10)
+                        if dm.LayoutBlock("lskdjf") {
+                            dm.UILabel("Spawn: ")
+
+                            newIdx := spawnPointIdx
+                            if dm.UIButton("<") {
+                                newIdx -= 1
+                            }
+
+                            // spawnPoint, ok := GetSpawnPointByCoord(spawnPointWave.spawnCoord, state.editedLevel)
+                            if spawnPointIdx == -1 {
+                                dm.UILabel("????")
+                            }
+                            else {
+                                dm.UILabel(spawnPointWave.spawnCoord)
+                            }
+
+                            dm.UIImage(dm.renderCtx.whiteTexture, size = 18, tint = spawnPoint.color)
+
+                            if dm.UIButton(">") {
+                                newIdx += 1
+                            }
+
+                            if newIdx != spawnPointIdx {
+                                newIdx = clamp(newIdx, 0, state.editedLevel.spawnPoints.len - 1)
+                                spawnPointWave.spawnCoord = state.editedLevel.spawnPoints.data[newIdx].coord
+                            }
                         }
+
+                        if dm.LayoutBlock("phhh") {
+                            typeIdx := int(spawnPointWave.enemyType)
+                            dm.UILabel("Enemy Type: ")
+                            if dm.UIButton("<") {
+                                typeIdx -= 1
+                            }
+
+                            dm.UILabel(spawnPointWave.enemyType)
+
+                            if dm.UIButton(">") {
+                                typeIdx += 1
+                            }
+
+                            if typeIdx >= len(EnemyType) {
+                                typeIdx = 0
+                            }
+                            else if typeIdx < 0 {
+                                typeIdx = len(EnemyType) - 1
+                            }
+
+                            spawnPointWave.enemyType = EnemyType(typeIdx)
+                        }
+                        dm.UISliderInt("Count:", &spawnPointWave.count, 0, 100)
+                        dm.UISlider("Time:", &spawnPointWave.spawnTime, 0, 1)
+                        dm.PopId()
+
+                        dm.UISpacer(10)
+                    }
+
+                    if dm.UIButton("Add SpawnPoint") {
+                        sa.append(&wave.spawnWaves, SpawnWave{ spawnCoord = state.editedLevel.spawnPoints.data[0].coord })
+                    }
+
+
+                    //     for &enemyWave, enemyType in wave.enemies {
+                    //         dm.PushId(int(enemyType))
+                    //         dm.UISliderInt(dm.uiFmt(enemyType), &enemyWave.count, -1, 100)
+                    //         dm.UISlider("Time", &enemyWave.spawnTime, 0, 1)
+                    //         dm.PopId()
+                    //         dm.UISpacer(10)
+                    //     }
                     }
 
                     dm.PopId()
                 }
 
-                if dm.UIButton("Add") {
+                if dm.UIButton("Add Wave") {
                     state.editedLevel.waves.len += 1
                 }
             }

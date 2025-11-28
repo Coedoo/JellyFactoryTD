@@ -1086,6 +1086,8 @@ Header :: proc(text: string) -> bool {
     content.preferredSize[.X] = {.Children, 0, 1}
     content.preferredSize[.Y] = {.Children, 0, 1}
 
+    content.padding.left = 15
+
     PushParent(content)
     PushId(text)
 
@@ -1362,10 +1364,13 @@ UISlider :: proc(text: string, value: ^f32, min, max: f32) -> (res: bool) {
         label := AddNode(text, { .DrawText }, uiCtx.textStyle, uiCtx.textLayout)
         label.preferredSize[.X] = {.ParentPercent, 0.5, 0}
 
+        UILabel(fmt.aprintf("%f", value^))
+
         slideArea := AddNode(fmt.tprint("slide", text), { .DrawBackground })
         slideArea.bgColor = {1, 1, 1, 1}
         slideArea.preferredSize[.X] = {.ParentPercent, 0.5, 0}
         slideArea.preferredSize[.Y] = {.Fixed, 5, 1}
+
 
         PushParent(slideArea)
 

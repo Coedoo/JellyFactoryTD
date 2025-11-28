@@ -49,16 +49,20 @@ DamageEffectValues :: struct {
     timeLeft: f32,
 }
 
-SpawnEnemy :: proc(type: EnemyType, spawnPointIdx: int) -> ^EnemyInstance {
+SpawnEnemy :: proc(type: EnemyType, spawnCoord: iv2) -> ^EnemyInstance {
+    spawnPoint, ok := GetSpawnPointByCoord(spawnCoord)
+    if !ok {
+        fmt.eprintfln("Failed to spawn enemy. Spawn point at coord %v doesn't exists", spawnCoord)
+        return nil
+    }
+
     enemy := dm.CreateElement(&gameState.enemies)
 
     stats := Enemies[type]
     enemy.type = type
     enemy.health = stats.maxHealth
 
-    spawnPoint := gameState.loadedLevel.spawnPoints.data[spawnPointIdx]
     path := GetPath(spawnPoint.coord)
-
 
     enemy.position = CoordToPos(path[0])
     enemy.spawnPointCoord = spawnPoint.coord

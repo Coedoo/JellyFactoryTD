@@ -118,12 +118,8 @@ GameplayUpdate :: proc() {
             if .RequireEnergy in buildingData.flags {
 
                 allEnergy := BuildingEnergy(building)
-                // the loop here is weird because I want to start
-                // the iteration from next unused energy source
-                // to prevent situations where building is
-                // supplied energy from just one source
-                // which happened to be updated first
 
+                // find already requested energy count
                 requestedSourcesEnergy: [EnergyType]f32
                 for sourceHandle in building.energySources {
                     source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
@@ -142,8 +138,13 @@ GameplayUpdate :: proc() {
                     }
                 }
 
-                sources: for i := 0; i < len(building.energySources); i += 1 {
+                // the loop here is weird because I want to start
+                // the iteration from next unused energy source
+                // to prevent situations where building is
+                // supplied energy from just one source
+                // which happened to be updated first
 
+                sources: for i := 0; i < len(building.energySources); i += 1 {
                     idx := (building.lastUsedSourceIdx + i + 1) % len(building.energySources)
                     sourceHandle := building.energySources[idx]
                     source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
@@ -153,8 +154,10 @@ GameplayUpdate :: proc() {
                     maxDiff: f32
                     neededEnergy: f32
 
-                    for current, i in building.currentEnergy {
-                        type := cast(EnergyType) i
+
+                    // find the energy type and amount in the list of energies
+                    // of the source building
+                    for current, type in building.currentEnergy {
                         energy := (
                             building.requiredEnergyFractions[type]
                             - requestedSourcesEnergy[type]
@@ -166,7 +169,7 @@ GameplayUpdate :: proc() {
 
                         if energy > 0 &&
                            source.currentEnergy[type] > 0 &&
-                            diff >= maxDiff
+                           diff >= maxDiff
                         {
                             maxDiff = diff
                             eType = type
@@ -178,12 +181,15 @@ GameplayUpdate :: proc() {
                         continue
                     }
 
+                    // check if the source building was already requested a packet
                     for request in source.requestedEnergyQueue {
                         if request.to == building.handle {
                             continue sources
                         }
                     }
 
+                    // I don't know if I will never need that
+                    // @TODO remove?
                     balanceType := (int(buildingData.balanceType) >= int(sourceData.balanceType) ?
                                     buildingData.balanceType :
                                     sourceData.balanceType)
@@ -194,6 +200,7 @@ GameplayUpdate :: proc() {
                         }
                     }
 
+                    // Create the request
                     append(&source.requestedEnergyQueue, EnergyRequest{
                         to = building.handle,
                         energy = neededEnergy,
@@ -232,29 +239,6 @@ GameplayUpdate :: proc() {
                 else {
                     building.energyParticles.startColor = keys
                 }
-
-                // for particle in building.energyParticles.particles {
-                //     fmt.println(particle.color)
-                // }
-
-                // building.energyParticlesTimer -= dm.time.deltaTime
-                // if building.energyParticlesTimer < 0 {
-                //     building.energyParticlesTimer = 0.1
-
-                //     for energy, i in building.currentEnergy {
-                //         type := cast(EnergyType) i
-                //         if type != .None {
-                //             perc := energy / buildingData.energyStorage
-                //             amount := int(math.round(perc * 5))
-                //             dm.SpawnParticles(
-                //                 &gameState.tileEnergyParticles[type],
-                //                 amount,
-                //                 building.position,
-                //                 EnergyColor[type]
-                //             )
-                //         }
-                //     }
-                // }
             }
 
             if .SendsEnergy in buildingData.flags {
@@ -419,45 +403,74 @@ GameplayUpdate :: proc() {
         }
 
         // Wave
-        for &waveState in sa.slice(&gameState.wavesState) {
-            if waveState.fullySpawned {
-                continue
-            }
-
+        toRemoveWaves: sa.Small_Array(MAX_WAVES, int)
+        for &waveState, waveIdx in sa.slice(&gameState.wavesState) {
             wave := &gameState.loadedLevel.waves.data[waveState.waveIdx]
 
             atLeastOneNotSpawned := false
 
-            for type in EnemyType {
-                if waveState.enemies[type].fullySpawned {
-                    continue
-                }
+            toRemove: sa.Small_Array(MAX_SPAWN_POINTS, int)
+            for &spawnState, i in sa.slice(&waveState.spawnStates) {
+                spawnWave := wave.spawnWaves.data[i]
 
-                atLeastOneNotSpawned = true
+                spawnState.spawnTimer -= dm.time.deltaTime
+                if spawnState.spawnTimer <= 0 && spawnState.spawnedCount < spawnWave.count {
+                    spawnState.spawnTimer = max(spawnWave.spawnTime, 0.01)
 
-                waveState.enemies[type].timer += dm.time.deltaTime
+                    spawnState.spawnedCount += 1
 
-                spawnTime := max(wave.enemies[type].spawnTime, 0.01)
-                timerRunOut := waveState.enemies[type].timer >= spawnTime
-                hasEnemies := waveState.enemies[type].fullySpawned == false 
+                    SpawnEnemy(spawnWave.enemyType, spawnWave.spawnCoord)
 
-                if timerRunOut && hasEnemies {
-                    if waveState.enemies[type].spawnedCount >= wave.enemies[type].count {
-                        waveState.enemies[type].fullySpawned = true
-                        continue
+                    if spawnState.spawnedCount >= spawnWave.count {
+                        sa.append(&toRemove, i)
                     }
-
-                    waveState.enemies[type].timer = 0
-                    waveState.enemies[type].spawnedCount += 1
-                    SpawnEnemy(type, wave.spawnPointIdx)
                 }
             }
 
-            if atLeastOneNotSpawned == false {
-                waveState.fullySpawned = true
-                fmt.println("Wave", waveState.waveIdx, "Fully Spawned")
+            for removeIdx in sa.slice(&toRemove) {
+                sa.ordered_remove(&waveState.spawnStates, removeIdx)
             }
+
+            if waveState.spawnStates.len == 0 {
+                sa.append(&toRemoveWaves, waveIdx)
+                fmt.println("Wave", waveIdx, "Fully Spawned")
+            }
+
+            // for type in EnemyType {
+            //     if waveState.enemies[type].fullySpawned {
+            //         continue
+            //     }
+
+            //     atLeastOneNotSpawned = true
+
+            //     waveState.enemies[type].timer += dm.time.deltaTime
+
+            //     spawnTime := max(wave.enemies[type].spawnTime, 0.01)
+            //     timerRunOut := waveState.enemies[type].timer >= spawnTime
+            //     hasEnemies := waveState.enemies[type].fullySpawned == false 
+
+            //     if timerRunOut && hasEnemies {
+            //         if waveState.enemies[type].spawnedCount >= wave.enemies[type].count {
+            //             waveState.enemies[type].fullySpawned = true
+            //             continue
+            //         }
+
+            //         waveState.enemies[type].timer = 0
+            //         waveState.enemies[type].spawnedCount += 1
+            //         SpawnEnemy(type, wave.spawnPointIdx)
+            //     }
+            // }
+
+            // if atLeastOneNotSpawned == false {
+            //     waveState.fullySpawned = true
+            //     fmt.println("Wave", waveState.waveIdx, "Fully Spawned")
+            // }
         }
+
+            for removeIdx in sa.slice(&toRemoveWaves) {
+                sa.ordered_remove(&gameState.wavesState, removeIdx)
+            }
+
     }
 
     // Destroy structres

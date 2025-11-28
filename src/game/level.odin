@@ -12,6 +12,8 @@ import "core:mem"
 import sa "core:container/small_array"
 import pq "core:container/priority_queue"
 
+MAX_SPAWN_POINTS :: 16
+
 TileFlag :: enum {
     Walkable,
     NonBuildable,
@@ -78,7 +80,7 @@ Level  :: struct {
     startingState: []TileStartingValues,
 
     // startCoord: iv2,
-    spawnPoints: sa.Small_Array(16, SpawnPoint),
+    spawnPoints: sa.Small_Array(MAX_SPAWN_POINTS, SpawnPoint),
     endCoord: iv2,
 
     waves: sa.Small_Array(MAX_WAVES, Wave),
@@ -141,9 +143,30 @@ InitNewLevel :: proc(level: ^Level, width, height: int) {
     // state.editedLevel.tileset = state.tileset
 }
 
+GetSpawnPointByCoord :: proc {
+    GetSpawnPointByCoord_loadedlevel,
+    GetSpawnPointByCoord_givenlevel,
+}
+
+GetSpawnPointByCoord_loadedlevel :: proc(coord: iv2) -> (spawn: SpawnPoint, ok: bool) {
+    return GetSpawnPointByCoord(coord, gameState.loadedLevel)
+}
+
+GetSpawnPointByCoord_givenlevel :: proc(coord: iv2, level: ^Level) -> (spawn: SpawnPoint, ok: bool) {
+    for spawnPoint in sa.slice(&level.spawnPoints) {
+        if spawnPoint.coord == coord {
+            return spawnPoint, true
+        }
+    }
+
+    return {}, false
+}
+
 GetPath :: proc(spawnCoord: iv2) -> []iv2 {
     for &spawnPath in gameState.paths {
-        return spawnPath.path
+        if(spawnPath.spawnCoord == spawnCoord) {
+            return spawnPath.path
+        }
     }
 
     return nil

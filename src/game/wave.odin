@@ -5,37 +5,41 @@ import sa "core:container/small_array"
 
 MAX_WAVES :: 100
 
-EnemyWave :: struct {
-    count: int,
+SpawnWave :: struct {
+    spawnCoord: iv2,
     spawnTime: f32,
+
+    enemyType: EnemyType,
+    count: int,
 }
 
 Wave :: struct {
-    spawnPointIdx: int,
-    enemies: [EnemyType]EnemyWave
+    spawnWaves: sa.Small_Array(MAX_SPAWN_POINTS, SpawnWave),
 }
 
-EnemyWaveState :: struct {
+SpawnWaveState :: struct {
     spawnedCount: int,
-    timer: f32,
-
-    fullySpawned: bool
+    spawnTimer: f32,
 }
 
 WaveState :: struct {
     waveIdx: int,
     fullySpawned: bool,
-    enemies: [EnemyType]EnemyWaveState
+    spawnStates: sa.Small_Array(MAX_SPAWN_POINTS, SpawnWaveState),
 }
 
+
 StartNextWave :: proc() {
-    if gameState.nextWaveIdx >= gameState.loadedLevel.waves.len {
+    idx := gameState.nextWaveIdx
+    if idx >= gameState.loadedLevel.waves.len {
         return
     }
 
     state := WaveState {
-        waveIdx = gameState.nextWaveIdx
+        waveIdx = idx
     }
+
+    state.spawnStates.len = gameState.loadedLevel.waves.data[idx].spawnWaves.len
 
     sa.append(&gameState.wavesState, state)
     gameState.nextWaveIdx += 1

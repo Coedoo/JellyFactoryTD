@@ -7,7 +7,10 @@ import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:slice"
 
-import "../ldtk"
+import sa "core:container/small_array"
+
+
+MAX_SLOTS :: 4
 
 BuildingHandle :: dm.Handle
 
@@ -48,6 +51,11 @@ TargetingMethod :: enum {
     Closest,
 }
 
+BuildingEnergySlot :: struct {
+    using energy: Energy,
+    lastSourceIdx: int,
+}
+
 Building :: struct {
     name: string,
     spriteName: string,
@@ -64,6 +72,7 @@ Building :: struct {
     cost: int,
 
     // Energy
+    energySlotsCount: int,
     energyStorage: f32,
     energyProduction: f32,
 
@@ -92,15 +101,16 @@ BuildingInstance :: struct {
     gridPos: iv2,
     position: v2,
 
+    energySlots: sa.Small_Array(16, BuildingEnergySlot),
+
     // energy production
-    producedEnergyType: EnergyType,
-    currentEnergy: EnergySet,
+    // producedEnergyLevel: int,
+    // producedEnergyType: [EnergyType]int,
 
     packetSpawnTimer: f32,
 
-    requiredEnergyFractions: [EnergyType]f32,
-
-    // attack
+    // .Attack
+    lastUsedSlotIdx: int,
     targetingMethod: TargetingMethod,
     attackTimer: f32,
     targetEnemy: EnemyHandle,
@@ -111,8 +121,10 @@ BuildingInstance :: struct {
     // turretAngle: f32,
     // targetTurretAngle: f32,
 
-    // energy usage
+    // .Require Energy
     lastUsedSourceIdx: int,
+    // requiredEnergyFractions: [EnergyType]f32,
+
     energySources: [dynamic]BuildingHandle,
     energyTargets: [dynamic]BuildingHandle,
 
@@ -124,7 +136,7 @@ BuildingInstance :: struct {
 
 EnergyModifier :: union {
     SpeedUpModifier,
-    ChangeColorModifier,
+    // ChangeColorModifier,
 }
 
 SpeedUpModifier :: struct {
@@ -296,57 +308,101 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
         }
     }
 
+    // Fill energy slots for the target
+    for target in affectedTargets {
+        for sourceHandle in target.energySources {
+            source, sourceData := GetBuilding(sourceHandle)
+            buildingData := Buildings[target.dataIdx]
+            if target.energySlots.len >= buildingData.energySlotsCount {
+                break
+            }
+
+            for sourceSlot in sa.slice(&source.energySlots) {
+                
+                found := false
+                for targetSlot in sa.slice(&target.energySlots) {
+                    if EnergyTypeEqual(sourceSlot, targetSlot) {
+                        found = true
+                        break
+                    }
+                }
+
+                if found == false {
+                    toAdd: BuildingEnergySlot
+                    toAdd.level = sourceSlot.level
+                    toAdd.types = sourceSlot.types
+
+                    sa.append(&target.energySlots, toAdd)
+                }
+            }
+
+            // found := false
+            // for slot in sa.slice(&target.energySlots) {
+            //     if slot.level == i32(source.producedEnergyLevel) && source.producedEnergyType == slot.types {
+            //         found = true
+            //         break
+            //     }
+            // }
+
+            // if found == false {
+            //     sa.append(&target.energySlots, BuildingEnergySlot{
+            //         types = source.producedEnergyType,
+            //         level = i32(source.producedEnergyLevel),
+            //     })
+            // }
+        }
+    }
 
     // travel upwards to find all energy sources
-    for target in affectedTargets {
-        clear(&visited)
+    // for target in affectedTargets {
+    //     clear(&visited)
 
-        fractions: [EnergyType]f32
+    //     fractions: [EnergyType]f32
 
-        append(&visited, target.handle)
+    //     append(&visited, target.handle)
 
-        // fmt.println("For target: ", Buildings[target.dataIdx].name, target.handle)
-        for sourceHandle in target.energySources {
-            source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
-            append(&stack, source)
-            if HasFlag(source^, .ProduceEnergy) == false {
-                append(&visited, sourceHandle)
-            }
-        }
+    //     // fmt.println("For target: ", Buildings[target.dataIdx].name, target.handle)
+    //     for sourceHandle in target.energySources {
+    //         source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+    //         append(&stack, source)
+    //         if HasFlag(source^, .ProduceEnergy) == false {
+    //             append(&visited, sourceHandle)
+    //         }
+    //     }
 
-        sum: f32
-        for len(stack) > 0 {
-            source := pop(&stack)
+    //     sum: f32
+    //     for len(stack) > 0 {
+    //         source := pop(&stack)
 
-            // fmt.println("Visited:", source.handle, Buildings[source.dataIdx].name)
+    //         // fmt.println("Visited:", source.handle, Buildings[source.dataIdx].name)
 
-            if HasFlag(source^, .ProduceEnergy) {
-                // type := Buildings[source.dataIdx].producedEnergyType
-                type := source.producedEnergyType
-                fractions[type] += 1
+    //         if HasFlag(source^, .ProduceEnergy) {
+    //             // type := Buildings[source.dataIdx].producedEnergyType
+    //             type := source.producedEnergyType
+    //             fractions[type] += 1
 
-                sum += 1
-            }
+    //             sum += 1
+    //         }
 
-            for parentHandle in source.energySources {
-                if slice.contains(visited[:], parentHandle) {
-                    continue
-                }
+    //         for parentHandle in source.energySources {
+    //             if slice.contains(visited[:], parentHandle) {
+    //                 continue
+    //             }
 
-                parent := dm.GetElementPtr(gameState.spawnedBuildings, parentHandle) or_continue
-                append(&stack, parent)
-                if HasFlag(parent^, .ProduceEnergy) == false {
-                    append(&visited, parentHandle)
-                }
-            }
-        }
+    //             parent := dm.GetElementPtr(gameState.spawnedBuildings, parentHandle) or_continue
+    //             append(&stack, parent)
+    //             if HasFlag(parent^, .ProduceEnergy) == false {
+    //                 append(&visited, parentHandle)
+    //             }
+    //         }
+    //     }
 
-        if sum != 0 {
-            for &f in fractions {
-                f = f / sum * Buildings[target.dataIdx].energyStorage
-            }
-        }
+    //     if sum != 0 {
+    //         for &f in fractions {
+    //             f = f / sum * Buildings[target.dataIdx].energyStorage
+    //         }
+    //     }
 
-        target.requiredEnergyFractions = fractions
-    }
+    //     target.requiredEnergyFractions = fractions
+    // }
 }

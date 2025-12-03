@@ -98,7 +98,7 @@ UpdateEnemy :: proc(enemy: ^EnemyInstance) {
     }
 }
 
-DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32, usedEnergy: EnergySet) {
+DamageEnemy :: proc(enemy: ^EnemyInstance, damage: f32, usedEnergy: [EnergyType]int) {
     enemy.health -= damage
 
     if enemy.health <= 0 {

@@ -723,6 +723,8 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
     buildingTile := GetTileAtCoord(gridPos)
 
     if .RequireEnergy in building.flags {
+        // toSpawn.energySlots.len = building.energySlotsCount
+
         toSpawn.energyParticles = EnergyParticleSystem
         toSpawn.energyParticles.position = toSpawn.position
         dm.InitParticleSystem(&toSpawn.energyParticles)
@@ -734,7 +736,11 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     // @TODO: handle different building sizes
     if .ProduceEnergy in building.flags {
-        toSpawn.producedEnergyType = buildingTile.energy
+        newSlot: BuildingEnergySlot
+        newSlot.level = 1
+        newSlot.types[buildingTile.energy] = 1
+
+        sa.append(&toSpawn.energySlots, newSlot)
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)

@@ -70,7 +70,7 @@ GetTransitEnergy :: proc(handle: BuildingHandle) -> (amount: f32) {
     for packet in gameState.energyPackets.elements {
         if dm.IsHandleValid(gameState.energyPackets, packet.handle) {
             if packet.pathKey.to == handle {
-                amount += packet.energy
+                amount += packet.energy.amount
             }
         }
     }

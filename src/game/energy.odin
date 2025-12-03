@@ -7,6 +7,8 @@ import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:slice"
 
+import sa "core:container/small_array"
+
 EnergyType :: enum {
     None,
     Blue,  // standard
@@ -23,6 +25,12 @@ EnergyColor := [EnergyType]dm.color {
     .Red = dm.RED,
 }
 
+Energy :: struct {
+    level: i32,
+    amount: f32,
+    types: [EnergyType]int,
+}
+
 EnergyPacketHandle :: distinct dm.Handle
 EnergyPacket :: struct {
     handle: EnergyPacketHandle,
@@ -31,11 +39,10 @@ EnergyPacket :: struct {
 
     speed: f32,
 
-    energyType: EnergyType,
-    energy: f32,
+    // energyType: EnergyType,
+    // energy: f32,
+    energy: Energy,
 }
-
-EnergySet :: distinct [EnergyType]f32
 
 EnergyBalanceType :: enum {
     None,
@@ -45,54 +52,84 @@ EnergyBalanceType :: enum {
 
 EnergyRequest :: struct {
     to: BuildingHandle,
-    energy: f32,
-    type: EnergyType,
+    energy: Energy
+}
+
+EnergyTypeEqual :: proc(a, b: Energy) -> bool {
+    return a.level == b.level && a.types == b.types
 }
 
 BuildingEnergy :: proc(building: ^BuildingInstance) -> (sum: f32) {
-    for e in building.currentEnergy {
-        sum += e
+    for e in sa.slice(&building.energySlots) {
+        sum += e.amount
     }
 
     return sum
 }
 
-BiggestEnergy :: proc(building: ^BuildingInstance) -> (energy: f32, type: EnergyType) {
-    for e, i in building.currentEnergy {
-        if e >= energy {
-            energy = e
-            type = EnergyType(i)
+BiggestEnergy :: proc(building: ^BuildingInstance) -> (ret: Energy) {
+    // max := 0
+    for e, i in sa.slice(&building.energySlots) {
+        if e.amount >= ret.amount {
+            // energy = e
+            // type = EnergyType(i)
+            ret = e
         }
     }
 
     return
 }
 
-
-AddEnergy :: proc(building: ^BuildingInstance, type: EnergyType, value: f32) -> f32 {
-    data := &Buildings[building.dataIdx]
-
-    currentEnergy := BuildingEnergy(building)
-    spaceLeft := data.energyStorage - currentEnergy
-    clamped := clamp(value, 0, spaceLeft)
-
-    building.currentEnergy[type] += clamped
-    return value - clamped
-}
-
-RemoveEnergyFromBuilding :: proc(building: ^BuildingInstance, toRemove: f32) -> EnergySet {
-    currentEnergy := BuildingEnergy(building)
-
-    ret: EnergySet
-    for type in EnergyType {
-        ret[type] = toRemove * (building.currentEnergy[type] / currentEnergy)
-        building.currentEnergy[type] -= ret[type]
+GetEnergyPtr :: proc(building: ^BuildingInstance, type: [EnergyType]int, lvl: i32) -> ^Energy {
+    for &e in sa.slice(&building.energySlots) {
+        if e.types == type && e.level == lvl {
+            return &e
+        }
     }
 
-    return ret
+    return nil
 }
 
-GetEnergyColor :: proc(value: EnergySet) -> (color: dm.color) {
+AddEnergy :: proc(building: ^BuildingInstance, energy: Energy) -> bool {
+    for &e in sa.slice(&building.energySlots) {
+        if EnergyTypeEqual(e, energy) {
+            e.amount += energy.amount
+            return true
+        }
+    }
+
+    return false
+
+    // not found - add new entry
+    // sa.append(&building.energySlots, energy)
+
+    // data := &Buildings[building.dataIdx]
+
+    // energySlots := BuildingEnergy(building)
+    // spaceLeft := data.energyStorage - energySlots
+    // clamped := clamp(value, 0, spaceLeft)
+
+    // building.energySlots[type] += clamped
+    // return value - clamped
+}
+
+// RemoveEnergyFromBuilding :: proc(building: ^BuildingInstance, toRemove: f32) -> (ret: [EnergyType]f32) {
+//     energySlots := BuildingEnergy(building)
+
+//     for type in EnergyType {
+//         ret[type] = toRemove * (building.energySlots[type] / energySlots)
+//         building.energySlots[type] -= ret[type]
+//     }
+
+//     return ret
+// }
+
+GetEnergyColor :: proc {
+    GetEnergyColorAmount,
+    GetEnergyColorProportions,
+}
+
+GetEnergyColorAmount :: proc(value: [EnergyType]f32) -> (color: dm.color) {
     sum: f32
     for energy in value {
         sum += energy
@@ -108,3 +145,21 @@ GetEnergyColor :: proc(value: EnergySet) -> (color: dm.color) {
 
     return
 }
+
+GetEnergyColorProportions :: proc(value: [EnergyType]int) -> (color: dm.color) {
+    sum: f32
+    for energy in value {
+        sum += f32(energy)
+    }
+
+    if sum == 0 {
+        return {0, 0, 0, 1}
+    }
+
+    for type in EnergyType {
+        color += (f32(value[type]) / sum) * EnergyColor[type]
+    }
+
+    return
+}
+

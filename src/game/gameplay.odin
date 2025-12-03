@@ -106,139 +106,212 @@ GameplayUpdate :: proc() {
             buildingData := &Buildings[building.dataIdx]
 
             if .ProduceEnergy in buildingData.flags {
-                produced := buildingData.energyProduction * f32(dm.time.deltaTime)
+                currenEnergy := BuildingEnergy(building)
+                maxPerSlot := buildingData.energyStorage / f32(building.energySlots.len)
 
-                currentEnergy := BuildingEnergy(building)
-                storageLeft := buildingData.energyStorage - currentEnergy
-                produced = min(produced, storageLeft)
+                for &slot in sa.slice(&building.energySlots) {
+                    storageLeft := maxPerSlot - currenEnergy
 
-                building.currentEnergy[building.producedEnergyType] += produced
+                    produced := buildingData.energyProduction * f32(dm.time.deltaTime)
+                    slot.amount += produced
+                    slot.amount = min(slot.amount, maxPerSlot)
+                }
+
+
+                // building.energySlots[building.producedEnergyType] += produced
+
+                // type: [EnergyType]int
+                // type[building.producedEnergyType] = 1
+                // AddEnergy(building, Energy{
+                //     level = 1,
+                //     amount = produced,
+                //     types = building.producedEnergyType
+                // })
             }
 
             if .RequireEnergy in buildingData.flags {
 
+                // Find how much was already requested 
+                // calculate how much to request
+                // Put the request in the list
+
                 allEnergy := BuildingEnergy(building)
-
-                // find already requested energy count
-                requestedSourcesEnergy: [EnergyType]f32
-                for sourceHandle in building.energySources {
-                    source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
-
-                    for request in source.requestedEnergyQueue {
-                        if request.to == building.handle {
-                            requestedSourcesEnergy[request.type] += request.energy
-                        }
-                    }
-                }
-
-                iter := dm.MakePoolIter(&gameState.energyPackets)
-                for packet in dm.PoolIterate(&iter) {
+                
+                // find requested energy in traveling packets
+                allRequested: f32
+                allIter := dm.MakePoolIter(&gameState.energyPackets)
+                for packet in dm.PoolIterate(&allIter) {
                     if packet.pathKey.to == building.handle {
-                        requestedSourcesEnergy[packet.energyType] += packet.energy
+                        allRequested += packet.energy.amount
                     }
                 }
 
-                // the loop here is weird because I want to start
-                // the iteration from next unused energy source
-                // to prevent situations where building is
-                // supplied energy from just one source
-                // which happened to be updated first
+                maxPerSlot := buildingData.energyStorage / f32(building.energySlots.len)
 
-                sources: for i := 0; i < len(building.energySources); i += 1 {
-                    idx := (building.lastUsedSourceIdx + i + 1) % len(building.energySources)
-                    sourceHandle := building.energySources[idx]
-                    source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
-                    sourceData := Buildings[source.dataIdx]
+                // Find how much I need to request per slot
+                for slot in sa.slice(&building.energySlots) {
+                    // find requested energy in sources
+                    requested: f32
+                    for sourceHandle in building.energySources {
+                        source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
 
-                    eType: EnergyType
-                    maxDiff: f32
-                    neededEnergy: f32
-
-
-                    // find the energy type and amount in the list of energies
-                    // of the source building
-                    for current, type in building.currentEnergy {
-                        energy := (
-                            building.requiredEnergyFractions[type]
-                            - requestedSourcesEnergy[type]
-                            - building.currentEnergy[type]
-                        )
-                        energy = min(energy, sourceData.packetSize)
-
-                        diff := source.currentEnergy[type] - energy
-
-                        if energy > 0 &&
-                           source.currentEnergy[type] > 0 &&
-                           diff >= maxDiff
-                        {
-                            maxDiff = diff
-                            eType = type
-                            neededEnergy = energy
+                        for request in source.requestedEnergyQueue {
+                            if request.to == building.handle && EnergyTypeEqual(request.energy, slot) {
+                                // requestedSourcesEnergy[request.type] += request.energy
+                                requested += request.energy.amount
+                            }
                         }
                     }
 
-                    if neededEnergy <= 0 {
+                    // find requested energy in traveling packets
+                    iter := dm.MakePoolIter(&gameState.energyPackets)
+                    for packet in dm.PoolIterate(&iter) {
+                        if packet.pathKey.to == building.handle && EnergyTypeEqual(packet.energy, slot) {
+                            requested += packet.energy.amount
+                        }
+                    }
+
+                    energyNeeded := maxPerSlot - slot.amount - requested
+                    if energyNeeded <= 0 {
                         continue
                     }
 
-                    // check if the source building was already requested a packet
-                    for request in source.requestedEnergyQueue {
-                        if request.to == building.handle {
-                            continue sources
+                    if slot.amount + requested >= maxPerSlot {
+                        continue
+                    }
+
+                    if allEnergy + allRequested >= buildingData.energyStorage {
+                        continue
+                    }
+                    // the loop here is weird because I want to start
+                    // the iteration from next unused energy source
+                    // to prevent situations where building is
+                    // supplied energy from just one source
+                    // which happened to be updated first
+
+                    sources: for i := 0; i < len(building.energySources); i += 1 {
+                        idx := (slot.lastSourceIdx + i + 1) % len(building.energySources)
+                        sourceHandle := building.energySources[idx]
+                        source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+                        sourceData := Buildings[source.dataIdx]
+
+                        for sourceSlot in sa.slice(&source.energySlots) {
+                            if EnergyTypeEqual(sourceSlot.energy, slot.energy) {
+                                requestAmount := min(energyNeeded, sourceData.packetSize)
+
+                                requestEnergy := Energy {
+                                    amount = requestAmount,
+                                    level = sourceSlot.level,
+                                    types = sourceSlot.types
+                                }
+
+                                append(&source.requestedEnergyQueue, EnergyRequest{
+                                    to = building.handle,
+                                    energy = requestEnergy
+                                })
+                                building.lastUsedSourceIdx = idx
+                            }
                         }
                     }
-
-                    // I don't know if I will never need that
-                    // @TODO remove?
-                    balanceType := (int(buildingData.balanceType) >= int(sourceData.balanceType) ?
-                                    buildingData.balanceType :
-                                    sourceData.balanceType)
-
-                    if balanceType == .Balanced {
-                        if source.currentEnergy[eType] <= building.currentEnergy[eType] - neededEnergy {
-                            continue
-                        }
-                    }
-
-                    // Create the request
-                    append(&source.requestedEnergyQueue, EnergyRequest{
-                        to = building.handle,
-                        energy = neededEnergy,
-                        type = eType,
-                    })
-                    building.lastUsedSourceIdx = idx
                 }
 
-                building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
-                keys: dm.RandomColorKeys
-                sum: f32
 
-                idx := 1
-                for energy, typeIdx in building.currentEnergy {
-                    if energy != 0 {
-                        sum += energy
 
-                        type := EnergyType(typeIdx)
-                        keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
+                // sources: for i := 0; i < len(building.energySources); i += 1 {
+                //     idx := (building.lastUsedSourceIdx + i + 1) % len(building.energySources)
+                //     sourceHandle := building.energySources[idx]
+                //     source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
+                //     sourceData := Buildings[source.dataIdx]
 
-                        idx += 1
-                    }
-                }
-                keys.keysCount = idx
+                //     eType: EnergyType
+                //     maxDiff: f32
+                //     neededEnergy: f32
 
-                slice.sort_by(
-                    keys.keys[0:idx], 
-                    proc(a, b: dm.ValueKey(dm.color)) -> bool { 
-                        return a.time < b.time
-                    }
-                )
 
-                if sum == 0 {
-                    // keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
-                }
-                else {
-                    building.energyParticles.startColor = keys
-                }
+                //     // find the energy type and amount in the list of energies
+                //     // of the source building
+                //     for current, type in building.energySlots {
+                //         energy := (
+                //             building.requiredEnergyFractions[type]
+                //             - requestedSourcesEnergy[type]
+                //             - building.energySlots[type]
+                //         )
+                //         energy = min(energy, sourceData.packetSize)
+
+                //         diff := source.energySlots[type] - energy
+
+                //         if energy > 0 &&
+                //            source.energySlots[type] > 0 &&
+                //            diff >= maxDiff
+                //         {
+                //             maxDiff = diff
+                //             eType = type
+                //             neededEnergy = energy
+                //         }
+                //     }
+
+                //     if neededEnergy <= 0 {
+                //         continue
+                //     }
+
+                //     // check if the source building was already requested a packet
+                //     for request in source.requestedEnergyQueue {
+                //         if request.to == building.handle {
+                //             continue sources
+                //         }
+                //     }
+
+                //     // I don't know if I will never need that
+                //     // @TODO remove?
+                //     balanceType := (int(buildingData.balanceType) >= int(sourceData.balanceType) ?
+                //                     buildingData.balanceType :
+                //                     sourceData.balanceType)
+
+                //     if balanceType == .Balanced {
+                //         if source.energySlots[eType] <= building.energySlots[eType] - neededEnergy {
+                //             continue
+                //         }
+                //     }
+
+                //     // Create the request
+                //     append(&source.requestedEnergyQueue, EnergyRequest{
+                //         to = building.handle,
+                //         energy = neededEnergy,
+                //         type = eType,
+                //     })
+                //     building.lastUsedSourceIdx = idx
+                // }
+
+                // building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
+                // keys: dm.RandomColorKeys
+                // sum: f32
+
+                // idx := 1
+                // for energy, typeIdx in building.energySlots {
+                //     if energy != 0 {
+                //         sum += energy
+
+                //         type := EnergyType(typeIdx)
+                //         keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
+
+                //         idx += 1
+                //     }
+                // }
+                // keys.keysCount = idx
+
+                // slice.sort_by(
+                //     keys.keys[0:idx], 
+                //     proc(a, b: dm.ValueKey(dm.color)) -> bool { 
+                //         return a.time < b.time
+                //     }
+                // )
+
+                // if sum == 0 {
+                //     // keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
+                // }
+                // else {
+                //     building.energyParticles.startColor = keys
+                // }
             }
 
             if .SendsEnergy in buildingData.flags {
@@ -246,11 +319,14 @@ GameplayUpdate :: proc() {
                 canSpawn := building.packetSpawnTimer <= 0 &&
                             len(building.requestedEnergyQueue) > 0
 
-                if  canSpawn {
+                if canSpawn {
                     building.packetSpawnTimer = building.packetSpawnTimer
 
                     request := building.requestedEnergyQueue[0]
-                    if building.currentEnergy[request.type] < request.energy {
+                    energy := GetEnergyPtr(building, request.energy.types, request.energy.level)
+                    assert(energy != nil)
+
+                    if energy.amount < request.energy.amount {
                         continue
                     }
 
@@ -274,11 +350,13 @@ GameplayUpdate :: proc() {
                             packet.path = path
                             packet.position = CoordToPos(packet.path[0])
                             packet.speed = 6
-                            packet.energyType = request.type
+                            // packet.energy.types = request.types
+                            // packet.energy = request.energy
                             packet.energy = request.energy
                             packet.pathKey = pathKey
 
-                            building.currentEnergy[request.type] -= request.energy
+                            // building.energySlots[request.type] -= request.energy
+                            energy.amount -= request.energy.amount
                         }
                     }
                 }
@@ -331,8 +409,8 @@ GameplayUpdate :: proc() {
                 // dm.DrawDebugLine(dm.renderCtx, enemy.position, building.position, false)
 
 
-                currentEnergy := BuildingEnergy(building)
-                if currentEnergy >= buildingData.energyRequired &&
+                energySlots := BuildingEnergy(building)
+                if energySlots >= buildingData.energyRequired &&
                    building.attackTimer <= 0
                 {
                     building.attackTimer = buildingData.reloadTime
@@ -347,19 +425,30 @@ GameplayUpdate :: proc() {
 
                     // dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
-                    usedEnergy := RemoveEnergyFromBuilding(building, buildingData.energyRequired)
+                    slotToUse: ^BuildingEnergySlot
+                    for i := building.lastUsedSlotIdx; i < building.energySlots.len; i += 1 {
+                        idx := (i + 1) % building.energySlots.len
 
-                    switch buildingData.attackType {
-                    case .Simple:
-                        DamageEnemy(enemy, buildingData.damage, usedEnergy)
-
-                    case .Cannon:
-                        enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
-                        for e in enemies {
-                            DamageEnemy(e, buildingData.damage, usedEnergy)
+                        if building.energySlots.data[idx].amount >= buildingData.energyRequired {
+                            slotToUse = &building.energySlots.data[idx]
+                            break
                         }
-                    case .None:
-                        assert(false) // TODO: Error handling/logger
+                    }
+
+                    if slotToUse != nil {
+                        slotToUse.amount -= buildingData.energyRequired
+                        switch buildingData.attackType {
+                        case .Simple:
+                            DamageEnemy(enemy, buildingData.damage, slotToUse.types)
+
+                        case .Cannon:
+                            enemies := FindEnemiesInRange(enemy.position, buildingData.attackRadius)
+                            for e in enemies {
+                                DamageEnemy(e, buildingData.damage, slotToUse.types)
+                            }
+                        case .None:
+                            assert(false) // TODO: Error handling/logger
+                        }
                     }
                 }
             }
@@ -372,7 +461,8 @@ GameplayUpdate :: proc() {
             if packet.finishedPath {
                 building, ok := dm.GetElementPtr(gameState.spawnedBuildings, packet.pathKey.to)
                 if ok {
-                    building.currentEnergy[packet.energyType] += packet.energy
+                    // building.energySlots[packet.energyType] += packet.energy
+                    AddEnergy(building, packet.energy)
                 }
 
                 dm.FreeSlot(&gameState.energyPackets, packet.handle)
@@ -384,12 +474,12 @@ GameplayUpdate :: proc() {
                     if .EnergyModifier in data.flags {
                         switch modifier in data.energyModifier {
                         case SpeedUpModifier:
-                            packet.energy *= (1 - modifier.costPercent)
+                            packet.energy.amount *= (1 - modifier.costPercent)
                             packet.speed *= modifier.multiplier
 
-                        case ChangeColorModifier: 
-                            packet.energy *= (1 - modifier.costPercent)
-                            packet.energyType = modifier.targetType
+                        // case ChangeColorModifier: 
+                        //     packet.energy.amaount *= (1 - modifier.costPercent)
+                        //     packet.energyType = modifier.targetType
                         }
                     }
                 }
@@ -711,9 +801,9 @@ GameplayUpdate :: proc() {
                     }
                 }
 
-                if card(newPipeDir) == 1 {
-                    fmt.println(newPipeDir)
-                }
+                // if card(newPipeDir) == 1 {
+                //     fmt.println(newPipeDir)
+                // }
 
                 if prevTile.building == {} && RemoveMoneyForPipe(prevTile.pipeDir, newPipeDir) {
                     SetTilePipe(prevTile, newPipeDir)
@@ -806,7 +896,7 @@ GameplayUpdate :: proc() {
                     // dm.muiLabel(dm.mui, "requestedEnergy:", building.requestedEnergy)
 
                     if .RequireEnergy in data.flags {
-                        dm.muiLabel(dm.mui, "Fractions:", building.requiredEnergyFractions)
+                        // dm.muiLabel(dm.mui, "Fractions:", building.requiredEnergyFractions)
                     }
 
                     if .SendsEnergy in data.flags {
@@ -815,11 +905,19 @@ GameplayUpdate :: proc() {
 
                     dm.muiLabel(dm.mui, "Energy:", BuildingEnergy(building), "/", data.energyStorage)
                     if dm.muiHeader(dm.mui, "Energy") {
-                        for eType in EnergyType {
-                            dm.muiLayoutRow(dm.mui, {40, -1}, 13)
-                            dm.muiLabel(dm.mui, eType)
-                            dm.muiSlider(dm.mui, &building.currentEnergy[eType], 0, data.energyStorage)
+                        for &slot, i in sa.slice(&building.energySlots) {
+                            dm.muiLabel(dm.mui, "Slot", i)
+                            dm.muiLabel(dm.mui, "level:", slot.level)
+                            dm.muiLabel(dm.mui, "types:", slot.types)
+                            dm.muiLabel(dm.mui, "amont:", slot.amount)
+                            dm.muiLabel(dm.mui)
                         }
+
+                        // for eType in EnergyType {
+                        //     dm.muiLayoutRow(dm.mui, {40, -1}, 13)
+                        //     dm.muiLabel(dm.mui, eType)
+                        //     dm.muiSlider(dm.mui, &building.energySlots[eType], 0, data.energyStorage)
+                        // }
                     }
 
                     if dm.muiHeader(dm.mui, "Energy Targets") {
@@ -1033,7 +1131,7 @@ GameplayRender :: proc() {
         sprite.scale = f32(buildingData.size.x)
 
         pos := building.position
-        // color := GetEnergyColor(building.currentEnergy)
+        // color := GetEnergyColor(building.energySlots)
 
         // dm.SetShaderData(2, [4]f32{1, 0, 1, 1})
         dm.DrawSprite(sprite, pos)
@@ -1055,13 +1153,13 @@ GameplayRender :: proc() {
             dm.DrawRectBlank(rayPos, {glsl.length(delta), 0.08}, rotation = rot, color = {1, 1, 1, alpha})
         }
 
-        // currentEnergy := BuildingEnergy(&building)
+        // energySlots := BuildingEnergy(&building)
         // if buildingData.energyStorage != 0 {
         //     // @TODO this breaks batching
         //     dm.DrawWorldRect(
         //         dm.renderCtx.whiteTexture, 
         //         dm.ToV2(building.gridPos) + {f32(buildingData.size.x), f32(buildingData.size.y) / 2},
-        //         {0.1, currentEnergy / buildingData.energyStorage}
+        //         {0.1, energySlots / buildingData.energyStorage}
         //     )
         // }
 
@@ -1147,7 +1245,7 @@ GameplayRender :: proc() {
     packetIt := dm.MakePoolIter(&gameState.energyPackets)
     energyTex := dm.GetTextureAsset("Energy.png")
     for packet in dm.PoolIterate(&packetIt) {
-        dm.DrawRect(energyTex, packet.position, 1, color = EnergyColor[packet.energyType])
+        dm.DrawRect(energyTex, packet.position, 1, color = GetEnergyColor(packet.energy.types))
     }
 
     // draw Enemy

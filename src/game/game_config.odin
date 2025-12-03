@@ -4,7 +4,7 @@ import "core:mem"
 
 import dm "../dmcore"
 
-LEVEL_MEMORY :: mem.Kilobyte * 512
+LEVEL_MEMORY :: mem.Megabyte * 4
 PATH_MEMORY :: mem.Kilobyte * 128
 
 PLAYER_SPEED :: 10
@@ -21,6 +21,8 @@ SHOT_VISUAL_TIMER :: 0.1
 START_LEVEL :: "Level_0"
 
 STARTING_STAGE :: GameStage.Gameplay
+
+MAX_ENERGY_LEVEL :: 5
 
 // ENEMIES
 
@@ -93,6 +95,7 @@ Buildings := [?]Building {
 
         cost = 200,
 
+        energySlotsCount = 3,
         energyStorage = 100,
         // energyProduction = 25,
         balanceType = .Full,
@@ -111,6 +114,7 @@ Buildings := [?]Building {
 
         size = {1, 1},
 
+        energySlotsCount = 3,
         flags = { .RequireEnergy, .SendsEnergy },
 
         // restrictedTiles = {},
@@ -134,6 +138,7 @@ Buildings := [?]Building {
 
         size = {2, 2},
 
+        energySlotsCount = 3,
         flags = {.Attack, .RequireEnergy, .RotatingTurret},
 
         cost = 200,
@@ -168,22 +173,22 @@ Buildings := [?]Building {
         }
     },
 
-    {
-        name = "Modifier Color",
-        spriteName = "buildings.png",
-        spriteRect = {0, 0, 32, 32},
+    // {
+    //     name = "Modifier Color",
+    //     spriteName = "buildings.png",
+    //     spriteRect = {0, 0, 32, 32},
 
-        size = {1, 1},
+    //     size = {1, 1},
 
-        flags = { .EnergyModifier },
+    //     flags = { .EnergyModifier },
 
-        cost = 100,
+    //     cost = 100,
 
-        energyModifier = ChangeColorModifier {
-            costPercent = 0.4,
-            targetType = .Cyan
-        }
-    },
+    //     energyModifier = ChangeColorModifier {
+    //         costPercent = 0.4,
+    //         targetType = .Cyan
+    //     }
+    // },
 
     {
         name = "Wall",

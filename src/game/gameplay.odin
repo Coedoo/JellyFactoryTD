@@ -11,6 +11,9 @@ import "core:mem"
 
 import sa "core:container/small_array"
 
+import "core:encoding/cbor"
+import "core:os"
+
 BuildUpMode :: enum {
     None,
     Building,
@@ -992,6 +995,32 @@ GameplayUpdate :: proc() {
 
         if dm.UIButton(gameState.gamePaused ? "Resume" : "Pause") {
             gameState.gamePaused = !gameState.gamePaused
+        }
+
+        if dm.UIButton("Save game") {
+            if hotsave_data, err := cbor.marshal_into_bytes(gameState^, allocator = context.temp_allocator); err == nil {
+                if !os.write_entire_file("hotsave.cbor", hotsave_data) {
+                    fmt.println("Error")
+                }
+                else {
+                    fmt.println("Finished")
+                }
+            }
+            else {
+                fmt.println("failed to marshall data:", err)
+            }
+        }
+
+        if dm.UIButton("Load game") {
+            if data, ok := os.read_entire_file("hotsave.cbor"); ok {
+                err := cbor.unmarshal_from_bytes(data, gameState)
+                if err != nil {
+                    fmt.println("failed to unmarshall data:", err)
+                }
+            }
+            else {
+                fmt.println("failed to open file")
+            }
         }
     }
 

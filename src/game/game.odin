@@ -29,19 +29,21 @@ GameState :: struct {
     stage: GameStage,
     menuStage: MenuStage,
 
-    levelArena: mem.Arena,
-    levelAllocator: mem.Allocator,
+    levelArena: mem.Arena `cbor:"-"`,
+    levelAllocator: mem.Allocator `cbor:"-"`,
 
     levels: []Level,
-    loadedLevel: ^Level, // currentLevel
 
-    editorState: EditorState,
+    editorState: EditorState `cbor:"-"`,
 
     masterVolume: f32,
     musicVolume: f32,
     sfxVolume: f32,
 
+    loadedLevel: Level, // currentLevel 
+
     using levelState: struct {
+
         spawnedBuildings: dm.ResourcePool(BuildingInstance, BuildingHandle),
         enemies: dm.ResourcePool(EnemyInstance, EnemyHandle),
         energyPackets: dm.ResourcePool(EnergyPacket, EnergyPacketHandle),
@@ -70,8 +72,8 @@ GameState :: struct {
         turretFireParticle: dm.ParticleSystem,
 
         // Path
-        pathArena: mem.Arena,
-        pathAllocator: mem.Allocator,
+        pathArena: mem.Arena `cbor:"-"`,
+        pathAllocator: mem.Allocator `cbor:"-"`,
 
         cornerTiles: []iv2,
         paths: []SpawnPath,
@@ -205,18 +207,18 @@ GameLoad : dm.GameLoad : proc(platform: ^dm.Platform) {
     // @TODO @REWRITE
     Tileset.atlas.texture = dm.GetTextureAsset(Tileset.atlas.texAssetPath)
 
-    if gameState.loadedLevel == nil {
+    if gameState.loadedLevel.grid == nil {
         data, ok := os.read_entire_file("test_save.json")
         // @TODO @Allocation
-        gameState.loadedLevel = new(Level)
+        // gameState.loadedLevel = new(Level)
         if ok {
-            err := json.unmarshal(data, gameState.loadedLevel)
+            err := json.unmarshal(data, &gameState.loadedLevel)
 
             OpenLevel(gameState.loadedLevel)
         }
         else {
             if gameState.loadedLevel.sizeX == 0 || gameState.loadedLevel.sizeY == 0 {
-                InitNewLevel(gameState.loadedLevel, 32, 32)
+                InitNewLevel(&gameState.loadedLevel, 32, 32)
             }
 
             OpenLevel(gameState.loadedLevel)

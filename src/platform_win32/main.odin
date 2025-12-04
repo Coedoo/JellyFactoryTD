@@ -23,6 +23,8 @@ import "core:image/png"
 
 import "core:math/rand"
 
+import "core:encoding/cbor"
+
 window: ^sdl.Window
 
 engineData: dm.Platform
@@ -109,14 +111,14 @@ main :: proc() {
     if engineData.gameCode.preGameLoad != nil {
         engineData.gameCode.preGameLoad(&engineData.assets)
 
-        for name, &asset in engineData.assets.assetsMap {
+        for &asset in engineData.assets.assetsList {
             if asset.descriptor == nil {
-                fmt.eprintln("Incorrect asset descriptor for asset:", name)
+                fmt.eprintln("Incorrect asset descriptor for asset:", asset.fileName)
                 continue
             }
 
             path := strings.concatenate({dm.ASSETS_ROOT, asset.fileName}, context.temp_allocator)
-            fmt.println("Loading asset at path:", path)
+            // fmt.println("Loading asset at path:", path)
             data, ok := os.read_entire_file(path, context.allocator)
 
             if ok == false {
@@ -135,7 +137,7 @@ main :: proc() {
 
             case dm.ShaderAssetDescriptor:
                 str := strings.string_from_ptr(raw_data(data), len(data))
-                asset.handle = cast(dm.Handle) dm.CompileShaderSource(engineData.renderCtx, name, str)
+                asset.handle = cast(dm.Handle) dm.CompileShaderSource(engineData.renderCtx, asset.fileName, str)
 
             case dm.FontAssetDescriptor:
                 if desc.fontType == .SDF {
@@ -154,6 +156,8 @@ main :: proc() {
                     asset.fileData = fileData
                 }
             }
+
+            fmt.println("Loaded asset at path:", asset.fileName, "with:\t", asset.handle)
         }
     }
 

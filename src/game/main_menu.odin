@@ -49,12 +49,12 @@ MenuUpdate :: proc() {
             if dm.UIButton("Quit") {}
 
         case .LevelSelect:
-            for level in gameState.levels {
-                if dm.UIButton(level.name) {
-                    OpenLevelByName(level.name)
-                    gameState.stage = .Gameplay
-                }
-            }
+            // for level in gameState.levels {
+            //     if dm.UIButton(level.name) {
+            //         OpenLevelByName(level.name)
+            //         gameState.stage = .Gameplay
+            //     }
+            // }
 
             dm.UISpacer(20)
             if dm.UIButton("Back") do gameState.menuStage = .Main

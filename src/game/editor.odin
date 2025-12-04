@@ -96,13 +96,13 @@ InitEditor :: proc(state: ^EditorState) {
     //     spacing = {1, 1}
     // }
 
-    state.editedLevel = gameState.loadedLevel
+    state.editedLevel = &gameState.loadedLevel
 
     state.tileFlip = {}
 }
 
 CloseEditor :: proc(state: ^EditorState) {
-    gameState.loadedLevel = state.editedLevel
+    // gameState.loadedLevel = state.editedLevel
 
     RefreshAllPaths()
 }

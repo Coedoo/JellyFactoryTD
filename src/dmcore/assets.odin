@@ -3,6 +3,7 @@ package dmcore
 import "core:fmt"
 import "core:strings"
 import "core:os"
+import "core:slice"
 
 when ODIN_OS != .JS {
     ASSETS_ROOT :: #config(ASSET_ROOT, "../assets/")
@@ -38,6 +39,7 @@ AssetDescriptor :: union {
 }
 
 AssetData :: struct {
+    key: string,
     fileName: string,
     alias: string,
 
@@ -56,9 +58,10 @@ LoadEntry :: struct {
 }
 
 Assets :: struct {
-    assetsMap: map[string]AssetData,
+    // assetsMap: map[string]AssetData,
 
-    loadQueue: [dynamic]LoadEntry
+    assetsList: [dynamic]AssetData,
+    loadQueue: [dynamic]LoadEntry,
 }
 
 RegisterAsset :: proc(fileName: string, desc: AssetDescriptor, key: string = "") {
@@ -66,9 +69,11 @@ RegisterAsset :: proc(fileName: string, desc: AssetDescriptor, key: string = "")
 }
 
 RegisterAssetCtx :: proc(assets: ^Assets, fileName: string, desc: AssetDescriptor, key: string = "") {
-    if fileName in assets.assetsMap {
-        fmt.eprintln("Duplicated asset file name:", fileName, ". Skipping...")
-        return
+    for &a in assets.loadQueue {
+        if a.name == fileName {
+            fmt.eprintln("Duplicated asset file name:", fileName, ". Skipping...")
+            return
+        }
     }
 
 
@@ -82,28 +87,42 @@ RegisterAssetCtx :: proc(assets: ^Assets, fileName: string, desc: AssetDescripto
         clonedKey = strings.clone(key)
     }
 
-    assets.assetsMap[clonedKey] = AssetData {
+    data := AssetData {
+        key = clonedKey,
         fileName = clonedName,
         descriptor = desc,
     }
 
+    append(&assets.assetsList, data)
     append(&assets.loadQueue, LoadEntry{clonedKey, clonedName})
 }
 
-GetAssetData :: proc(fileName: string) -> ^AssetData {
-    return GetAssetDataCtx(assets, fileName)
+GetAssetData :: proc(key: string) -> ^AssetData {
+    return GetAssetDataCtx(assets, key)
 }
 
-GetAssetDataCtx :: proc(assets: ^Assets, fileName: string) -> ^AssetData {
-    return &assets.assetsMap[fileName]
+GetAssetDataCtx :: proc(assets: ^Assets, key: string) -> ^AssetData {
+    for &a in assets.assetsList {
+        if a.key == key {
+            return &a
+        }
+    }
+
+    return nil
 }
 
-GetAsset :: proc(fileName: string) -> Handle {
-    return GetAssetCtx(assets, fileName)
+GetAsset :: proc(key: string) -> Handle {
+    return GetAssetCtx(assets, key)
 }
 
-GetAssetCtx :: proc(assets: ^Assets, fileName: string) -> Handle {
-    return assets.assetsMap[fileName].handle
+GetAssetCtx :: proc(assets: ^Assets, key: string) -> Handle {
+    for &a in assets.assetsList {
+        if a.key == key {
+            return a.handle
+        }
+    }
+
+    return {}
 }
 
 GetTextureAsset :: proc(fileName: string) -> TexHandle {
@@ -116,26 +135,28 @@ GetTextureAssetCtx :: proc(assets: ^Assets, fileName: string) -> TexHandle {
 
 // @TODO: ReloadAsset
 
-ReleaseAssetData :: proc(fileName: string) {
-    ReleaseAssetDataCtx(assets, fileName)
+ReleaseAssetData :: proc(key: string) {
+    ReleaseAssetDataCtx(assets, key)
 }
 
-ReleaseAssetDataCtx :: proc(assets: ^Assets, fileName: string) {
-    assetData, ok := &assets.assetsMap[fileName]
-    if ok && assetData.fileData != nil {
+ReleaseAssetDataCtx :: proc(assets: ^Assets, key: string) {
+    // assetData, ok := assets.assetsMap[key]
+    assetData := GetAssetDataCtx(assets, key)
+    if assetData != nil && assetData.fileData != nil {
         delete(assetData.fileData)
         assetData.fileData = nil
     }
 }
 
 CheckAndHotReloadAssets :: proc(assets: ^Assets) {
-    for name, &asset in &assets.assetsMap {
+    // for name, &asset in &assets.assetsMap {
+    for &asset in assets.assetsList {
         switch desc in asset.descriptor {
         case FontAssetDescriptor, SoundAssetDescriptor:
             continue
 
         case TextureAssetDescriptor:
-            path := strings.concatenate({ASSETS_ROOT, name}, context.temp_allocator)
+            path := strings.concatenate({ASSETS_ROOT, asset.fileName}, context.temp_allocator)
             assetNewTime, err := os.last_write_time_by_name(path)
             if err == os.ERROR_NONE && assetNewTime > asset.lastWriteTime {
                 data, ok := os.read_entire_file(path, context.temp_allocator)
@@ -152,7 +173,7 @@ CheckAndHotReloadAssets :: proc(assets: ^Assets) {
             }
 
         case ShaderAssetDescriptor:
-            path := strings.concatenate({ASSETS_ROOT, name}, context.temp_allocator)
+            path := strings.concatenate({ASSETS_ROOT, asset.fileName}, context.temp_allocator)
             assetNewTime, err := os.last_write_time_by_name(path)
             if err == os.ERROR_NONE && assetNewTime > asset.lastWriteTime {
                 data, ok := os.read_entire_file(path, context.temp_allocator)
@@ -166,7 +187,7 @@ CheckAndHotReloadAssets :: proc(assets: ^Assets) {
                     InitShaderSource(renderCtx, shader, source)
 
                     asset.lastWriteTime = assetNewTime
-                    fmt.println("Reloading shader:", name)
+                    fmt.println("Reloading shader:", asset.fileName)
                 }
             }
         case RawFileAssetDescriptor: // @TODO: I'm not sure how to handle that, or even if I should?

@@ -45,7 +45,7 @@ TileSet :: struct {
 
 Tile :: struct {
     defIndex: int,
-    using def: ^TileDefinition `json:"-"`,
+    using def: ^TileDefinition `json:"-" cbor:"-"`,
 
     tileFlip: [2]bool,
 
@@ -149,7 +149,7 @@ GetSpawnPointByCoord :: proc {
 }
 
 GetSpawnPointByCoord_loadedlevel :: proc(coord: iv2) -> (spawn: SpawnPoint, ok: bool) {
-    return GetSpawnPointByCoord(coord, gameState.loadedLevel)
+    return GetSpawnPointByCoord(coord, &gameState.loadedLevel)
 }
 
 GetSpawnPointByCoord_givenlevel :: proc(coord: iv2, level: ^Level) -> (spawn: SpawnPoint, ok: bool) {
@@ -176,22 +176,22 @@ LoadLevels :: proc() -> (levels: []Level) {
     return nil
 }
 
-OpenLevelByName :: proc(name: string) {
-    for &l in gameState.levels {
-        if l.name == name {
-            // gameState.loadedLevel = &l
-            OpenLevel(&l)
-            break
-        }
-    }
+// OpenLevelByName :: proc(name: string) {
+//     for &l in gameState.levels {
+//         if l.name == name {
+//             // gameState.loadedLevel = &l
+//             OpenLevel(&l)
+//             break
+//         }
+//     }
 
-    fmt.println("Can't Open level with name:", name);
-}
+//     fmt.println("Can't Open level with name:", name);
+// }
 
-OpenLevel :: proc(level: ^Level) {
+OpenLevel :: proc(level: Level) {
     CloseCurrentLevel()
 
-    gameState.loadedLevel = level
+    // gameState.loadedLevel = level
 
     mem.zero_item(&gameState.levelState)
     free_all(gameState.levelAllocator)

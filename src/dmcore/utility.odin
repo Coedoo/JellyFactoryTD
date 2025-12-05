@@ -129,3 +129,22 @@ RandomDirection :: proc() -> v2 {
         math.sin(angle)
     }
 }
+
+//////
+
+@(require_results)
+SliceContainsComp :: proc(array: $A/[]$T, key: T, f: proc(T, T) -> bool) -> bool {
+    _, found := SliceSearchComp(array, key, f)
+    return found
+}
+
+
+@(require_results)
+SliceSearchComp :: proc(array: $A/[]$T, key: T, f: proc(T, T) -> bool) -> (index: int, found: bool) {
+    for x, i in array {
+        if f(key, x) {
+            return i, true
+        }
+    }
+    return -1, false
+}

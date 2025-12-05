@@ -713,16 +713,17 @@ TryPlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) -> bool {
 }
 
 PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
-    building := Buildings[buildingIdx]
+    buildingData := Buildings[buildingIdx]
     toSpawn := BuildingInstance {
         dataIdx = buildingIdx,
         gridPos = gridPos,
-        position = dm.ToV2(gridPos) + dm.ToV2(building.size) / 2,
+        position = dm.ToV2(gridPos) + dm.ToV2(buildingData.size) / 2,
+        energySlotsCount = len(buildingData.energySlotsIO)
     }
 
     buildingTile := GetTileAtCoord(gridPos)
 
-    if .RequireEnergy in building.flags {
+    if .RequireEnergy in buildingData.flags {
         // toSpawn.energySlots.len = building.energySlotsCount
 
         toSpawn.energyParticles = EnergyParticleSystem
@@ -730,24 +731,28 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
         dm.InitParticleSystem(&toSpawn.energyParticles)
     }
 
-    if .SendsEnergy in building.flags {
+    if .SendsEnergy in buildingData.flags {
         toSpawn.requestedEnergyQueue = make([dynamic]EnergyRequest, 0, 64, gameState.levelAllocator)
     }
 
-    // @TODO: handle different building sizes
-    if .ProduceEnergy in building.flags {
+    if .ProduceEnergy in buildingData.flags && buildingTile.energy != .None {
         newSlot: BuildingEnergySlot
         newSlot.level = 1
         newSlot.types[buildingTile.energy] = 1
+        newSlot.io = buildingData.energySlotsIO[0]
 
-        sa.append(&toSpawn.energySlots, newSlot)
+        toSpawn.energySlots[0] = newSlot
+    }
+
+    for &slot, i in Slots(&toSpawn) {
+        slot.io = buildingData.energySlotsIO[i]
     }
 
     handle := dm.AppendElement(&gameState.spawnedBuildings, toSpawn)
 
     // TODO: check for outside grid coords
-    for y in 0..<building.size.y {
-        for x in 0..<building.size.x {
+    for y in 0..<buildingData.size.y {
+        for x in 0..<buildingData.size.x {
             idx := CoordToIdx(gridPos + {x, y})
             gameState.loadedLevel.grid[idx].building = handle
             gameState.loadedLevel.grid[idx].pipeDir = {}
@@ -756,10 +761,10 @@ PlaceBuilding :: proc(buildingIdx: int, gridPos: iv2) {
 
     // Find and place pipes
     startX := gridPos.x - 1
-    endX   := gridPos.x + building.size.x
+    endX   := gridPos.x + buildingData.size.x
 
     startY := gridPos.y - 1
-    endY   := gridPos.y + building.size.y
+    endY   := gridPos.y + buildingData.size.y
 
     SetPipe :: proc(coord, neighbor: iv2, targetDir: Direction) {
         buildingTile := GetTileAtCoord(coord)

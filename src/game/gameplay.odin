@@ -110,26 +110,17 @@ GameplayUpdate :: proc() {
 
             if .ProduceEnergy in buildingData.flags {
                 currenEnergy := BuildingEnergy(building)
-                maxPerSlot := buildingData.energyStorage / f32(building.energySlots.len)
+                maxPerSlot := MaxEnergyPerSlot(building)
 
-                for &slot in sa.slice(&building.energySlots) {
-                    storageLeft := maxPerSlot - currenEnergy
+                for &slot in Slots(building) {
+                    if slot.types != {} {
+                        storageLeft := maxPerSlot - currenEnergy
 
-                    produced := buildingData.energyProduction * f32(dm.time.deltaTime)
-                    slot.amount += produced
-                    slot.amount = min(slot.amount, maxPerSlot)
+                        produced := buildingData.energyProduction * f32(dm.time.deltaTime)
+                        slot.amount += produced
+                        slot.amount = min(slot.amount, maxPerSlot)
+                    }
                 }
-
-
-                // building.energySlots[building.producedEnergyType] += produced
-
-                // type: [EnergyType]int
-                // type[building.producedEnergyType] = 1
-                // AddEnergy(building, Energy{
-                //     level = 1,
-                //     amount = produced,
-                //     types = building.producedEnergyType
-                // })
             }
 
             if .RequireEnergy in buildingData.flags {
@@ -149,10 +140,10 @@ GameplayUpdate :: proc() {
                     }
                 }
 
-                maxPerSlot := buildingData.energyStorage / f32(building.energySlots.len)
+                maxPerSlot := MaxEnergyPerSlot(building)
 
                 // Find how much I need to request per slot
-                for slot in sa.slice(&building.energySlots) {
+                for slot in Slots(building) {
                     // find requested energy in sources
                     requested: f32
                     for sourceHandle in building.energySources {
@@ -198,7 +189,7 @@ GameplayUpdate :: proc() {
                         source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
                         sourceData := Buildings[source.dataIdx]
 
-                        for sourceSlot in sa.slice(&source.energySlots) {
+                        for sourceSlot in Slots(source) {
                             if EnergyTypeEqual(sourceSlot.energy, slot.energy) {
                                 requestAmount := min(energyNeeded, sourceData.packetSize)
 
@@ -218,103 +209,36 @@ GameplayUpdate :: proc() {
                     }
                 }
 
+                building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
+                keys: dm.RandomColorKeys
+                sum: f32
 
+                idx := 1
+                for slot in Slots(building) {
+                    if slot.amount != 0 {
+                        sum += slot.amount
 
-                // sources: for i := 0; i < len(building.energySources); i += 1 {
-                //     idx := (building.lastUsedSourceIdx + i + 1) % len(building.energySources)
-                //     sourceHandle := building.energySources[idx]
-                //     source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
-                //     sourceData := Buildings[source.dataIdx]
+                        // type := EnergyType(typeIdx)
+                        keys.keys[idx] = {sum / allEnergy, GetEnergyColor(slot.types)}
 
-                //     eType: EnergyType
-                //     maxDiff: f32
-                //     neededEnergy: f32
+                        idx += 1
+                    }
+                }
+                keys.keysCount = idx
 
+                slice.sort_by(
+                    keys.keys[0:idx], 
+                    proc(a, b: dm.ValueKey(dm.color)) -> bool { 
+                        return a.time < b.time
+                    }
+                )
 
-                //     // find the energy type and amount in the list of energies
-                //     // of the source building
-                //     for current, type in building.energySlots {
-                //         energy := (
-                //             building.requiredEnergyFractions[type]
-                //             - requestedSourcesEnergy[type]
-                //             - building.energySlots[type]
-                //         )
-                //         energy = min(energy, sourceData.packetSize)
-
-                //         diff := source.energySlots[type] - energy
-
-                //         if energy > 0 &&
-                //            source.energySlots[type] > 0 &&
-                //            diff >= maxDiff
-                //         {
-                //             maxDiff = diff
-                //             eType = type
-                //             neededEnergy = energy
-                //         }
-                //     }
-
-                //     if neededEnergy <= 0 {
-                //         continue
-                //     }
-
-                //     // check if the source building was already requested a packet
-                //     for request in source.requestedEnergyQueue {
-                //         if request.to == building.handle {
-                //             continue sources
-                //         }
-                //     }
-
-                //     // I don't know if I will never need that
-                //     // @TODO remove?
-                //     balanceType := (int(buildingData.balanceType) >= int(sourceData.balanceType) ?
-                //                     buildingData.balanceType :
-                //                     sourceData.balanceType)
-
-                //     if balanceType == .Balanced {
-                //         if source.energySlots[eType] <= building.energySlots[eType] - neededEnergy {
-                //             continue
-                //         }
-                //     }
-
-                //     // Create the request
-                //     append(&source.requestedEnergyQueue, EnergyRequest{
-                //         to = building.handle,
-                //         energy = neededEnergy,
-                //         type = eType,
-                //     })
-                //     building.lastUsedSourceIdx = idx
-                // }
-
-                // building.energyParticles.emitRate = allEnergy / buildingData.energyStorage * 20
-                // keys: dm.RandomColorKeys
-                // sum: f32
-
-                // idx := 1
-                // for energy, typeIdx in building.energySlots {
-                //     if energy != 0 {
-                //         sum += energy
-
-                //         type := EnergyType(typeIdx)
-                //         keys.keys[idx] = {sum / allEnergy, EnergyColor[type]}
-
-                //         idx += 1
-                //     }
-                // }
-                // keys.keysCount = idx
-
-                // slice.sort_by(
-                //     keys.keys[0:idx], 
-                //     proc(a, b: dm.ValueKey(dm.color)) -> bool { 
-                //         return a.time < b.time
-                //     }
-                // )
-
-                // if sum == 0 {
-                //     // keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
-                // }
-                // else {
-                //     building.energyParticles.startColor = keys
-                // }
+                if sum == 0 {
+                    // keys = EnergyParticleSystem.color.(dm.ColorKeysOverLifetime)
+                }
+                else {
+                    building.energyParticles.startColor = keys
+                }
             }
 
             if .SendsEnergy in buildingData.flags {
@@ -429,11 +353,12 @@ GameplayUpdate :: proc() {
                     // dm.SpawnParticles(&gameState.turretFireParticle, 10, building.position + delta)
 
                     slotToUse: ^BuildingEnergySlot
-                    for i := building.lastUsedSlotIdx; i < building.energySlots.len; i += 1 {
-                        idx := (i + 1) % building.energySlots.len
+                    for i := building.lastUsedSlotIdx; i < building.energySlotsCount; i += 1 {
+                        idx := (i + 1) % building.energySlotsCount
 
-                        if building.energySlots.data[idx].amount >= buildingData.energyRequired {
-                            slotToUse = &building.energySlots.data[idx]
+                        if building.energySlots[idx].amount >= buildingData.energyRequired {
+                            slotToUse = &building.energySlots[idx]
+                            building.lastUsedSlotIdx = idx
                             break
                         }
                     }
@@ -528,41 +453,11 @@ GameplayUpdate :: proc() {
                 sa.append(&toRemoveWaves, waveIdx)
                 fmt.println("Wave", waveIdx, "Fully Spawned")
             }
-
-            // for type in EnemyType {
-            //     if waveState.enemies[type].fullySpawned {
-            //         continue
-            //     }
-
-            //     atLeastOneNotSpawned = true
-
-            //     waveState.enemies[type].timer += dm.time.deltaTime
-
-            //     spawnTime := max(wave.enemies[type].spawnTime, 0.01)
-            //     timerRunOut := waveState.enemies[type].timer >= spawnTime
-            //     hasEnemies := waveState.enemies[type].fullySpawned == false 
-
-            //     if timerRunOut && hasEnemies {
-            //         if waveState.enemies[type].spawnedCount >= wave.enemies[type].count {
-            //             waveState.enemies[type].fullySpawned = true
-            //             continue
-            //         }
-
-            //         waveState.enemies[type].timer = 0
-            //         waveState.enemies[type].spawnedCount += 1
-            //         SpawnEnemy(type, wave.spawnPointIdx)
-            //     }
-            // }
-
-            // if atLeastOneNotSpawned == false {
-            //     waveState.fullySpawned = true
-            //     fmt.println("Wave", waveState.waveIdx, "Fully Spawned")
-            // }
         }
 
-            for removeIdx in sa.slice(&toRemoveWaves) {
-                sa.ordered_remove(&gameState.wavesState, removeIdx)
-            }
+        for removeIdx in sa.slice(&toRemoveWaves) {
+            sa.ordered_remove(&gameState.wavesState, removeIdx)
+        }
 
     }
 
@@ -585,6 +480,8 @@ GameplayUpdate :: proc() {
                     neighbor.pipeDir -= { ReverseDir[dir] }
                 }
             }
+
+            pipeDir := tile.pipeDir
 
             tile.pipeDir = {}
             tile.pipeBridgeDir = {}
@@ -627,6 +524,16 @@ GameplayUpdate :: proc() {
                     }
                 }
             }
+
+            for dir in pipeDir {
+                neighborCoord := tile.gridPos + DirToVec[dir]
+                neighbor := GetTileAtCoord(neighborCoord)
+                
+                if ReverseDir[dir] in neighbor.pipeDir {
+                    CheckBuildingConnection(neighborCoord)
+                }
+            }
+
         }
     }
 
@@ -887,7 +794,7 @@ GameplayUpdate :: proc() {
         building, buildingData := GetBuilding(tile.building)
         // dm.DrawDebugCircle(dm.renderCtx, building.position, buildingData.range, false, dm.RED)
 
-        if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 140, 250}, {.NO_CLOSE}) {
+        if dm.muiBeginWindow(dm.mui, "Selected Building", {600, 10, 350, 500}, {.NO_CLOSE}) {
             dm.muiLabel(dm.mui, tile.pipeDir)
 
             if dm.muiHeader(dm.mui, "Building") {
@@ -908,12 +815,13 @@ GameplayUpdate :: proc() {
 
                     dm.muiLabel(dm.mui, "Energy:", BuildingEnergy(building), "/", data.energyStorage)
                     if dm.muiHeader(dm.mui, "Energy") {
-                        for &slot, i in sa.slice(&building.energySlots) {
-                            dm.muiLabel(dm.mui, "Slot", i)
-                            dm.muiLabel(dm.mui, "level:", slot.level)
-                            dm.muiLabel(dm.mui, "types:", slot.types)
-                            dm.muiLabel(dm.mui, "amont:", slot.amount)
-                            dm.muiLabel(dm.mui)
+                        for &slot, i in Slots(building) {
+                            if dm.muiHeader(dm.mui, fmt.tprint("Slot", i)) {
+                                dm.muiLabel(dm.mui, "level:", slot.level)
+                                dm.muiLabel(dm.mui, "types:", slot.types)
+                                dm.muiLabel(dm.mui, "amount:", slot.amount)
+                                dm.muiLabel(dm.mui, "io:", slot.io)
+                            }
                         }
 
                         // for eType in EnergyType {
@@ -931,7 +839,12 @@ GameplayUpdate :: proc() {
 
                     if dm.muiHeader(dm.mui, "Energy Sources") {
                         for b in building.energySources {
-                            dm.muiLabel(dm.mui, b)
+                            pathKey := PathKey{
+                                b,
+                                building.handle,
+                            }
+
+                            dm.muiLabel(dm.mui, b, "path len:", len(gameState.pathsBetweenBuildings[pathKey]))
                         }
                     }
 
@@ -998,7 +911,7 @@ GameplayUpdate :: proc() {
         }
 
         if dm.UIButton("Save game") {
-            if hotsave_data, err := cbor.marshal_into_bytes(gameState^, allocator = context.temp_allocator); err == nil {
+            if hotsave_data, err := cbor.marshal_into_bytes(gameState.levelState, allocator = context.temp_allocator); err == nil {
                 if !os.write_entire_file("hotsave.cbor", hotsave_data) {
                     fmt.println("Error")
                 }
@@ -1013,7 +926,7 @@ GameplayUpdate :: proc() {
 
         if dm.UIButton("Load game") {
             if data, ok := os.read_entire_file("hotsave.cbor"); ok {
-                err := cbor.unmarshal_from_bytes(data, gameState)
+                err := cbor.unmarshal_from_bytes(data, &gameState.levelState)
                 if err != nil {
                     fmt.println("failed to unmarshall data:", err)
                 }
@@ -1346,7 +1259,7 @@ GameplayRender :: proc() {
     // Draw Player
     dm.UpdateAndDrawParticleSystem(&gameState.playerMoveParticles)
     dm.AnimateSprite(&gameState.playerSprite, f32(dm.time.gameTime), 0.1)
-    dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
+    // dm.DrawSprite(gameState.playerSprite, gameState.playerPosition)
 
     // draw path -debug
     if gameState.debugDrawPath {

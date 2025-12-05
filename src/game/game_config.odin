@@ -74,6 +74,7 @@ Buildings := [?]Building {
         cost = 100,
 
         // producedEnergyType = .Blue, 
+        energySlotsIO = { SlotOut },
         energyStorage = 100,
         energyProduction = 25,
         balanceType = .Full,
@@ -95,7 +96,7 @@ Buildings := [?]Building {
 
         cost = 200,
 
-        energySlotsCount = 3,
+        energySlotsIO = { SlotIn, SlotIn, SlotIn, SlotOut },
         energyStorage = 100,
         // energyProduction = 25,
         balanceType = .Full,
@@ -114,7 +115,7 @@ Buildings := [?]Building {
 
         size = {1, 1},
 
-        energySlotsCount = 3,
+        energySlotsIO = { SlotIn, SlotIn, SlotIn },
         flags = { .RequireEnergy, .SendsEnergy },
 
         // restrictedTiles = {},
@@ -138,7 +139,7 @@ Buildings := [?]Building {
 
         size = {2, 2},
 
-        energySlotsCount = 3,
+        energySlotsIO = { SlotIn, SlotIn, SlotIn },
         flags = {.Attack, .RequireEnergy, .RotatingTurret},
 
         cost = 200,

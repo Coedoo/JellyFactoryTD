@@ -60,20 +60,22 @@ EnergyTypeEqual :: proc(a, b: Energy) -> bool {
 }
 
 BuildingEnergy :: proc(building: ^BuildingInstance) -> (sum: f32) {
-    for e in sa.slice(&building.energySlots) {
+    for e in Slots(building) {
         sum += e.amount
     }
 
     return sum
 }
 
-BiggestEnergy :: proc(building: ^BuildingInstance) -> (ret: Energy) {
-    // max := 0
-    for e, i in sa.slice(&building.energySlots) {
-        if e.amount >= ret.amount {
-            // energy = e
-            // type = EnergyType(i)
-            ret = e
+MaxEnergyPerSlot :: proc(building: ^BuildingInstance) -> (energy: f32) {
+    data := Buildings[building.dataIdx]
+    return data.energyStorage / f32(ActiveSlotsCount(building))
+}
+
+ActiveSlotsCount :: proc(building: ^BuildingInstance) -> (ret: int) {
+    for e in Slots(building) {
+        if e.types != {} {
+            ret += 1
         }
     }
 
@@ -81,7 +83,7 @@ BiggestEnergy :: proc(building: ^BuildingInstance) -> (ret: Energy) {
 }
 
 GetEnergyPtr :: proc(building: ^BuildingInstance, type: [EnergyType]int, lvl: i32) -> ^Energy {
-    for &e in sa.slice(&building.energySlots) {
+    for &e in Slots(building) {
         if e.types == type && e.level == lvl {
             return &e
         }
@@ -91,7 +93,7 @@ GetEnergyPtr :: proc(building: ^BuildingInstance, type: [EnergyType]int, lvl: i3
 }
 
 AddEnergy :: proc(building: ^BuildingInstance, energy: Energy) -> bool {
-    for &e in sa.slice(&building.energySlots) {
+    for &e in Slots(building) {
         if EnergyTypeEqual(e, energy) {
             e.amount += energy.amount
             return true

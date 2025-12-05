@@ -1,5 +1,6 @@
 package game
 
+import "base:builtin"
 import dm "../dmcore"
 import "core:math"
 import "core:math/rand"
@@ -28,16 +29,16 @@ BuildingFlag :: enum {
 
 BuildignFlags :: distinct bit_set[BuildingFlag]
 
-IOType :: enum {
-    None,
+SlotIOType :: enum {
     Input,
     Output,
 }
 
-BuildingIO :: struct {
-    offset: iv2,
-    type: IOType
-}
+SlotIO :: distinct bit_set[SlotIOType]
+SlotIn    :: SlotIO{ .Input }
+SlotOut   :: SlotIO{ .Output }
+SlotInOut :: SlotIO{ .Input, .Output }
+
 
 AttackType :: enum {
     None,
@@ -53,6 +54,8 @@ TargetingMethod :: enum {
 
 BuildingEnergySlot :: struct {
     using energy: Energy,
+
+    io: SlotIO,
     lastSourceIdx: int,
 }
 
@@ -72,7 +75,7 @@ Building :: struct {
     cost: int,
 
     // Energy
-    energySlotsCount: int,
+    energySlotsIO: []SlotIO,
     energyStorage: f32,
     energyProduction: f32,
 
@@ -101,7 +104,8 @@ BuildingInstance :: struct {
     gridPos: iv2,
     position: v2,
 
-    energySlots: sa.Small_Array(16, BuildingEnergySlot),
+    energySlotsCount: int,
+    energySlots: [MAX_SLOTS]BuildingEnergySlot,
 
     // energy production
     // producedEnergyLevel: int,
@@ -242,6 +246,10 @@ GetConnectedBuildings :: proc(startCoord: iv2, connectionPoints: ^map[BuildingHa
     return buildingsInNetwork[:]
 }
 
+Slots :: proc(building: ^BuildingInstance) -> []BuildingEnergySlot {
+    return building.energySlots[:building.energySlotsCount]
+}
+
 CheckBuildingConnection :: proc(startCoord: iv2) {
     connectionPoints := make(map[BuildingHandle]iv2, allocator = context.temp_allocator)
     buildingsInNetwork := GetConnectedBuildings(startCoord, &connectionPoints, allocator = context.temp_allocator)
@@ -292,6 +300,10 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
         }
     }
 
+    // if len(buildingsInNetwork) != 0 {
+    //     fmt.println(buildingsInNetwork)
+    // }
+
     for len(stack) > 0 {
         building := pop(&stack)
         append(&affectedTargets, building)
@@ -308,101 +320,68 @@ CheckBuildingConnection :: proc(startCoord: iv2) {
         }
     }
 
+
+    foundTypes := make([dynamic]Energy, 0, 16, allocator = context.temp_allocator)
     // Fill energy slots for the target
     for target in affectedTargets {
+        buildingData := Buildings[target.dataIdx]
+
+        // Sort energy sources by path length
+        context.user_ptr = &target.handle
+        slice.sort_by_cmp(target.energySources[:], proc(a, b: BuildingHandle) -> slice.Ordering {
+            targetHandle := cast(^BuildingHandle) context.user_ptr
+            aLen := len(gameState.pathsBetweenBuildings[PathKey{a, targetHandle^}])
+            bLen := len(gameState.pathsBetweenBuildings[PathKey{b, targetHandle^}])
+
+            return slice.cmp(aLen, bLen)
+        })
+
+
+        clear(&foundTypes)
         for sourceHandle in target.energySources {
             source, sourceData := GetBuilding(sourceHandle)
-            buildingData := Buildings[target.dataIdx]
-            if target.energySlots.len >= buildingData.energySlotsCount {
+            for sourceSlot in Slots(source) {
+                if .Output in sourceSlot.io {
+                    if dm.SliceContainsComp(foundTypes[:], sourceSlot.energy, EnergyTypeEqual) == false {
+                        append(&foundTypes, sourceSlot.energy)
+                    }
+                }
+            }
+        }
+
+        // if len(foundTypes) != 0 {
+        //     fmt.println(foundTypes)
+        // }
+
+        newSlots: [MAX_SLOTS]BuildingEnergySlot
+        for &s, i in newSlots {
+            s.io = buildingData.energySlotsIO[i]
+        }
+
+        idx: int
+        for type, i in foundTypes {
+            if i >= target.energySlotsCount {
                 break
             }
 
-            for sourceSlot in sa.slice(&source.energySlots) {
-                
-                found := false
-                for targetSlot in sa.slice(&target.energySlots) {
-                    if EnergyTypeEqual(sourceSlot, targetSlot) {
-                        found = true
-                        break
-                    }
-                }
+            // newSlots[i].io = buildingData.energySlotsIO[i]
+            if .Input not_in newSlots[i].io {
+                continue
+            }
 
-                if found == false {
-                    toAdd: BuildingEnergySlot
-                    toAdd.level = sourceSlot.level
-                    toAdd.types = sourceSlot.types
+            newSlots[idx].level = type.level
+            newSlots[idx].types = type.types
 
-                    sa.append(&target.energySlots, toAdd)
+            for targetSlot in Slots(target) {
+                if EnergyTypeEqual(targetSlot, newSlots[idx]) {
+                    newSlots[idx].amount = targetSlot.amount
+                    break
                 }
             }
 
-            // found := false
-            // for slot in sa.slice(&target.energySlots) {
-            //     if slot.level == i32(source.producedEnergyLevel) && source.producedEnergyType == slot.types {
-            //         found = true
-            //         break
-            //     }
-            // }
-
-            // if found == false {
-            //     sa.append(&target.energySlots, BuildingEnergySlot{
-            //         types = source.producedEnergyType,
-            //         level = i32(source.producedEnergyLevel),
-            //     })
-            // }
+            idx += 1
         }
+
+        target.energySlots = newSlots
     }
-
-    // travel upwards to find all energy sources
-    // for target in affectedTargets {
-    //     clear(&visited)
-
-    //     fractions: [EnergyType]f32
-
-    //     append(&visited, target.handle)
-
-    //     // fmt.println("For target: ", Buildings[target.dataIdx].name, target.handle)
-    //     for sourceHandle in target.energySources {
-    //         source := dm.GetElementPtr(gameState.spawnedBuildings, sourceHandle) or_continue
-    //         append(&stack, source)
-    //         if HasFlag(source^, .ProduceEnergy) == false {
-    //             append(&visited, sourceHandle)
-    //         }
-    //     }
-
-    //     sum: f32
-    //     for len(stack) > 0 {
-    //         source := pop(&stack)
-
-    //         // fmt.println("Visited:", source.handle, Buildings[source.dataIdx].name)
-
-    //         if HasFlag(source^, .ProduceEnergy) {
-    //             // type := Buildings[source.dataIdx].producedEnergyType
-    //             type := source.producedEnergyType
-    //             fractions[type] += 1
-
-    //             sum += 1
-    //         }
-
-    //         for parentHandle in source.energySources {
-    //             if slice.contains(visited[:], parentHandle) {
-    //                 continue
-    //             }
-
-    //             parent := dm.GetElementPtr(gameState.spawnedBuildings, parentHandle) or_continue
-    //             append(&stack, parent)
-    //             if HasFlag(parent^, .ProduceEnergy) == false {
-    //                 append(&visited, parentHandle)
-    //             }
-    //         }
-    //     }
-
-    //     if sum != 0 {
-    //         for &f in fractions {
-    //             f = f / sum * Buildings[target.dataIdx].energyStorage
-    //         }
-    //     }
-
-    //     target.requiredEnergyFractions = fractions
-    // }
 }
